@@ -90,6 +90,10 @@ impl Stroke {
     }
 
     pub fn extend(&mut self, sample: Sample, commands: &mut Vec<Command>) {
+        if sample.pressure <= 0.0 {
+            self.last = sample;
+            return;
+        }
         if (sample.timestamp_ms.wrapping_sub(self.last.timestamp_ms) as i32) < 0 {
             return;
         }
@@ -103,7 +107,7 @@ impl Stroke {
         } else {
             // Use the smaller endpoint radius so no interval exceeds one
             // quarter of the interpolated footprint's radius.
-            let spacing = 0.25 * self.radius(sample.pressure.min(self.last.pressure));
+            let spacing = (0.25 * self.radius(sample.pressure.min(self.last.pressure))).max(0.75);
             let mut next = (spacing - self.distance_since_dab).max(0.);
             while next <= distance {
                 let fraction = next / distance;
@@ -122,12 +126,6 @@ impl Stroke {
             self.distance_since_dab = spacing + distance - next;
         }
         self.last = sample;
-    }
-
-    pub fn extend_release(&mut self, sample: Sample, commands: &mut Vec<Command>) {
-        if sample.point != self.last.point {
-            self.extend(sample, commands);
-        }
     }
 
     pub fn finish(self, commands: &mut Vec<Command>) {

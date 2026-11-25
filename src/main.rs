@@ -1,5 +1,10 @@
+#![cfg_attr(not(test), windows_subsystem = "windows")]
+
+mod audio;
 mod benchmark;
+mod cabinet;
 mod gpu;
+mod notes;
 mod pen;
 mod pigment;
 mod stroke;
@@ -9,7 +14,7 @@ mod workbench;
 mod tests;
 
 use egui::{Color32, Pos2, Rect};
-use gpu::{Brush, BrushService, Command, PaintGpu, Surface, MAX_COMMANDS, SIDE};
+use gpu::{Brush, BrushService, Command, Dab, PaintGpu, Surface, MAX_COMMANDS, SIDE};
 use pen::{PenInput, Phase};
 use std::{
     path::PathBuf,
@@ -20,7 +25,7 @@ use stroke::{Sample, Source, Stroke};
 use winit::{
     application::ApplicationHandler,
     dpi::{LogicalSize, PhysicalPosition},
-    event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent},
+    event::{ElementState, MouseButton, MouseScrollDelta, Touch, TouchPhase, WindowEvent},
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
     window::{Window, WindowId},
 };
@@ -28,7 +33,70 @@ use winit::{
 type ExportResult = Receiver<Result<PathBuf, String>>;
 
 fn main() -> std::process::ExitCode {
-    let benchmark = std::env::args().any(|argument| argument == "--benchmark");
+    let args: Vec<String> = std::env::args().collect();
+    let is_cli = args.iter().any(|arg| {
+        arg == "--benchmark"
+            || arg == "--notes"
+            || arg == "--note-done"
+            || arg == "--inspect-pixel"
+            || arg == "--clear-done-notes"
+    });
+    #[cfg(windows)]
+    if is_cli {
+        unsafe {
+            windows_sys::Win32::System::Console::AttachConsole(
+                windows_sys::Win32::System::Console::ATTACH_PARENT_PROCESS,
+            );
+        }
+    }
+
+    if args.iter().any(|arg| arg == "--notes") {
+        let notes_list = notes::read(&notes::default_path());
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&notes_list).unwrap_or_default()
+        );
+        return std::process::ExitCode::SUCCESS;
+    }
+
+    if let Some(pos) = args.iter().position(|arg| arg == "--note-done") {
+        if let Some(id_str) = args.get(pos + 1) {
+            if let Ok(id) = id_str.parse::<u32>() {
+                if notes::set_done(&notes::default_path(), id, true) {
+                    println!("Marked note #{} as done.", id);
+                    return std::process::ExitCode::SUCCESS;
+                } else {
+                    eprintln!("Note #{} not found.", id);
+                    return std::process::ExitCode::FAILURE;
+                }
+            }
+        }
+    }
+
+    if args.iter().any(|arg| arg == "--clear-done-notes") {
+        let count = notes::clear_done(&notes::default_path());
+        println!("Cleared {} done note(s).", count);
+        return std::process::ExitCode::SUCCESS;
+    }
+
+    if let Some(pos) = args.iter().position(|arg| arg == "--inspect-pixel") {
+        if let (Some(xs), Some(ys)) = (args.get(pos + 1), args.get(pos + 2)) {
+            if let (Ok(x), Ok(y)) = (xs.parse::<u32>(), ys.parse::<u32>()) {
+                let inst = instance();
+                if let Ok((device, queue, _)) = pollster::block_on(gpu::device(&inst, None)) {
+                    let paint = PaintGpu::new(&device);
+                    let diag = paint.sample_diagnostics(&device, &queue, x, y);
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&diag).unwrap_or_default()
+                    );
+                    return std::process::ExitCode::SUCCESS;
+                }
+            }
+        }
+    }
+
+    let benchmark = args.iter().any(|argument| argument == "--benchmark");
     if let Err(error) = run(benchmark) {
         eprintln!("{error}");
         if !benchmark {
@@ -102,9 +170,24 @@ impl ApplicationHandler for App {
         if studio.window.id() != id {
             return;
         }
-        studio.drain_pen();
+        let mut redraw = studio.drain_pen();
         let response = studio.egui_state.on_window_event(&studio.window, &event);
-        let mut redraw = response.repaint;
+        redraw |= response.repaint;
+        if matches!(
+            &event,
+            WindowEvent::MouseInput {
+                button: MouseButton::Left,
+                state: ElementState::Released,
+                ..
+            } | WindowEvent::Touch(Touch {
+                phase: TouchPhase::Ended,
+                ..
+            })
+        ) {
+            // Egui activates the widget on its next layout. A pen down that
+            // follows the click must see the new brush and its queued paint.
+            studio.pen_waits_for_ui = true;
+        }
         match event {
             WindowEvent::CloseRequested => {
                 if studio.exporting.is_none() && studio.export_path.is_none() {
@@ -119,6 +202,7 @@ impl ApplicationHandler for App {
                 studio.palette = None;
                 studio.rag = None;
                 studio.pen.surfaces([None; 3], None);
+                studio.reset_pen();
                 studio.end_stroke();
                 if size.width != 0 && size.height != 0 {
                     studio.surface_config.width = size.width;
@@ -139,11 +223,13 @@ impl ApplicationHandler for App {
                 studio.palette = None;
                 studio.rag = None;
                 studio.pen.surfaces([None; 3], None);
+                studio.reset_pen();
                 studio.end_stroke();
                 redraw = true;
             }
             WindowEvent::Focused(false) => {
                 studio.pan_drag = None;
+                studio.reset_pen();
                 studio.end_stroke();
                 studio.cursor = None;
             }
@@ -358,13 +444,6 @@ impl ApplicationHandler for App {
             event_loop.set_control_flow(ControlFlow::WaitUntil(deadline));
             return;
         }
-        let animating = studio
-            .workbench
-            .flick
-            .is_some_and(|(_, time)| time.elapsed() < Duration::from_millis(420));
-        if animating {
-            studio.window.request_redraw();
-        }
         let ink_held = studio.stroke.as_ref().is_some_and(Stroke::ink_is_held);
         let ink_wet = studio.paint.ink_is_wet();
         let ink_animating = studio.drawable && (ink_held || ink_wet);
@@ -383,8 +462,9 @@ impl ApplicationHandler for App {
         }
         let polling = studio.exporting.is_some()
             || studio.placement_result.is_some()
-            || animating
-            || ink_animating;
+            || ink_animating
+            || studio.stroke.is_some()
+            || !studio.commands.is_empty();
         event_loop.set_control_flow(if polling {
             ControlFlow::WaitUntil(Instant::now() + Duration::from_millis(8))
         } else {
@@ -417,7 +497,8 @@ struct Studio {
     overlay: Option<Rect>,
     rag: Option<Rect>,
     rag_gesture: Option<(Source, Pos2)>,
-    swatches: [Color32; 6],
+    pen_waits_for_ui: bool,
+    selected_dossier: Option<&'static cabinet::PigmentDef>,
     brush: Brush,
     workbench: workbench::Workbench,
     placement_pending: bool,
@@ -426,6 +507,13 @@ struct Studio {
     benchmark_seeded: bool,
     ink_selected: bool,
     next_ink_step: Instant,
+
+    notes: Vec<notes::Note>,
+    note_tool: bool,
+    notes_manager_open: bool,
+    active_note_at: Option<Pos2>,
+    note_input_text: String,
+    selected_note: Option<u32>,
 
     pressure: f32,
     commands: Vec<Command>,
@@ -481,12 +569,13 @@ impl Studio {
             Some(device.limits().max_texture_dimension_2d as usize),
         );
         let pen = PenInput::attach(&window)?;
-        let swatches = std::array::from_fn(|i| {
-            let mut amount = [0.; 6];
-            amount[i] = 2.;
-            let [r, g, b] = pigment::rgb(amount);
-            Color32::from_rgb(r, g, b)
-        });
+        let mut commands = vec![Command::Initialize];
+        for (slot, p) in cabinet::PIGMENTS.iter().enumerate() {
+            commands.push(Command::EquipRack(slot, p.recipe));
+        }
+        let mut paint = paint;
+        let workbench = workbench::Workbench::default();
+        paint.lighting = workbench.lighting;
         Ok(Self {
             pen,
             window,
@@ -498,7 +587,7 @@ impl Studio {
             renderer,
             egui_state,
             texture_id,
-            swatches,
+            selected_dossier: None,
             drawable: true,
             canvas: None,
             viewport: None,
@@ -511,16 +600,23 @@ impl Studio {
             overlay: None,
             rag: None,
             rag_gesture: None,
+            pen_waits_for_ui: false,
             brush: Brush::Round,
-            workbench: workbench::Workbench::default(),
+            workbench,
             placement_pending: false,
             placement_result: None,
             workbench_status: String::new(),
             benchmark_seeded: false,
             ink_selected: false,
             next_ink_step: Instant::now(),
+            notes: notes::read(&notes::default_path()),
+            note_tool: false,
+            notes_manager_open: false,
+            active_note_at: None,
+            note_input_text: String::new(),
+            selected_note: None,
             pressure: 0.,
-            commands: vec![Command::Initialize],
+            commands,
             export_path: None,
             exporting: None,
             status: String::new(),
@@ -607,23 +703,55 @@ impl Studio {
         self.commands.push(Command::CheckTubes(tubes));
     }
 
-    fn service_brush(&mut self, service: BrushService) {
+    #[allow(dead_code)]
+    fn dip_brush(&mut self, tube: usize) {
         self.end_stroke();
         self.snapshot();
-        self.workbench.session.rinsed[self.brush.index()] = false;
+        let load = &mut self.workbench.session.loads[self.brush.index()];
+        *load = (*load + 0.25).min(1.0);
+        self.commands
+            .push(Command::Service(self.brush, BrushService::Dip(tube)));
+    }
+
+    fn dip_from_jar(&mut self, service: BrushService) {
+        self.end_stroke();
+        self.snapshot();
+        let load = &mut self.workbench.session.loads[self.brush.index()];
+        *load = (*load + 0.25).min(1.0);
         self.commands.push(Command::Service(self.brush, service));
+        self.ink_selected = false;
+        self.workbench.sampling = false;
     }
 
     fn wipe(&mut self) {
-        let fraction = if self.workbench.session.rinsed[self.brush.index()] {
-            0.
-        } else {
-            0.08
-        };
-        self.service_brush(BrushService::Wipe(fraction));
+        let current = self.workbench.session.loads[self.brush.index()];
+        if current <= 0.0001 {
+            return;
+        }
+        let target = (current - 0.10).max(0.0);
+        let scale = target / current;
+        self.end_stroke();
+        self.snapshot();
+        self.workbench.session.loads[self.brush.index()] = target;
+        self.commands
+            .push(Command::Service(self.brush, BrushService::Wipe(scale)));
+    }
+
+    fn clean_brush(&mut self) {
+        if self.workbench.session.loads[self.brush.index()] <= 0.0001 {
+            return;
+        }
+        self.end_stroke();
+        self.snapshot();
+        self.workbench.session.loads[self.brush.index()] = 0.0;
+        self.commands
+            .push(Command::Service(self.brush, BrushService::Wipe(0.0)));
     }
 
     fn start_stroke(&mut self, source: Source, position: Pos2, pressure: f32, timestamp_ms: u32) {
+        if pressure <= 0.0 {
+            return;
+        }
         if self.pan_drag.is_some()
             || self.placement_pending
             || self.stroke.is_some()
@@ -644,17 +772,23 @@ impl Studio {
                 if let Some(slot) = self
                     .workbench
                     .session
-                    .swatches
+                    .jars
                     .iter()
                     .position(|occupied| !*occupied)
                 {
                     self.snapshot();
-                    self.workbench.session.swatches[slot] = true;
-                    self.commands
-                        .push(Command::SaveSwatch(slot, [point.x as u32, point.y as u32]));
+                    self.workbench.session.jars[slot] = true;
+                    self.commands.push(Command::SaveSwatch(
+                        slot,
+                        Surface::Palette,
+                        [point.x as u32, point.y as u32],
+                    ));
+                    self.workbench_status =
+                        format!("Filled Jar {} with palette mixture.", slot + 1);
+                    audio::play(audio::Sound::JarClack);
                 } else {
                     self.workbench_status =
-                        "Swatch strip full. Remove a swatch to make room.".into();
+                        "Custom jar shelf full (64 jars). Empty a jar to make room.".into();
                 }
                 return;
             }
@@ -663,6 +797,42 @@ impl Studio {
             }
             (Surface::Palette, point)
         } else if let Some(point) = self.to_surface(Surface::Canvas, position) {
+            if self.active_note_at.is_some() {
+                if self.note_input_text.trim().is_empty() {
+                    self.active_note_at = Some(point);
+                }
+                return;
+            }
+            if self.note_tool {
+                self.active_note_at = Some(point);
+                self.selected_note = None;
+                self.note_input_text.clear();
+                return;
+            }
+            if self.workbench.sampling {
+                self.workbench.sampling = false;
+                if let Some(slot) = self
+                    .workbench
+                    .session
+                    .jars
+                    .iter()
+                    .position(|occupied| !*occupied)
+                {
+                    self.snapshot();
+                    self.workbench.session.jars[slot] = true;
+                    self.commands.push(Command::SaveSwatch(
+                        slot,
+                        Surface::Canvas,
+                        [point.x as u32, point.y as u32],
+                    ));
+                    self.workbench_status = format!("Filled Jar {} with canvas color.", slot + 1);
+                    audio::play(audio::Sound::JarClack);
+                } else {
+                    self.workbench_status =
+                        "Custom jar shelf full (64 jars). Empty a jar to make room.".into();
+                }
+                return;
+            }
             (Surface::Canvas, point)
         } else {
             return;
@@ -677,6 +847,14 @@ impl Studio {
         self.stroke = Some(if self.ink_selected && surface == Surface::Canvas {
             Stroke::start_ink(source, sample, &mut self.commands)
         } else {
+            if surface == Surface::Canvas {
+                let dep = (0.0008
+                    * (self.workbench.sizes[self.brush.index()] / 64.0).clamp(0.4, 2.0)
+                    * pressure)
+                    .min(0.002);
+                let load = &mut self.workbench.session.loads[self.brush.index()];
+                *load = (*load - dep).max(0.0);
+            }
             Stroke::start(
                 source,
                 sample,
@@ -700,6 +878,10 @@ impl Studio {
     }
 
     fn move_stroke(&mut self, source: Source, position: Pos2, pressure: f32, timestamp_ms: u32) {
+        if pressure <= 0.0 {
+            self.end_stroke();
+            return;
+        }
         self.wipe_gesture(source, position);
         let Some(surface) = self
             .stroke
@@ -715,6 +897,8 @@ impl Studio {
         };
         self.pressure = pressure;
         if let Some(stroke) = &mut self.stroke {
+            let before = self.commands.len();
+            let surface = stroke.surface;
             stroke.extend(
                 Sample {
                     point,
@@ -723,13 +907,35 @@ impl Studio {
                 },
                 &mut self.commands,
             );
+            if !self.ink_selected && surface == Surface::Canvas {
+                let dabs = self.commands.len() - before;
+                if dabs > 0 {
+                    let dep = (0.0008
+                        * (self.workbench.sizes[self.brush.index()] / 64.0).clamp(0.4, 2.0)
+                        * pressure)
+                        .min(0.002);
+                    let load = &mut self.workbench.session.loads[self.brush.index()];
+                    *load = (*load - dabs as f32 * dep).max(0.0);
+                }
+            }
         }
     }
 
     fn end_stroke(&mut self) {
         self.rag_gesture = None;
         if let Some(stroke) = self.stroke.take() {
+            let before = self.commands.len();
+            let surface = stroke.surface;
             stroke.finish(&mut self.commands);
+            if !self.ink_selected && surface == Surface::Canvas {
+                let dabs = self.commands.len() - before;
+                if dabs > 0 {
+                    let dep =
+                        0.0008 * (self.workbench.sizes[self.brush.index()] / 64.0).clamp(0.4, 2.0);
+                    let load = &mut self.workbench.session.loads[self.brush.index()];
+                    *load = (*load - dabs as f32 * dep).max(0.0);
+                }
+            }
         }
         self.pressure = 0.;
     }
@@ -751,6 +957,9 @@ impl Studio {
     }
 
     fn drain_pen(&mut self) -> bool {
+        if self.pen_waits_for_ui {
+            return false;
+        }
         let samples = self.pen.drain();
         for sample in &samples {
             let [x, y] = sample.position;
@@ -764,53 +973,9 @@ impl Studio {
                 }
                 Phase::Up => {
                     self.wipe_gesture(Source::Pen, pos);
-                    if self
-                        .rag_gesture
-                        .is_some_and(|(source, _)| source == Source::Pen)
-                    {
-                        self.rag_gesture = None;
-                    }
-                    if let Some(point) = self
-                        .stroke
-                        .as_ref()
-                        .and_then(|stroke| self.to_surface(stroke.surface, pos))
-                    {
-                        if let Some(stroke) =
-                            self.stroke.as_mut().filter(|s| s.source == Source::Pen)
-                        {
-                            stroke.extend_release(
-                                Sample {
-                                    point,
-                                    pressure: sample.pressure,
-                                    timestamp_ms: sample.timestamp_ms,
-                                },
-                                &mut self.commands,
-                            );
-                        }
-                    }
-                    if self
-                        .stroke
-                        .as_ref()
-                        .is_some_and(|s| s.source == Source::Pen)
-                    {
-                        self.end_stroke();
-                    }
+                    self.end_pen_stroke();
                 }
-                Phase::Cancel => {
-                    if self
-                        .rag_gesture
-                        .is_some_and(|(source, _)| source == Source::Pen)
-                    {
-                        self.rag_gesture = None;
-                    }
-                    if self
-                        .stroke
-                        .as_ref()
-                        .is_some_and(|s| s.source == Source::Pen)
-                    {
-                        self.end_stroke();
-                    }
-                }
+                Phase::Cancel => self.end_pen_stroke(),
                 Phase::MouseCaptureLost => {
                     self.pan_drag = None;
                     if self
@@ -832,7 +997,29 @@ impl Studio {
         !samples.is_empty()
     }
 
+    fn reset_pen(&mut self) {
+        self.pen_waits_for_ui = false;
+        self.pen.reset_contact();
+    }
+
+    fn end_pen_stroke(&mut self) {
+        if self
+            .rag_gesture
+            .is_some_and(|(source, _)| source == Source::Pen)
+        {
+            self.rag_gesture = None;
+        }
+        if self
+            .stroke
+            .as_ref()
+            .is_some_and(|stroke| stroke.source == Source::Pen)
+        {
+            self.end_stroke();
+        }
+    }
+
     fn layout(&mut self, ctx: &egui::Context) {
+        let prev_lighting = self.workbench.lighting;
         egui::TopBottomPanel::top("tools").show(ctx, |ui| {
             ui.add_space(6.);
             ui.horizontal(|ui| {
@@ -843,6 +1030,7 @@ impl Studio {
                     ctx.input_mut(|input| input.consume_key(egui::Modifiers::CTRL, egui::Key::Z));
                 if ui
                     .add_enabled(can_undo, egui::Button::new("Undo"))
+                    .on_hover_text("Undo last stroke or action (Ctrl+Z)")
                     .clicked()
                     || (can_undo && undo_shortcut)
                 {
@@ -850,6 +1038,78 @@ impl Studio {
                     if self.workbench.undo() {
                         self.commands.push(Command::Undo);
                     }
+                }
+                let typing = ctx.wants_keyboard_input();
+                let undo_shortcut =
+                    !typing && ctx.input_mut(|input| input.consume_key(egui::Modifiers::CTRL, egui::Key::Z));
+                if ui
+                    .add_enabled(can_undo, egui::Button::new("Undo"))
+                    .on_hover_text("Undo last stroke or action (Ctrl+Z)")
+                    .clicked()
+                    || (can_undo && undo_shortcut)
+                {
+                    self.end_stroke();
+                    if self.workbench.undo() {
+                        self.commands.push(Command::Undo);
+                    }
+                }
+                let dry_shortcut =
+                    !typing && ctx.input_mut(|input| input.consume_key(egui::Modifiers::CTRL, egui::Key::D));
+                let note_shortcut =
+                    !typing && ctx.input_mut(|input| input.consume_key(egui::Modifiers::NONE, egui::Key::N));
+                let f12_pressed =
+                    ctx.input_mut(|input| input.consume_key(egui::Modifiers::NONE, egui::Key::F12));
+
+                if note_shortcut && self.active_note_at.is_none() {
+                    self.note_tool = !self.note_tool;
+                    if self.note_tool {
+                        self.workbench_status = "📌 Note tool active: Click on canvas to pin a note for the agent (N to toggle).".into();
+                    } else {
+                        self.workbench_status = "Note tool deactivated.".into();
+                    }
+                }
+
+                if f12_pressed {
+                    if let Some(cursor_pos) = self.cursor {
+                        if let Some(pt) = self.to_surface(Surface::Canvas, cursor_pos) {
+                            let diag = self.paint.sample_diagnostics(&self.device, &self.queue, pt.x as u32, pt.y as u32);
+                            let note = notes::add(&notes::default_path(), pt.x, pt.y, "Quick F12 diagnostic dump", "artist", Some(diag));
+                            self.notes = notes::read(&notes::default_path());
+                            self.workbench_status = format!("F12: Dumped diagnostic note #{} at ({:.0}, {:.0}).", note.id, pt.x, pt.y);
+                            audio::play(audio::Sound::BrassClick);
+                        }
+                    }
+                }
+
+                let note_btn = ui.selectable_label(self.note_tool, "📌 Note (N)")
+                    .on_hover_text("Toggle Note tool (N): Click anywhere on the canvas to drop a pinned diagnostic note for the agent. Hover and press F12 for quick dump.");
+                if note_btn.clicked() {
+                    self.note_tool = !self.note_tool;
+                    if self.note_tool {
+                        self.workbench_status = "📌 Note tool active: Click on canvas to pin a note for the agent.".into();
+                    }
+                }
+
+                let total_notes = self.notes.len();
+                let open_notes = self.notes.iter().filter(|n| !n.done).count();
+                let notes_list_btn = ui.selectable_label(
+                    self.notes_manager_open,
+                    format!("📋 Notes ({open_notes}/{total_notes}) ▾"),
+                ).on_hover_text("Open Notes Manager: view, manage, inspect, or pan to pinned notes.");
+                if notes_list_btn.clicked() {
+                    self.notes_manager_open = !self.notes_manager_open;
+                }
+
+                if ui
+                    .button("☀️ Dry canvas")
+                    .on_hover_text("Lock and cure wet paint into a permanent dry underlayer (Ctrl+D). Allows glazing and painting over background without bleed-through or brush contamination.")
+                    .clicked()
+                    || dry_shortcut
+                {
+                    self.end_stroke();
+                    self.snapshot();
+                    self.commands.push(Command::DryCanvas);
+                    audio::play(audio::Sound::BrassClick);
                 }
                 if ui.button("Fit canvas").clicked() {
                     self.end_stroke();
@@ -882,16 +1142,11 @@ impl Studio {
         self.palette = None;
         self.palette_clip = None;
         self.rag = None;
+        self.overlay = None;
         egui::SidePanel::right("workbench")
             .resizable(false)
-            .exact_width(304.)
-            .show(ctx, |ui| {
-                egui::ScrollArea::vertical()
-                    .auto_shrink([false, false])
-                    .show(ui, |ui| {
-                        self.workbench_ui(ui);
-                    });
-            });
+            .exact_width(workbench_width(ctx))
+            .show(ctx, |ui| self.workbench_ui(ui));
 
         egui::CentralPanel::default()
             .frame(egui::Frame::new().fill(Color32::from_rgb(20, 21, 24)))
@@ -913,20 +1168,62 @@ impl Studio {
                 );
                 if self.pan_drag.is_some() {
                     ctx.set_cursor_icon(egui::CursorIcon::Grabbing);
+                } else if self.note_tool || self.workbench.sampling {
+                    ctx.set_cursor_icon(egui::CursorIcon::PointingHand);
                 } else if ui.rect_contains_pointer(canvas.intersect(room)) {
                     ctx.set_cursor_icon(egui::CursorIcon::Crosshair);
                 }
+                let note_popup_rect = self.draw_note_pins(ui, room, canvas);
+                if let Some(nr) = note_popup_rect {
+                    self.overlay = Some(physical_rect(ctx, nr));
+                }
                 self.canvas = Some(physical);
             });
+        self.pigment_info_ui(ctx);
         self.guide_ui(ctx);
+        self.notes_manager_ui(ctx);
+
+        if self.workbench.lighting != prev_lighting {
+            self.paint.lighting = self.workbench.lighting;
+            self.commands
+                .push(Command::Dab(Dab::operation(Surface::Canvas.bounds(), 1)));
+            self.window.request_redraw();
+        }
         self.update_pen_regions();
     }
 
     fn workbench_ui(&mut self, ui: &mut egui::Ui) {
+        let height = ui.available_height();
+        // Keep palette and brush controls in view while leaving room for jars in short windows.
+        egui::ScrollArea::vertical()
+            .id_salt("paint_tools")
+            .max_height((height - 110.).max(height * 0.65))
+            .min_scrolled_height(0.)
+            .auto_shrink([false, true])
+            .drag_to_scroll(false)
+            .show(ui, |ui| {
+                self.mixing_palette_ui(ui);
+                self.brush_controls_ui(ui);
+            });
+
+        ui.separator();
+        ui.heading("Atelier Rack");
+        egui::ScrollArea::vertical()
+            .id_salt("atelier_rack")
+            .min_scrolled_height(0.)
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                self.atelier_rack_ui(ui);
+                self.custom_jars_ui(ui);
+                self.studio_settings_ui(ui);
+            });
+    }
+
+    fn mixing_palette_ui(&mut self, ui: &mut egui::Ui) {
         ui.add_space(6.);
         ui.heading("Mixing palette");
         ui.add_space(4.);
-        let width = ui.available_width();
+        let width = ui.available_width().min(288.);
         let (palette, _) =
             ui.allocate_exact_size(egui::vec2(width, width * 0.5), egui::Sense::hover());
         ui.painter().image(
@@ -954,11 +1251,14 @@ impl Studio {
 
         ui.horizontal(|ui| {
             if ui
-                .selectable_label(self.workbench.sampling, "Save swatch")
-                .on_hover_text("Then tap a color on the palette")
+                .selectable_label(self.workbench.sampling, "Fill Jar")
+                .on_hover_text(
+                    "Then tap a mixed color on the canvas or palette to fill a custom jar",
+                )
                 .clicked()
             {
                 self.workbench.sampling = !self.workbench.sampling;
+                self.workbench_status.clear();
             }
             if ui
                 .add_enabled(!self.placement_pending, egui::Button::new("Clear palette"))
@@ -970,75 +1270,183 @@ impl Studio {
             }
         });
         if self.workbench.sampling {
-            ui.label("Tap the mixture to save it.");
+            ui.label("Tap a color on the canvas or palette to fill a jar.");
         }
-        ui.horizontal_wrapped(|ui| {
-            for (slot, occupied) in self.workbench.session.swatches.into_iter().enumerate() {
-                if !occupied {
-                    continue;
-                }
-                let (rect, response) =
-                    ui.allocate_exact_size(egui::vec2(20., 19.), egui::Sense::click());
-                ui.painter().image(
-                    self.texture_id,
-                    rect,
-                    gpu::atlas_uv(gpu::swatch_bounds(slot)),
-                    Color32::WHITE,
-                );
-                if response.on_hover_text("Click to remove swatch").clicked() {
-                    self.end_stroke();
-                    self.snapshot();
-                    self.workbench.session.swatches[slot] = false;
-                    self.commands.push(Command::RemoveSwatch(slot));
-                }
-            }
-        });
         if !self.workbench_status.is_empty() {
             ui.label(&self.workbench_status);
         }
+    }
 
-        ui.separator();
-        ui.strong("Paint jars");
-        for (i, name) in pigment::NAMES.iter().enumerate() {
-            ui.horizontal(|ui| {
-                let (jar, icon) =
-                    ui.allocate_exact_size(egui::vec2(20., 18.), egui::Sense::click());
-                let lid = Rect::from_min_size(jar.min + egui::vec2(3., 1.), egui::vec2(14., 4.));
-                let body =
-                    Rect::from_min_max(jar.min + egui::vec2(1., 5.), jar.max - egui::vec2(1., 1.));
-                ui.painter().rect_filled(lid, 1., Color32::from_gray(140));
-                ui.painter().rect_filled(body, 3., self.swatches[i]);
-                let dip = ui
-                    .small_button(*name)
-                    .on_hover_text("Dip the active brush into this jar for a full load");
-                if icon.on_hover_text(format!("Dip into {name}")).clicked() || dip.clicked() {
-                    self.service_brush(BrushService::Dip(i));
-                    self.ink_selected = false;
-                }
-                if ui
-                    .add_enabled(!self.placement_pending, egui::Button::new("Dab").small())
-                    .on_hover_text(format!("Put a dab of {name} on the mixing palette"))
-                    .clicked()
-                {
-                    self.place_tubes([i as u32 + 1, 0, 0, 0]);
-                }
-                if ui
-                    .small_button("Info")
-                    .on_hover_text(format!("About {name}"))
-                    .clicked()
-                {
-                    self.workbench.exercise = false;
-                    self.workbench.guide = Some(i);
-                }
-            });
+    fn atelier_rack_ui(&mut self, ui: &mut egui::Ui) {
+        let gap = 6.;
+        let width = ui.available_width();
+        let columns = if width >= 366. { 2 } else { 1 };
+        let tile_width = (width - gap * (columns - 1) as f32) / columns as f32;
+        for group in cabinet::PigmentGroup::ALL {
+            ui.add_space(4.);
+            ui.strong(egui::RichText::new(group.title()).size(15.));
+            egui::Grid::new(group.title())
+                .num_columns(columns)
+                .spacing([gap, 2.])
+                .show(ui, |ui| {
+                    for (row_index, (slot, pigment)) in cabinet::PIGMENTS
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, pigment)| pigment.group == group)
+                        .enumerate()
+                    {
+                        ui.push_id(pigment.id, |ui| {
+                            self.pigment_tile(ui, tile_width, slot, pigment);
+                        });
+                        if (row_index + 1) % columns == 0 {
+                            ui.end_row();
+                        }
+                    }
+                });
         }
+    }
+
+    fn pigment_tile(
+        &mut self,
+        ui: &mut egui::Ui,
+        width: f32,
+        slot: usize,
+        pigment: &'static cabinet::PigmentDef,
+    ) {
+        let jar_size = egui::vec2(40., 36.);
+        let info_width = 35.;
+        let padding = 5.;
+        let name_x = jar_size.x + 2. * padding;
+        let name_width = (width - info_width - name_x - padding).max(1.);
+        let name = ui.painter().layout(
+            pigment.name.to_owned(),
+            egui::FontId::proportional(16.),
+            ui.visuals().text_color(),
+            name_width,
+        );
+        let height = (name.size().y + 6.).max(46.);
+        let (tile, _) = ui.allocate_exact_size(egui::vec2(width, height), egui::Sense::hover());
+        let dip_rect = Rect::from_min_max(tile.min, tile.max - egui::vec2(info_width, 0.));
+        let dip = ui.interact(dip_rect, ui.id().with("dip"), egui::Sense::click());
+        dip.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, pigment.name));
+        let visuals = ui.style().interact(&dip);
+        ui.painter()
+            .rect_filled(dip_rect.shrink(1.), 4., visuals.bg_fill);
+        let jar = Rect::from_min_size(
+            egui::pos2(tile.left() + padding, tile.center().y - jar_size.y * 0.5),
+            jar_size,
+        );
+        let lid = Rect::from_min_size(jar.min + egui::vec2(6., 2.), egui::vec2(28., 8.));
+        let body = Rect::from_min_max(jar.min + egui::vec2(2., 10.), jar.max - egui::vec2(2., 2.));
+        let [r, g, b] = pigment.rgb;
+        ui.painter().rect_filled(lid, 2., Color32::from_gray(140));
+        ui.painter()
+            .rect_filled(body, 4., Color32::from_rgb(r, g, b));
+        ui.painter().rect_stroke(
+            body,
+            4.,
+            egui::Stroke::new(1., Color32::from_gray(60)),
+            egui::StrokeKind::Inside,
+        );
+        let name_pos = egui::pos2(tile.left() + name_x, tile.center().y - name.size().y * 0.5);
+        ui.painter()
+            .galley(name_pos, name, ui.visuals().text_color());
+        if dip.on_hover_text("Dip brush (+25% load)").clicked() {
+            self.dip_from_jar(BrushService::DipRack(slot));
+        }
+
+        let info_rect = Rect::from_min_max(
+            egui::pos2(dip_rect.right() + 1., tile.top() + 2.),
+            tile.max - egui::Vec2::splat(2.),
+        );
+        let mut info = ui.new_child(egui::UiBuilder::new().max_rect(info_rect).layout(
+            egui::Layout::centered_and_justified(egui::Direction::TopDown),
+        ));
+        if info
+            .add(
+                egui::Button::new("Info")
+                    .small()
+                    .wrap_mode(egui::TextWrapMode::Extend),
+            )
+            .on_hover_text(format!("About {}", pigment.name))
+            .clicked()
+        {
+            self.selected_dossier = Some(pigment);
+            audio::play(audio::Sound::BrassClick);
+        }
+    }
+
+    fn custom_jars_ui(&mut self, ui: &mut egui::Ui) {
+        ui.separator();
+        ui.strong("Custom jars");
+        let custom_count = self.workbench.session.jars.iter().filter(|&&o| o).count();
+        if custom_count == 0 {
+            ui.label(
+                egui::RichText::new(
+                    "No custom jars. Click \"Fill Jar\" above and tap a color on the canvas or palette to save it.",
+                )
+                .weak()
+                .italics(),
+            );
+        } else {
+            for (slot, occupied) in self.workbench.session.jars.into_iter().enumerate() {
+                if !occupied {
+                    continue;
+                }
+                ui.horizontal(|ui| {
+                    let (jar, icon) =
+                        ui.allocate_exact_size(egui::vec2(20., 18.), egui::Sense::click());
+                    let lid =
+                        Rect::from_min_size(jar.min + egui::vec2(3., 1.), egui::vec2(14., 4.));
+                    let body = Rect::from_min_max(
+                        jar.min + egui::vec2(1., 5.),
+                        jar.max - egui::vec2(1., 1.),
+                    );
+                    ui.painter().rect_filled(lid, 1., Color32::from_gray(140));
+                    ui.painter().image(
+                        self.texture_id,
+                        body,
+                        gpu::atlas_uv(gpu::swatch_bounds(slot)),
+                        Color32::WHITE,
+                    );
+                    let name = format!("Jar {}", slot + 1);
+                    let dip = ui
+                        .small_button(&name)
+                        .on_hover_text("Dip active brush (+25% load)");
+                    if icon
+                        .on_hover_text(format!("Dip into {name} (+25% load)"))
+                        .clicked()
+                        || dip.clicked()
+                    {
+                        self.dip_from_jar(BrushService::DipCustom(slot));
+                    }
+                    if ui
+                        .small_button("×")
+                        .on_hover_text(format!("Empty {name}"))
+                        .clicked()
+                    {
+                        self.end_stroke();
+                        self.snapshot();
+                        self.workbench.session.jars[slot] = false;
+                        self.commands.push(Command::RemoveSwatch(slot));
+                        self.workbench_status = format!("Emptied {name}.");
+                    }
+                });
+            }
+        }
+    }
+
+    fn brush_controls_ui(&mut self, ui: &mut egui::Ui) {
         ui.separator();
         ui.strong("Brush rack");
         ui.horizontal(|ui| {
             self.brush_card(ui, Brush::Round, "Round");
             self.brush_card(ui, Brush::Flat, "Flat");
             if ui
-                .selectable_label(self.ink_selected, "Ink Pen")
+                .add_sized(
+                    egui::vec2(58., 42.),
+                    egui::SelectableLabel::new(self.ink_selected, "Ink Pen"),
+                )
                 .on_hover_text("Draw lightly for a fine line. Press and pause to make ink drip.")
                 .clicked()
                 && !self.ink_selected
@@ -1072,7 +1480,7 @@ impl Studio {
             ui.label("Press and pause to make ink drip.");
         } else {
             ui.horizontal(|ui| {
-                let (rag, _) = ui.allocate_exact_size(egui::vec2(63., 25.), egui::Sense::hover());
+                let (rag, _) = ui.allocate_exact_size(egui::vec2(72., 25.), egui::Sense::hover());
                 ui.painter()
                     .rect_filled(rag, 4., Color32::from_rgb(89, 75, 67));
                 ui.painter().text(
@@ -1086,22 +1494,59 @@ impl Studio {
                 if visible.is_positive() {
                     self.rag = Some(physical_rect(ui.ctx(), visible));
                 }
-                if ui.button("Rinse cup").clicked()
-                    && !self.workbench.session.rinsed[self.brush.index()]
+                if ui
+                    .button("Clean brush")
+                    .on_hover_text("Completely remove all paint from active brush")
+                    .clicked()
                 {
-                    self.end_stroke();
-                    self.snapshot();
-                    self.workbench.session.rinsed[self.brush.index()] = true;
-                    self.workbench.flick = Some((self.brush.index(), Instant::now()));
-                }
-                if ui.button("Clean brush").clicked() {
-                    self.service_brush(BrushService::Wipe(0.));
+                    self.clean_brush();
                 }
             });
-            if self.workbench.session.rinsed[self.brush.index()] {
-                ui.label("Swipe the rag to blot the brush.");
-            }
+            ui.label("Swipe rag to wipe off 10% load.");
         }
+    }
+
+    fn studio_settings_ui(&mut self, ui: &mut egui::Ui) {
+        ui.separator();
+        ui.collapsing("💡 3D Impasto & Studio Light", |ui| {
+            ui.checkbox(&mut self.workbench.lighting.enabled, "Enable 3D Relief")
+                .on_hover_text("Toggle 3D impasto thickness, canvas weave relief, and raking studio light on the canvas");
+            if self.workbench.lighting.enabled {
+                ui.add(
+                    egui::Slider::new(&mut self.workbench.lighting.impasto_depth, 0.0..=2.0)
+                        .text("Impasto Depth"),
+                ).on_hover_text("Scale of physical paint ridge height and bristle furrows");
+                ui.add(
+                    egui::Slider::new(&mut self.workbench.lighting.canvas_weave, 0.0..=1.0)
+                        .text("Canvas Weave"),
+                ).on_hover_text("Tactile primed linen weave texture strength on canvas");
+                ui.add(
+                    egui::Slider::new(&mut self.workbench.lighting.specular_sheen, 0.0..=2.0)
+                        .text("Bristle Sheen"),
+                ).on_hover_text("Wet oil gloss and bristle crest specular reflection intensity");
+                ui.add(
+                    egui::Slider::new(&mut self.workbench.lighting.light_angle_deg, 0.0..=360.0)
+                        .text("Light Azimuth")
+                        .suffix("°"),
+                ).on_hover_text("Azimuth direction of the studio raking light (315° is classical top-left)");
+                ui.add(
+                    egui::Slider::new(&mut self.workbench.lighting.light_elevation_deg, 15.0..=75.0)
+                        .text("Elevation")
+                        .suffix("°"),
+                ).on_hover_text("Raking angle of light above the canvas plane (lower angles cast longer relief shadows)");
+                if ui
+                    .button("↺ Reset to North Light")
+                    .on_hover_text("Reset to standard studio raking light (315° NW, 45° elevation)")
+                    .clicked()
+                {
+                    self.workbench.lighting.light_angle_deg = 315.0;
+                    self.workbench.lighting.light_elevation_deg = 45.0;
+                    self.workbench.lighting.impasto_depth = 1.0;
+                    self.workbench.lighting.canvas_weave = 0.35;
+                    self.workbench.lighting.specular_sheen = 1.0;
+                }
+            }
+        });
 
         ui.separator();
         if ui.button("Get to know your blue").clicked() {
@@ -1117,7 +1562,7 @@ impl Studio {
     }
 
     fn brush_card(&mut self, ui: &mut egui::Ui, brush: Brush, name: &str) {
-        let (rect, response) = ui.allocate_exact_size(egui::vec2(102., 35.), egui::Sense::click());
+        let (rect, response) = ui.allocate_exact_size(egui::vec2(104., 42.), egui::Sense::click());
         let color = if !self.ink_selected && self.brush == brush {
             Color32::from_rgb(49, 73, 70)
         } else {
@@ -1125,56 +1570,99 @@ impl Studio {
         };
         ui.painter().rect_filled(rect, 5., color);
         let index = brush.index();
-        let flick = self
-            .workbench
-            .flick
-            .filter(|(owner, time)| *owner == index && time.elapsed() < Duration::from_millis(420));
-        let offset = flick.map_or(0., |(_, time)| {
-            let t = time.elapsed().as_secs_f32() / 0.42;
-            (t * 25.).sin() * (1. - t) * 5.
-        });
-        let y = rect.center().y + offset;
-        let x = rect.left() + 7.;
-        let handle = Rect::from_min_size(egui::pos2(x, y - 2.5), egui::vec2(15., 5.));
+        let load = self.workbench.session.loads[index];
+
+        let y = rect.center().y;
+        let x = rect.left() + 6.;
+        let handle = Rect::from_min_size(egui::pos2(x, y - 2.5), egui::vec2(13., 5.));
         ui.painter()
             .rect_filled(handle, 2., Color32::from_rgb(163, 110, 72));
-        let ferrule = Rect::from_min_size(egui::pos2(x + 13., y - 4.), egui::vec2(7., 8.));
+        let ferrule = Rect::from_min_size(egui::pos2(x + 11., y - 4.), egui::vec2(6., 8.));
         ui.painter()
             .rect_filled(ferrule, 1., Color32::from_gray(158));
-        let tip_height = if brush == Brush::Round { 9. } else { 15. };
+        let tip_height = if brush == Brush::Round { 10. } else { 16. };
         let tip = Rect::from_min_size(
-            egui::pos2(x + 20., y - tip_height / 2.),
-            egui::vec2(13., tip_height),
+            egui::pos2(x + 17., y - tip_height / 2.),
+            egui::vec2(15., tip_height),
         );
+        // Base dry bristle background
         ui.painter().rect_filled(
             tip,
             if index == 0 { 4. } else { 1. },
-            Color32::from_rgb(114, 95, 80),
+            Color32::from_rgb(125, 105, 90),
         );
-        let count = if index == 0 { 1 } else { 3 };
-        for group in 0..count {
-            let lane = if index == 0 { 0 } else { 1 + group };
-            let height = tip.height() / count as f32;
-            let area = Rect::from_min_size(
-                egui::pos2(tip.left() + 1., tip.top() + group as f32 * height + 0.6),
-                egui::vec2(tip.width() - 2., height - 1.2),
-            );
+
+        // Paint reservoir on bristles (fills from tip inward: right to left)
+        if load > 0.005 {
+            let painted_width = ((tip.width() - 1.) * load.clamp(0.0, 1.0)).max(1.5);
+            let painted_left = tip.right() - 0.5 - painted_width;
+            let count = if index == 0 { 1 } else { 3 };
+            for group in 0..count {
+                let lane = if index == 0 { 0 } else { 1 + group };
+                let height = tip.height() / count as f32;
+                let area = Rect::from_min_max(
+                    egui::pos2(painted_left, tip.top() + group as f32 * height + 0.5),
+                    egui::pos2(
+                        tip.right() - 0.5,
+                        tip.top() + (group + 1) as f32 * height - 0.5,
+                    ),
+                );
+                ui.painter().image(
+                    self.texture_id,
+                    area,
+                    gpu::atlas_uv([512 + lane, SIDE, 1, 1]),
+                    Color32::WHITE,
+                );
+            }
+        }
+
+        // Right side: Name, mini progress bar, and load percentage text
+        let content_x = rect.left() + 40.;
+        ui.painter().text(
+            egui::pos2(content_x, rect.top() + 4.),
+            egui::Align2::LEFT_TOP,
+            name,
+            egui::FontId::proportional(12.),
+            Color32::WHITE,
+        );
+
+        let track =
+            Rect::from_min_size(egui::pos2(content_x, rect.top() + 19.), egui::vec2(54., 4.));
+        ui.painter().rect_filled(track, 2., Color32::from_gray(28));
+        if load > 0.005 {
+            let fill_width = (track.width() * load.clamp(0.0, 1.0)).max(2.0);
+            let fill_rect = Rect::from_min_size(track.min, egui::vec2(fill_width, track.height()));
+            let lane = if index == 0 { 0 } else { 2 };
             ui.painter().image(
                 self.texture_id,
-                area,
+                fill_rect,
                 gpu::atlas_uv([512 + lane, SIDE, 1, 1]),
                 Color32::WHITE,
             );
         }
+
+        let load_pct = (load * 100.0).round() as u32;
+        let status_text = if load < 0.005 {
+            "Empty".to_string()
+        } else {
+            format!("{load_pct}%")
+        };
         ui.painter().text(
-            egui::pos2(rect.left() + 50., rect.center().y),
-            egui::Align2::LEFT_CENTER,
-            name,
-            egui::FontId::proportional(13.),
-            Color32::WHITE,
+            egui::pos2(content_x, rect.top() + 26.),
+            egui::Align2::LEFT_TOP,
+            status_text,
+            egui::FontId::proportional(10.),
+            if load < 0.005 {
+                Color32::from_gray(140)
+            } else {
+                Color32::from_gray(210)
+            },
         );
+
         if response
-            .on_hover_text("Paint on the tip shows color and load")
+            .on_hover_text(format!(
+                "{name} brush: {load_pct}% loaded. Bristle tip fills from edge inward."
+            ))
             .clicked()
             && (self.ink_selected || self.brush != brush)
         {
@@ -1184,8 +1672,480 @@ impl Studio {
         }
     }
 
+    fn draw_note_pins(&mut self, ui: &mut egui::Ui, room: Rect, canvas: Rect) -> Option<Rect> {
+        let mut clicked_pin = None;
+        let scale = canvas.width() / 1024.0;
+        let mut hovered_tip = None;
+
+        for note in &self.notes {
+            let screen_pos = canvas.min + egui::vec2(note.x * scale, note.y * scale);
+            if !room.contains(screen_pos) {
+                continue;
+            }
+            let pin_rect = Rect::from_center_size(screen_pos, egui::vec2(22.0, 22.0));
+            let resp = ui.allocate_rect(pin_rect, egui::Sense::click());
+            if resp.clicked() {
+                clicked_pin = Some(note.id);
+            }
+            if resp.hovered() {
+                hovered_tip = Some((screen_pos, note.clone()));
+            }
+
+            let painter = ui.painter().with_clip_rect(room);
+            let fill = if note.done {
+                Color32::from_rgb(46, 160, 67)
+            } else {
+                Color32::from_rgb(235, 165, 30)
+            };
+            if self.selected_note == Some(note.id) {
+                painter.circle_stroke(
+                    screen_pos,
+                    14.0,
+                    egui::Stroke::new(2.5, Color32::from_rgb(100, 210, 255)),
+                );
+            }
+            painter.circle_filled(screen_pos, 10.0, fill);
+            painter.circle_stroke(
+                screen_pos,
+                10.0,
+                egui::Stroke::new(1.5, Color32::from_black_alpha(200)),
+            );
+            let label = if note.done {
+                "✓".to_string()
+            } else {
+                note.id.to_string()
+            };
+            painter.text(
+                screen_pos,
+                egui::Align2::CENTER_CENTER,
+                label,
+                egui::FontId::proportional(11.0),
+                Color32::WHITE,
+            );
+        }
+
+        if let Some(id) = clicked_pin {
+            self.selected_note = Some(id);
+            self.active_note_at = None;
+        }
+
+        // Show hover tooltip
+        if let Some((pos, note)) = hovered_tip {
+            egui::Area::new(egui::Id::new("note_hover_tooltip"))
+                .fixed_pos(pos + egui::vec2(12.0, 12.0))
+                .order(egui::Order::Tooltip)
+                .show(ui.ctx(), |ui| {
+                    egui::Frame::popup(ui.style()).show(ui, |ui| {
+                        ui.set_max_width(280.0);
+                        ui.horizontal(|ui| {
+                            let status = if note.done { "✓ Done" } else { "● Open" };
+                            let col = if note.done {
+                                Color32::from_rgb(100, 220, 100)
+                            } else {
+                                Color32::from_rgb(240, 180, 50)
+                            };
+                            ui.colored_label(col, format!("Note #{} [{status}]", note.id));
+                            ui.label(format!("({:.0}, {:.0})", note.x, note.y));
+                        });
+                        ui.add_space(2.0);
+                        ui.label(&note.text);
+                        if let Some(diag) = &note.diagnostics {
+                            ui.separator();
+                            ui.label(format!(
+                                "Wet: {:.3} | Dry: {:.3}",
+                                diag.wet_total, diag.dry_total
+                            ));
+                            ui.label(format!("Display: RGB{:?}", diag.display_srgb));
+                            ui.label(format!(
+                                "Intimate blend: RGB{:?}",
+                                diag.optical.intimate_blend_srgb
+                            ));
+                        }
+                    });
+                });
+        }
+
+        self.note_popover(ui.ctx(), canvas)
+    }
+
+    fn note_popover(&mut self, ctx: &egui::Context, canvas: Rect) -> Option<Rect> {
+        let scale = canvas.width() / 1024.0;
+        let mut overlay_rect = None;
+
+        // 1. Window for creating a new note at active_note_at
+        if let Some(pt) = self.active_note_at {
+            let screen_pos = canvas.min + egui::vec2(pt.x * scale, pt.y * scale);
+            let popup_id = egui::Id::new("create_note_popup");
+            let mut pin_action = false;
+            let mut cancel_action = false;
+
+            let window_resp = egui::Window::new("📌 Pin Note for Agent")
+                .id(popup_id)
+                .fixed_pos(screen_pos + egui::vec2(14.0, 14.0))
+                .collapsible(false)
+                .resizable(false)
+                .order(egui::Order::Foreground)
+                .show(ctx, |ui| {
+                    ui.set_max_width(280.0);
+                    ui.label(format!("Canvas coordinate: ({:.0}, {:.0})", pt.x, pt.y));
+                    ui.add_space(4.0);
+                    let text_resp = ui.add(
+                        egui::TextEdit::multiline(&mut self.note_input_text)
+                            .hint_text("What looks weird or what should the agent know/do here?")
+                            .desired_rows(3),
+                    );
+                    if self.note_input_text.is_empty() && !text_resp.has_focus() {
+                        text_resp.request_focus();
+                    }
+                    ui.add_space(6.0);
+                    ui.horizontal(|ui| {
+                        let can_pin = !self.note_input_text.trim().is_empty();
+                        if ui
+                            .add_enabled(can_pin, egui::Button::new("📌 Pin it"))
+                            .clicked()
+                        {
+                            pin_action = true;
+                        }
+                        if ui.button("Cancel").clicked() {
+                            cancel_action = true;
+                        }
+                    });
+                    if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+                        cancel_action = true;
+                    }
+                    if ui.input(|i| {
+                        i.key_pressed(egui::Key::Enter) && (i.modifiers.ctrl || i.modifiers.command)
+                    }) && !self.note_input_text.trim().is_empty()
+                    {
+                        pin_action = true;
+                    }
+                });
+
+            if let Some(w) = window_resp {
+                overlay_rect = Some(w.response.rect);
+            }
+
+            if pin_action {
+                let diag = self.paint.sample_diagnostics(
+                    &self.device,
+                    &self.queue,
+                    pt.x as u32,
+                    pt.y as u32,
+                );
+                let note = notes::add(
+                    &notes::default_path(),
+                    pt.x,
+                    pt.y,
+                    &self.note_input_text,
+                    "artist",
+                    Some(diag),
+                );
+                self.notes = notes::read(&notes::default_path());
+                self.active_note_at = None;
+                self.note_input_text.clear();
+                self.note_tool = false;
+                self.workbench_status = format!("Pinned note #{} with GPU diagnostics.", note.id);
+                audio::play(audio::Sound::BrassClick);
+            }
+            if cancel_action {
+                self.active_note_at = None;
+                self.note_input_text.clear();
+            }
+        }
+
+        // 2. Window for viewing/editing selected_note
+        if let Some(id) = self.selected_note {
+            if let Some(note) = self.notes.iter().find(|n| n.id == id).cloned() {
+                let screen_pos = canvas.min + egui::vec2(note.x * scale, note.y * scale);
+                let popup_id = egui::Id::new("view_note_popup");
+                let mut toggle_done = false;
+                let mut delete_note = false;
+                let mut close_popup = false;
+
+                let window_resp = egui::Window::new(format!("📌 Note #{} Details", note.id))
+                    .id(popup_id)
+                    .fixed_pos(screen_pos + egui::vec2(14.0, 14.0))
+                    .collapsible(false)
+                    .resizable(false)
+                    .order(egui::Order::Foreground)
+                    .show(ctx, |ui| {
+                        ui.set_max_width(340.0);
+                        ui.horizontal(|ui| {
+                            let status_str = if note.done { "✓ DONE" } else { "● OPEN" };
+                            let col = if note.done {
+                                Color32::from_rgb(100, 220, 100)
+                            } else {
+                                Color32::from_rgb(240, 180, 50)
+                            };
+                            ui.colored_label(col, format!("[{}]", status_str));
+                            ui.label(format!(
+                                "by {} at ({:.0}, {:.0})",
+                                note.author, note.x, note.y
+                            ));
+                        });
+                        ui.add_space(4.0);
+                        ui.label(&note.text);
+
+                        if let Some(diag) = &note.diagnostics {
+                            ui.add_space(6.0);
+                            ui.separator();
+                            ui.heading("🔬 GPU Layer Diagnostics");
+                            ui.label(format!("Wet pigment mass: {:.4}", diag.wet_total));
+                            ui.monospace(format!(
+                                "  Channels: [{:.2},{:.2},{:.2},{:.2},{:.2},{:.2},{:.2},{:.2}]",
+                                diag.wet_channels[0],
+                                diag.wet_channels[1],
+                                diag.wet_channels[2],
+                                diag.wet_channels[3],
+                                diag.wet_channels[4],
+                                diag.wet_channels[5],
+                                diag.wet_channels[6],
+                                diag.wet_channels[7],
+                            ));
+                            ui.label(format!("Dry underlayer mass: {:.4}", diag.dry_total));
+                            ui.monospace(format!(
+                                "  Channels: [{:.2},{:.2},{:.2},{:.2},{:.2},{:.2},{:.2},{:.2}]",
+                                diag.dry_channels[0],
+                                diag.dry_channels[1],
+                                diag.dry_channels[2],
+                                diag.dry_channels[3],
+                                diag.dry_channels[4],
+                                diag.dry_channels[5],
+                                diag.dry_channels[6],
+                                diag.dry_channels[7],
+                            ));
+                            ui.add_space(2.0);
+                            ui.label(format!("Rendered sRGB: RGB{:?}", diag.display_srgb));
+                            ui.label(format!(
+                                "Intimate blend sRGB: RGB{:?}",
+                                diag.optical.intimate_blend_srgb
+                            ));
+                            ui.label(format!(
+                                "Top layer estimated hiding: {:.1}%",
+                                diag.optical.top_layer_opacity_pct
+                            ));
+                            ui.label(format!(
+                                "R_sub mean: {:.3} | R_int mean: {:.3}",
+                                diag.optical.r_sub_mean, diag.optical.r_int_mean
+                            ));
+                        }
+
+                        ui.add_space(8.0);
+                        ui.horizontal(|ui| {
+                            let done_label = if note.done {
+                                "Reopen"
+                            } else {
+                                "✓ Mark as Done"
+                            };
+                            if ui.button(done_label).clicked() {
+                                toggle_done = true;
+                            }
+                            if ui.button("🗑 Delete").clicked() {
+                                delete_note = true;
+                            }
+                            if ui.button("Close").clicked() {
+                                close_popup = true;
+                            }
+                        });
+                    });
+
+                if let Some(w) = window_resp {
+                    overlay_rect = Some(w.response.rect);
+                }
+
+                if toggle_done {
+                    notes::set_done(&notes::default_path(), note.id, !note.done);
+                    self.notes = notes::read(&notes::default_path());
+                }
+                if delete_note {
+                    notes::remove(&notes::default_path(), note.id);
+                    self.notes = notes::read(&notes::default_path());
+                    self.selected_note = None;
+                }
+                if close_popup {
+                    self.selected_note = None;
+                }
+            } else {
+                self.selected_note = None;
+            }
+        }
+
+        overlay_rect
+    }
+
+    fn notes_manager_ui(&mut self, ctx: &egui::Context) {
+        if !self.notes_manager_open {
+            return;
+        }
+        let mut open = self.notes_manager_open;
+        let mut pan_to_coord = None;
+        let mut inspect_id = None;
+        let mut clear_all_done = false;
+
+        let window_resp = egui::Window::new("📋 Notes Manager")
+            .id(egui::Id::new("notes_manager_window"))
+            .open(&mut open)
+            .default_width(380.0)
+            .default_height(400.0)
+            .resizable(true)
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    let total = self.notes.len();
+                    let open_n = self.notes.iter().filter(|n| !n.done).count();
+                    ui.label(format!("{open_n} open / {total} total"));
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui
+                            .button("🧹 Clear Done")
+                            .on_hover_text("Remove all completed notes")
+                            .clicked()
+                        {
+                            clear_all_done = true;
+                        }
+                    });
+                });
+                ui.separator();
+
+                if self.notes.is_empty() {
+                    ui.add_space(20.0);
+                    ui.vertical_centered(|ui| {
+                        ui.label("No pinned notes yet.");
+                        ui.label(
+                            "Press N or click '📌 Note (N)' and click on the canvas to add one.",
+                        );
+                    });
+                } else {
+                    egui::ScrollArea::vertical().show(ui, |ui| {
+                        let mut to_toggle = None;
+                        let mut to_delete = None;
+
+                        for note in &self.notes {
+                            ui.group(|ui| {
+                                ui.horizontal(|ui| {
+                                    let mut done = note.done;
+                                    if ui.checkbox(&mut done, "").clicked() {
+                                        to_toggle = Some((note.id, done));
+                                    }
+                                    let badge_col = if note.done {
+                                        Color32::from_rgb(46, 160, 67)
+                                    } else {
+                                        Color32::from_rgb(235, 165, 30)
+                                    };
+                                    ui.colored_label(badge_col, format!("#{}", note.id));
+                                    ui.label(format!("({:.0}, {:.0})", note.x, note.y));
+
+                                    ui.with_layout(
+                                        egui::Layout::right_to_left(egui::Align::Center),
+                                        |ui| {
+                                            if ui
+                                                .small_button("🗑")
+                                                .on_hover_text("Delete note")
+                                                .clicked()
+                                            {
+                                                to_delete = Some(note.id);
+                                            }
+                                            if ui
+                                                .small_button("🔬 Inspect")
+                                                .on_hover_text("View GPU layer diagnostics")
+                                                .clicked()
+                                            {
+                                                inspect_id = Some(note.id);
+                                            }
+                                            if ui
+                                                .small_button("🎯 Pan to")
+                                                .on_hover_text("Center canvas on this note")
+                                                .clicked()
+                                            {
+                                                pan_to_coord = Some((note.x, note.y));
+                                            }
+                                        },
+                                    );
+                                });
+
+                                ui.label(&note.text);
+
+                                if let Some(diag) = &note.diagnostics {
+                                    ui.horizontal(|ui| {
+                                        ui.monospace(format!(
+                                            "Wet: {:.2} | Dry: {:.2} | RGB{:?}",
+                                            diag.wet_total, diag.dry_total, diag.display_srgb
+                                        ));
+                                    });
+                                }
+                            });
+                            ui.add_space(4.0);
+                        }
+
+                        if let Some((id, done)) = to_toggle {
+                            notes::set_done(&notes::default_path(), id, done);
+                            self.notes = notes::read(&notes::default_path());
+                        }
+                        if let Some(id) = to_delete {
+                            notes::remove(&notes::default_path(), id);
+                            self.notes = notes::read(&notes::default_path());
+                            if self.selected_note == Some(id) {
+                                self.selected_note = None;
+                            }
+                        }
+                    });
+                }
+            });
+
+        self.notes_manager_open = open;
+        if let Some(w) = window_resp {
+            let win_rect = physical_rect(ctx, w.response.rect);
+            self.overlay = Some(self.overlay.map_or(win_rect, |o| o.union(win_rect)));
+        }
+
+        if clear_all_done {
+            notes::clear_done(&notes::default_path());
+            self.notes = notes::read(&notes::default_path());
+        }
+        if let Some((x, y)) = pan_to_coord {
+            if let Some(viewport) = self.viewport {
+                let rect = self.view.rect(viewport);
+                let current_point = rect.min + egui::vec2(x / 1024.0, y / 1024.0) * rect.size();
+                let delta = viewport.center() - current_point;
+                self.pan_by(delta);
+            }
+        }
+        if let Some(id) = inspect_id {
+            self.selected_note = Some(id);
+            self.active_note_at = None;
+        }
+    }
+
+    fn pigment_info_ui(&mut self, ctx: &egui::Context) {
+        let Some(pigment) = self.selected_dossier else {
+            return;
+        };
+
+        let mut open = true;
+        let window = egui::Window::new(pigment.name)
+            .id(egui::Id::new("pigment_info"))
+            .open(&mut open)
+            .anchor(egui::Align2::RIGHT_TOP, [-workbench_width(ctx) - 12., 48.])
+            .default_width(300.)
+            .max_width(320.)
+            .collapsible(false)
+            .resizable(false)
+            .show(ctx, |ui| {
+                ui.label(format!("Pigment code: {}", pigment.code));
+                ui.label(format!("Opacity: {}", pigment.opacity));
+                ui.colored_label(Color32::from_rgb(230, 190, 100), pigment.price_tier);
+                ui.separator();
+                ui.label(pigment.lore);
+            });
+
+        if let Some(window) = window {
+            let rect = physical_rect(ctx, window.response.rect);
+            self.overlay = Some(self.overlay.map_or(rect, |overlay| overlay.union(rect)));
+        }
+        if !open {
+            self.selected_dossier = None;
+        }
+    }
+
     fn guide_ui(&mut self, ctx: &egui::Context) {
-        self.overlay = None;
         if let Some(index) = self.workbench.guide {
             let entry = &workbench::GUIDE[index];
             let mut open = true;
@@ -1212,7 +2172,10 @@ impl Studio {
                         self.workbench.guide = None;
                     }
                 });
-            self.overlay = area.map(|area| physical_rect(ctx, area.response.rect));
+            if let Some(area) = area {
+                let rect = physical_rect(ctx, area.response.rect);
+                self.overlay = Some(self.overlay.map_or(rect, |o| o.union(rect)));
+            }
             if !open {
                 self.workbench.guide = None;
             }
@@ -1224,14 +2187,17 @@ impl Studio {
                 .show(ctx, |ui| {
                     ui.set_max_width(320.);
                     ui.label("1. Predict which blue will change the white more.");
-                    ui.label("2. Use a clean brush to add equal small amounts of blue to separate dabs of white. Save a swatch of each.");
+                    ui.label("2. Use a clean brush to add equal small amounts of blue to separate dabs of white. Fill a jar with each.");
                     ui.label("3. Adjust the mixes until they look equally light. Compare how much white each needed.");
-                    ui.label("4. Repeat one mix with a wiped brush, then with a rinsed and blotted brush. Compare the swatches.");
+                    ui.label("4. Repeat one mix with a wiped brush, then with a cleaned brush. Compare the jars.");
                     if ui.add_enabled(!self.placement_pending, egui::Button::new("Set out the four dabs")).clicked() {
                         self.place_tubes([5, 4, 2, 4]);
                     }
                 });
-            self.overlay = area.map(|area| physical_rect(ctx, area.response.rect));
+            if let Some(area) = area {
+                let rect = physical_rect(ctx, area.response.rect);
+                self.overlay = Some(self.overlay.map_or(rect, |o| o.union(rect)));
+            }
             self.workbench.exercise = open;
         }
     }
@@ -1257,6 +2223,9 @@ impl Studio {
         let ctx = self.egui_state.egui_ctx().clone();
         let input = self.egui_state.take_egui_input(&self.window);
         let output = ctx.run(input, |ctx| self.layout(ctx));
+        if std::mem::take(&mut self.pen_waits_for_ui) && self.drain_pen() {
+            self.window.request_redraw();
+        }
         self.egui_state
             .handle_platform_output(&self.window, output.platform_output);
         let jobs = ctx.tessellate(output.shapes, output.pixels_per_point);
@@ -1339,6 +2308,10 @@ impl Studio {
             gpu_and_submit: (present_started - encoded) + presented.elapsed(),
         }))
     }
+}
+
+fn workbench_width(ctx: &egui::Context) -> f32 {
+    (ctx.screen_rect().width() * 0.38).clamp(304., 452.)
 }
 
 fn physical_rect(ctx: &egui::Context, rect: Rect) -> Rect {

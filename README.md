@@ -1,34 +1,36 @@
 # Pigment Studio
 
-A standalone Windows workbench for learning wet oil painting with a pen tablet or mouse. WGSL compute shaders on Direct3D 12 handle pigment transfer and spectral mixing.
+Pigment Studio is a Windows workbench for experimenting with wet oil paint. The GPU models how pigments absorb and scatter light, how brushes pick up and lay down paint, and how wet brushwork looks over dried layers.
 
-From the prototype directory, run:
+## Download and paint
+
+Get the Windows x64 ZIP from [GitHub Releases](https://github.com/becool3000/PigmentStudio/releases). Extract it and run `pigment-studio-ink.exe`. You need a Windows PC with a Direct3D 12-capable GPU. A mouse works, and Windows Ink provides pressure input for compatible pen tablets.
+
+- Tap a jar tile in the two-column Atelier Rack to load the brush. There are 20 pigments to try.
+- Mix paint directly on the palette and use **Fill Jar** to save a mixture for the current session.
+- Paint with a round or flat brush, dry the canvas between layers, and export a 1024 × 1024 PNG.
+- Use the Note tool to mark a spot and capture what the simulation is doing there. This idea was inspired by [Klad](https://github.com/klad-app/klad) and conversations with its creator, Quantum Whisker.
+
+This is an early build. The spectral models approximate real pigments. Windows tablet behavior across different devices and display scaling settings is still being tested.
+
+## Build from source
+
+Install Rust with the Windows MSVC toolchain and the Visual Studio C++ build tools. From the repository root:
 
 ```powershell
 cargo run --release --locked
-```
-
-## Paint
-
-1. Click a paint jar to dip the active brush and add a full load. Click **Dab** beside a jar to put paint on the mixing palette, where you can mix colors and pick up the result.
-2. Switch between the round and flat in the brush rack. Each keeps its own size and paint load. Brush tips show the pigment they are carrying. Set the flat’s angle to change the edge presented to your stroke. Pressure changes its spread and paint transfer.
-3. Swipe across the rag to wipe off most paint. Tap **Rinse cup** and swipe the rag to blot the brush clean. **Clean brush** does both in one action.
-4. Click **Save swatch**, then tap a mixture in the palette. Click a saved swatch to remove it.
-5. Open a tube’s info button for its pigment code, uses, reference, and a mix to try. **Get to know your blue** sets up a comparison between Ultramarine and Phthalo.
-
-Scroll over the canvas to zoom at the pointer. Hold the right mouse button and drag to pan. **Fit canvas** resets the view.
-
-Select **Ink Pen** in the brush rack to draw with black ink. Draw lightly for a narrow line, or press hard and slow down or pause to pool ink. The pool can keep running toward the bottom of the canvas after you lift the pen. With a mouse, drag for a line or hold still to make a drip.
-
-**Undo** or **Ctrl+Z** restores up to eight workbench actions. **Export PNG** writes the opaque 1024 × 1024 sRGB canvas. The palette, brushes, swatches, and history live for the session. The paint curves are approximate and all paint remains wet.
-
-## Verify
-
-```powershell
-cargo test --locked
+cargo test --locked -- --test-threads=1
 cargo run --release --locked -- --benchmark
 ```
 
-The DX12 test checks spectral output, paint conservation, brush loads, palette placement, swatches, undo, and PNG export. The release benchmark paints a wet underpainting with a preloaded 64 px brush, using 1,200 synthetic inputs over 10 seconds.
+The DX12 tests require a compatible GPU. Close any running copy of Pigment Studio before building. See [TESTING.md](TESTING.md) for the interactive checks.
 
-On a tablet, test canvas and palette alignment at 100% and 150% Windows scaling. Try a fast pressure ramp, draw off a surface and back while pressed, and verify that one Undo removes one stroke. Compare the flat brush at 0° and 90° along the same path.
+## Contribute
+
+Windows tablet testing and macOS and Linux ports are welcome. The current build uses DX12 and Win32 pointer input. For platform work, see the [contribution guide](CONTRIBUTING.md) and [design notes](DESIGN.md).
+
+Pigment Studio and Klad explore different parts of digital art. Klad's editable strokes make it possible for an artist and an agent to work on a drawing together. Pigment Studio explores GPU paint simulation. I'm looking forward to sharing ideas and finding ways to help with Klad too.
+
+## License
+
+Pigment Studio is licensed under [GNU GPL version 3 only](LICENSE). Third-party dependencies and bundled fonts keep their own licenses. Official binary releases include third-party notices.

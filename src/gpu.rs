@@ -11,6 +11,9 @@ pub const HISTORY: usize = 8;
 pub const MAX_COMMANDS: usize = 1024;
 const PAINT_BYTES: u64 = SIDE as u64 * ATLAS_HEIGHT as u64 * 32;
 const BRUSH_BYTES: u64 = 272;
+const INK_BYTES: u64 = SIDE as u64 * SIDE as u64 * 8;
+const DRY_BYTES: u64 = SIDE as u64 * SIDE as u64 * 32;
+const SUBSTRATE_BYTES: u64 = SIDE as u64 * SIDE as u64 * 64;
 const PNG_BYTES: u64 = SIDE as u64 * SIDE as u64 * 4;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -107,7 +110,7 @@ impl Dab {
         1.3 + 2.8 * pressure
     }
 
-    fn operation(bounds: [u32; 4], operation: u32) -> Self {
+    pub fn operation(bounds: [u32; 4], operation: u32) -> Self {
         Self {
             bounds,
             brush: [0.; 4],
@@ -129,15 +132,63 @@ pub enum Command {
     Tubes,
     SeedBenchmark,
     Service(Brush, BrushService),
-    SaveSwatch(usize, [u32; 2]),
+    SaveSwatch(usize, Surface, [u32; 2]),
     RemoveSwatch(usize),
+    EquipRack(usize, [f32; 8]),
+    DryCanvas,
 }
 
 pub enum BrushService {
     Load(usize),
     Dip(usize),
+    DipCustom(usize),
+    DipRack(usize),
     Wipe(f32),
 }
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Lighting {
+    pub enabled: bool,
+    pub impasto_depth: f32,
+    pub canvas_weave: f32,
+    pub specular_sheen: f32,
+    pub light_angle_deg: f32,
+    pub light_elevation_deg: f32,
+}
+
+impl Default for Lighting {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            impasto_depth: 1.0,
+            canvas_weave: 0.35,
+            specular_sheen: 1.0,
+            light_angle_deg: 315.0,
+            light_elevation_deg: 45.0,
+        }
+    }
+}
+
+impl Lighting {
+    pub fn light_direction(self) -> [f32; 3] {
+        let azimuth_rad = self.light_angle_deg.to_radians();
+        let elevation_rad = self.light_elevation_deg.to_radians();
+        let cos_el = elevation_rad.cos();
+        let sin_el = elevation_rad.sin();
+        // Clockwise compass angle in screen coordinates (+x right, +y down):
+        // 0° = North/Top (0, -1)
+        // 90° = East/Right (1, 0)
+        // 180° = South/Bottom (0, 1)
+        // 270° = West/Left (-1, 0)
+        // 315° = Northwest/Top-Left (-0.7071, -0.7071)
+        let lx = azimuth_rad.sin() * cos_el;
+        let ly = -azimuth_rad.cos() * cos_el;
+        let lz = sin_el;
+        let len = (lx * lx + ly * ly + lz * lz).sqrt().max(0.0001);
+        [lx / len, ly / len, lz / len]
+    }
+}
+
 #[derive(Clone, Copy)]
 struct WetInk {
     bounds: [u32; 4],
@@ -147,8 +198,11 @@ struct WetInk {
 pub struct PaintGpu {
     ink: Option<WetInk>,
     ink_history: [Option<WetInk>; HISTORY],
+    ink_canvas: wgpu::Buffer,
     flow_ink: wgpu::ComputePipeline,
     canvas: wgpu::Buffer,
+    dry_canvas: wgpu::Buffer,
+    pub dry_substrate: wgpu::Buffer,
     state: wgpu::Buffer,
     history: Vec<wgpu::Buffer>,
     next_snapshot: usize,
@@ -163,6 +217,7 @@ pub struct PaintGpu {
     service: wgpu::ComputePipeline,
     preview: wgpu::ComputePipeline,
     output: wgpu::Texture,
+    pub lighting: Lighting,
 }
 
 impl PaintGpu {
@@ -185,9 +240,22 @@ impl PaintGpu {
             u64::from(SIDE) * u64::from(SIDE) * 8,
             BufferUsage::STORAGE,
         );
+        let ink_canvas = buffer("Ink canvas", INK_BYTES, copies | BufferUsage::STORAGE);
         let canvas = buffer("Pigment canvas", PAINT_BYTES, copies | BufferUsage::STORAGE);
+        let dry_canvas = buffer("Dry canvas", DRY_BYTES, copies | BufferUsage::STORAGE);
+        let dry_substrate = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Dry substrate"),
+            contents: &vec![0xFFu8; SUBSTRATE_BYTES as usize],
+            usage: copies | BufferUsage::STORAGE,
+        });
         let history = (0..HISTORY)
-            .map(|_| buffer("Undo snapshot", PAINT_BYTES + BRUSH_BYTES, copies))
+            .map(|_| {
+                buffer(
+                    "Undo snapshot",
+                    PAINT_BYTES + BRUSH_BYTES + INK_BYTES + DRY_BYTES + SUBSTRATE_BYTES,
+                    copies,
+                )
+            })
             .collect();
         let state = buffer(
             "Brush loads and transfer",
@@ -256,6 +324,9 @@ impl PaintGpu {
                 },
                 buffer_layout(4, BufferType::Storage { read_only: true }, false, None),
                 buffer_layout(5, BufferType::Storage { read_only: false }, false, None),
+                buffer_layout(6, BufferType::Storage { read_only: false }, false, None),
+                buffer_layout(7, BufferType::Storage { read_only: false }, false, None),
+                buffer_layout(8, BufferType::Storage { read_only: false }, false, None),
             ],
         });
         let bindings = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -292,6 +363,18 @@ impl PaintGpu {
                     binding: 5,
                     resource: ink_step.as_entire_binding(),
                 },
+                wgpu::BindGroupEntry {
+                    binding: 6,
+                    resource: ink_canvas.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 7,
+                    resource: dry_canvas.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 8,
+                    resource: dry_substrate.as_entire_binding(),
+                },
             ],
         });
         let shader = device.create_shader_module(wgpu::include_wgsl!("paint.wgsl"));
@@ -312,8 +395,11 @@ impl PaintGpu {
         };
         Self {
             canvas,
+            dry_canvas,
+            dry_substrate,
             ink: None,
             ink_history: [None; HISTORY],
+            ink_canvas,
             flow_ink: pipeline("flow_ink"),
             state,
             history,
@@ -329,6 +415,10 @@ impl PaintGpu {
             service: pipeline("service"),
             preview: pipeline("preview"),
             output,
+            lighting: Lighting {
+                enabled: false,
+                ..Default::default()
+            },
         }
     }
 
@@ -360,6 +450,27 @@ impl PaintGpu {
             PAINT_BYTES,
             BRUSH_BYTES,
         );
+        encoder.copy_buffer_to_buffer(
+            &self.ink_canvas,
+            0,
+            &self.history[self.next_snapshot],
+            PAINT_BYTES + BRUSH_BYTES,
+            INK_BYTES,
+        );
+        encoder.copy_buffer_to_buffer(
+            &self.dry_canvas,
+            0,
+            &self.history[self.next_snapshot],
+            PAINT_BYTES + BRUSH_BYTES + INK_BYTES,
+            DRY_BYTES,
+        );
+        encoder.copy_buffer_to_buffer(
+            &self.dry_substrate,
+            0,
+            &self.history[self.next_snapshot],
+            PAINT_BYTES + BRUSH_BYTES + INK_BYTES + DRY_BYTES,
+            SUBSTRATE_BYTES,
+        );
         self.next_snapshot = (self.next_snapshot + 1) % HISTORY;
         self.snapshots = (self.snapshots + 1).min(HISTORY);
     }
@@ -384,15 +495,22 @@ impl PaintGpu {
                 Command::Initialize => {
                     self.ink = None;
                     encoder.clear_buffer(&self.canvas, 0, None);
+                    encoder.clear_buffer(&self.dry_canvas, 0, None);
                     encoder.clear_buffer(&self.state, 0, None);
+                    encoder.clear_buffer(&self.ink_canvas, 0, None);
                     preview_needed = true;
                     Dab::operation([0, 0, SIDE, ATLAS_HEIGHT], 1)
                 }
                 Command::Clear(surface) => {
                     if surface == Surface::Canvas {
                         self.ink = None;
+                        encoder.clear_buffer(&self.ink_canvas, 0, None);
                     }
                     Dab::operation(surface.bounds(), 4)
+                }
+                Command::DryCanvas => {
+                    preview_needed = true;
+                    Dab::operation(Surface::Canvas.bounds(), 14)
                 }
                 Command::AdvanceInk => {
                     let Some(mut ink) = self.ink else { continue };
@@ -418,6 +536,27 @@ impl PaintGpu {
                         &self.state,
                         0,
                         BRUSH_BYTES,
+                    );
+                    encoder.copy_buffer_to_buffer(
+                        history,
+                        PAINT_BYTES + BRUSH_BYTES,
+                        &self.ink_canvas,
+                        0,
+                        INK_BYTES,
+                    );
+                    encoder.copy_buffer_to_buffer(
+                        history,
+                        PAINT_BYTES + BRUSH_BYTES + INK_BYTES,
+                        &self.dry_canvas,
+                        0,
+                        DRY_BYTES,
+                    );
+                    encoder.copy_buffer_to_buffer(
+                        history,
+                        PAINT_BYTES + BRUSH_BYTES + INK_BYTES + DRY_BYTES,
+                        &self.dry_substrate,
+                        0,
+                        SUBSTRATE_BYTES,
                     );
                     preview_needed = true;
                     Dab::operation([0, 0, SIDE, ATLAS_HEIGHT], 1)
@@ -457,7 +596,17 @@ impl PaintGpu {
                         }
                         BrushService::Dip(tube) => {
                             dab.mode[2] = tube as u32;
-                            dab.brush[3] = 4600.;
+                            dab.brush[3] = 46000.;
+                        }
+                        BrushService::DipCustom(slot) => {
+                            dab.mode[0] = 11;
+                            dab.mode[2] = slot as u32;
+                            dab.brush[3] = 46000.;
+                        }
+                        BrushService::DipRack(slot) => {
+                            dab.mode[0] = 12;
+                            dab.mode[2] = slot as u32;
+                            dab.brush[3] = 46000.;
                         }
                         BrushService::Wipe(fraction) => {
                             dab.mode[0] = 6;
@@ -466,13 +615,32 @@ impl PaintGpu {
                     }
                     dab
                 }
-                Command::SaveSwatch(slot, [x, y]) => {
+                Command::SaveSwatch(slot, surface, [x, y]) => {
                     let mut dab = Dab::operation(swatch_bounds(slot), 3);
-                    dab.mode[2] = x;
-                    dab.mode[3] = SIDE + y;
+                    dab.mode[2] = x.min(SIDE - 1);
+                    dab.mode[3] = match surface {
+                        Surface::Canvas => y.min(SIDE - 1),
+                        Surface::Palette => SIDE + y.min(255),
+                    };
                     dab
                 }
                 Command::RemoveSwatch(slot) => Dab::operation(swatch_bounds(slot), 4),
+                Command::EquipRack(slot, recipe) => {
+                    let mut dab = Dab::operation(rack_bounds(slot), 13);
+                    dab.brush = [
+                        recipe[0] * 45.0,
+                        recipe[1] * 45.0,
+                        recipe[2] * 45.0,
+                        recipe[3] * 45.0,
+                    ];
+                    dab.axis = [
+                        recipe[4] * 45.0,
+                        recipe[5] * 45.0,
+                        recipe[6] * 45.0,
+                        recipe[7] * 45.0,
+                    ];
+                    dab
+                }
             };
             let offset = self.upload(&mut upload, &dab);
             match dab.mode[0] {
@@ -491,7 +659,7 @@ impl PaintGpu {
                     offset,
                     [dab.bounds[2].div_ceil(8), dab.bounds[3].div_ceil(8)],
                 ),
-                5 | 6 => {
+                5 | 6 | 11 | 12 => {
                     self.dispatch(encoder, &self.service, offset, [1, 1]);
                     continue;
                 }
@@ -510,7 +678,7 @@ impl PaintGpu {
                     dirty = [
                         Some(Surface::Canvas.bounds()),
                         Some(Surface::Palette.bounds()),
-                        Some([544, SIDE, crate::workbench::SWATCH_COUNT as u32, 1]),
+                        Some([544, SIDE, crate::workbench::CUSTOM_JAR_COUNT as u32 + 8, 1]),
                     ];
                 } else {
                     let region = if dab.bounds[1] < SIDE {
@@ -525,13 +693,35 @@ impl PaintGpu {
                 }
             }
         }
+        let light_dir = self.lighting.light_direction();
         for bounds in dirty.into_iter().flatten() {
-            let offset = self.upload(&mut upload, &Dab::operation(bounds, 1));
+            let is_canvas = bounds[1] < SIDE;
+            let display_bounds = if is_canvas {
+                let x0 = bounds[0].saturating_sub(1);
+                let y0 = bounds[1].saturating_sub(1);
+                let x1 = (bounds[0] + bounds[2] + 1).min(SIDE);
+                let y1 = (bounds[1] + bounds[3] + 1).min(SIDE);
+                [x0, y0, x1 - x0, y1 - y0]
+            } else {
+                bounds
+            };
+            let mut dab = Dab::operation(display_bounds, 1);
+            if self.lighting.enabled && is_canvas {
+                dab.mode[1] = 1;
+                dab.brush = [
+                    self.lighting.impasto_depth,
+                    self.lighting.canvas_weave,
+                    self.lighting.specular_sheen,
+                    0.0,
+                ];
+                dab.axis = [light_dir[0], light_dir[1], light_dir[2], 0.0];
+            }
+            let offset = self.upload(&mut upload, &dab);
             self.dispatch(
                 encoder,
                 &self.display,
                 offset,
-                [bounds[2].div_ceil(8), bounds[3].div_ceil(8)],
+                [display_bounds[2].div_ceil(8), display_bounds[3].div_ceil(8)],
             );
         }
         if preview_needed || placement {
@@ -648,18 +838,144 @@ impl PaintGpu {
     }
 
     #[cfg(test)]
+    pub fn inspect_dry(
+        &self,
+        device: &wgpu::Device,
+        encoder: &mut wgpu::CommandEncoder,
+    ) -> wgpu::Buffer {
+        let dry = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Test dry state"),
+            size: DRY_BYTES,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+        encoder.copy_buffer_to_buffer(&self.dry_canvas, 0, &dry, 0, DRY_BYTES);
+        dry
+    }
+
+    #[cfg(test)]
     pub fn reference_swatches(&self, queue: &wgpu::Queue, colors: &[[f32; 8]]) {
         queue.write_buffer(&self.canvas, 0, bytemuck::cast_slice(colors));
     }
 
     #[cfg(test)]
     pub fn refresh(&self, queue: &wgpu::Queue, encoder: &mut wgpu::CommandEncoder) {
-        let dab = Dab::operation(Surface::Canvas.bounds(), 1);
+        let mut dab = Dab::operation(Surface::Canvas.bounds(), 1);
+        if self.lighting.enabled {
+            let light_dir = self.lighting.light_direction();
+            dab.mode[1] = 1;
+            dab.brush = [
+                self.lighting.impasto_depth,
+                self.lighting.canvas_weave,
+                self.lighting.specular_sheen,
+                0.0,
+            ];
+            dab.axis = [light_dir[0], light_dir[1], light_dir[2], 0.0];
+        }
         queue.write_buffer(&self.uniforms, 0, bytemuck::bytes_of(&dab));
         let mut pass = encoder.begin_compute_pass(&Default::default());
         pass.set_pipeline(&self.display);
         pass.set_bind_group(0, &self.bindings, &[0]);
         pass.dispatch_workgroups(SIDE / 8, SIDE / 8, 1);
+    }
+
+    pub fn sample_diagnostics(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        x: u32,
+        y: u32,
+    ) -> crate::notes::GpuDiagnostics {
+        let x = x.min(SIDE - 1);
+        let y = y.min(SIDE - 1);
+        let offset = (y * SIDE + x) as u64 * 32;
+        let sub_offset = (y * SIDE + x) as u64 * 64;
+        let ink_offset = (y * SIDE + x) as u64 * 8;
+
+        let staging = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Diagnostic sample staging"),
+            size: 1024,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("Diagnostic sample encoder"),
+        });
+        encoder.copy_buffer_to_buffer(&self.canvas, offset, &staging, 0, 32);
+        encoder.copy_buffer_to_buffer(&self.dry_canvas, offset, &staging, 32, 32);
+        encoder.copy_buffer_to_buffer(&self.ink_canvas, ink_offset, &staging, 64, 8);
+        encoder.copy_buffer_to_buffer(&self.state, 0, &staging, 72, 128);
+        encoder.copy_buffer_to_buffer(&self.dry_substrate, sub_offset, &staging, 200, 64);
+        encoder.copy_texture_to_buffer(
+            wgpu::TexelCopyTextureInfo {
+                texture: &self.output,
+                mip_level: 0,
+                origin: wgpu::Origin3d { x, y, z: 0 },
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::TexelCopyBufferInfo {
+                buffer: &staging,
+                layout: wgpu::TexelCopyBufferLayout {
+                    offset: 512,
+                    bytes_per_row: Some(256),
+                    rows_per_image: Some(1),
+                },
+            },
+            wgpu::Extent3d {
+                width: 1,
+                height: 1,
+                depth_or_array_layers: 1,
+            },
+        );
+        queue.submit(Some(encoder.finish()));
+
+        let (done, rx) = std::sync::mpsc::channel();
+        staging
+            .slice(..)
+            .map_async(wgpu::MapMode::Read, move |res| {
+                let _ = done.send(res);
+            });
+        let _ = device.poll(wgpu::Maintain::Wait);
+        let _ = rx.recv();
+
+        let slice = staging.slice(..).get_mapped_range();
+        let wet_channels: [f32; 8] = *bytemuck::from_bytes(&slice[0..32]);
+        let dry_channels: [f32; 8] = *bytemuck::from_bytes(&slice[32..64]);
+        let ink: [f32; 2] = *bytemuck::from_bytes(&slice[64..72]);
+        let brush_loads: [[f32; 8]; 4] = *bytemuck::from_bytes(&slice[72..200]);
+        let substrate_words: [u32; 16] = *bytemuck::from_bytes(&slice[200..264]);
+        let display_srgb: [u8; 3] = [slice[512], slice[513], slice[514]];
+        drop(slice);
+        staging.unmap();
+
+        let mut substrate_bands = [1.0f32; 31];
+        for w in 0..16 {
+            let lo = (substrate_words[w] & 0xFFFF) as f32 / 65535.0;
+            let hi = ((substrate_words[w] >> 16) & 0xFFFF) as f32 / 65535.0;
+            if w * 2 < 31 {
+                substrate_bands[w * 2] = lo;
+            }
+            if w * 2 + 1 < 31 {
+                substrate_bands[w * 2 + 1] = hi;
+            }
+        }
+
+        let wet_total: f32 = wet_channels.iter().sum();
+        let dry_total: f32 = dry_channels.iter().sum();
+        let optical =
+            crate::notes::compute_optical_diagnostics(wet_channels, dry_channels, substrate_bands);
+
+        crate::notes::GpuDiagnostics {
+            wet_channels,
+            wet_total,
+            dry_channels,
+            dry_total,
+            ink,
+            display_srgb,
+            optical,
+            brush_loads,
+        }
     }
 }
 
@@ -676,6 +992,10 @@ fn union(a: [u32; 4], b: [u32; 4]) -> [u32; 4] {
 
 pub fn swatch_bounds(slot: usize) -> [u32; 4] {
     [544 + slot as u32, SIDE, 1, 1]
+}
+
+pub fn rack_bounds(slot: usize) -> [u32; 4] {
+    [608 + slot as u32, SIDE, 1, 1]
 }
 
 pub fn atlas_uv([x, y, width, height]: [u32; 4]) -> egui::Rect {

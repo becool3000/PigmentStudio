@@ -1,11 +1,20 @@
-use std::{collections::VecDeque, time::Instant};
+use std::collections::VecDeque;
 
-pub const SWATCH_COUNT: usize = 12;
+pub const CUSTOM_JAR_COUNT: usize = 64;
 
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy)]
 pub struct Session {
-    pub rinsed: [bool; 2],
-    pub swatches: [bool; SWATCH_COUNT],
+    pub loads: [f32; 2],
+    pub jars: [bool; CUSTOM_JAR_COUNT],
+}
+
+impl Default for Session {
+    fn default() -> Self {
+        Self {
+            loads: [0.0; 2],
+            jars: [false; CUSTOM_JAR_COUNT],
+        }
+    }
 }
 
 pub struct Workbench {
@@ -16,7 +25,7 @@ pub struct Workbench {
     pub sampling: bool,
     pub guide: Option<usize>,
     pub exercise: bool,
-    pub flick: Option<(usize, Instant)>,
+    pub lighting: crate::gpu::Lighting,
 }
 
 impl Default for Workbench {
@@ -29,7 +38,7 @@ impl Default for Workbench {
             sampling: false,
             guide: None,
             exercise: false,
-            flick: None,
+            lighting: crate::gpu::Lighting::default(),
         }
     }
 }
@@ -47,7 +56,6 @@ impl Workbench {
             return false;
         };
         self.session = session;
-        self.flick = None;
         true
     }
 }

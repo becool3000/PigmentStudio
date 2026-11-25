@@ -13,7 +13,7 @@ use windows_sys::Win32::{
 };
 use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Phase {
     Down,
     Move,
@@ -37,6 +37,8 @@ struct Input {
     surfaces: Cell<[Option<egui::Rect>; 3]>,
     overlay: Cell<Option<egui::Rect>>,
     active: Cell<Option<u32>>,
+    pressed: Cell<bool>,
+    native_press: Cell<bool>,
     last_sample: Cell<Option<SampleKey>>,
     samples: RefCell<Vec<PenSample>>,
 }
@@ -78,6 +80,13 @@ impl PenInput {
     pub fn drain(&self) -> Vec<PenSample> {
         self.input.samples.take()
     }
+
+    pub fn reset_contact(&self) {
+        self.input.active.set(None);
+        self.input.pressed.set(false);
+        self.input.last_sample.set(None);
+        self.input.samples.borrow_mut().clear();
+    }
 }
 
 impl Drop for PenInput {
@@ -101,12 +110,27 @@ unsafe extern "system" fn window_proc(
 
     match message {
         WM_POINTERDOWN | WM_POINTERUPDATE | WM_POINTERUP => {
-            if unsafe { read_pointer(input, hwnd, pointer_id, message) } {
+            let queued = !input.samples.borrow().is_empty();
+            let message_contact = (wparam >> 16) as u32 & POINTER_MESSAGE_FLAG_INCONTACT != 0;
+            if unsafe { read_pointer(input, hwnd, pointer_id, message, message_contact) } {
+                if !queued && !input.samples.borrow().is_empty() {
+                    unsafe { PostMessageW(hwnd, WM_NULL, 0, 0) };
+                }
                 return 0;
             }
         }
-        WM_POINTERCAPTURECHANGED if input.active.get() == Some(pointer_id) => cancel(input),
-        WM_KILLFOCUS | WM_CANCELMODE => cancel(input),
+        WM_POINTERLEAVE | WM_POINTERCAPTURECHANGED if input.active.get() == Some(pointer_id) => {
+            end_contact(input, None);
+            unsafe {
+                PostMessageW(hwnd, WM_NULL, 0, 0);
+            }
+        }
+        WM_KILLFOCUS | WM_CANCELMODE => {
+            end_contact(input, None);
+            unsafe {
+                PostMessageW(hwnd, WM_NULL, 0, 0);
+            }
+        }
         WM_CAPTURECHANGED => input.samples.borrow_mut().push(PenSample {
             position: [0.; 2],
             pressure: 0.,
@@ -114,12 +138,15 @@ unsafe extern "system" fn window_proc(
             phase: Phase::MouseCaptureLost,
         }),
         WM_LBUTTONDOWN | WM_LBUTTONUP | WM_LBUTTONDBLCLK | WM_MOUSEMOVE => {
-            // Windows tags mouse messages promoted from a pen. Preserve ordinary
-            // mouse messages and let the native pen stream own canvas presses.
+            // Route the promoted press and release together, even if the pen
+            // crosses from a widget to the canvas before lifting.
             let extra = unsafe { GetMessageExtraInfo() } as u32;
             let promoted_pen = (extra & 0xffff_ff80) == 0xff51_5700;
-            let position = egui::pos2(lparam as i16 as f32, (lparam >> 16) as i16 as f32);
-            if promoted_pen && (input.active.get().is_some() || hit_surface(input, position)) {
+            if promoted_pen && suppress_promoted(input, message) {
+                if message == WM_LBUTTONUP && input.active.get().is_some() {
+                    end_contact(input, None);
+                    unsafe { PostMessageW(hwnd, WM_NULL, 0, 0) };
+                }
                 return 0;
             }
         }
@@ -138,19 +165,48 @@ fn hit_surface(input: &Input, point: egui::Pos2) -> bool {
             .any(|rect| rect.contains(point))
 }
 
-fn cancel(input: &Input) {
-    if input.active.take().is_some() {
-        input.last_sample.set(None);
+fn suppress_promoted(input: &Input, message: u32) -> bool {
+    match message {
+        WM_LBUTTONUP => input.native_press.replace(false),
+        WM_MOUSEMOVE => input.active.get().is_some(),
+        _ => input.native_press.get(),
+    }
+}
+
+fn contact_phase(input: &Input, pressure: f32) -> Option<Phase> {
+    let pressed = pressure > 0.;
+    match (input.pressed.replace(pressed), pressed) {
+        (false, true) => Some(Phase::Down),
+        (true, true) => Some(Phase::Move),
+        (true, false) => Some(Phase::Cancel),
+        (false, false) => None,
+    }
+}
+
+fn end_contact(input: &Input, release: Option<(egui::Pos2, u32)>) {
+    input.active.set(None);
+    input.last_sample.set(None);
+    if input.pressed.replace(false) {
+        let (position, timestamp_ms, phase) = match release {
+            Some((point, time)) => ([point.x, point.y], time, Phase::Up),
+            None => ([0.; 2], 0, Phase::Cancel),
+        };
         input.samples.borrow_mut().push(PenSample {
-            position: [0.; 2],
+            position,
             pressure: 0.,
-            timestamp_ms: 0,
-            phase: Phase::Cancel,
+            timestamp_ms,
+            phase,
         });
     }
 }
 
-unsafe fn read_pointer(input: &Input, hwnd: HWND, id: u32, message: u32) -> bool {
+unsafe fn read_pointer(
+    input: &Input,
+    hwnd: HWND,
+    id: u32,
+    message: u32,
+    message_contact: bool,
+) -> bool {
     let active = input.active.get() == Some(id);
     if message != WM_POINTERDOWN && !active {
         return false;
@@ -158,55 +214,74 @@ unsafe fn read_pointer(input: &Input, hwnd: HWND, id: u32, message: u32) -> bool
 
     let mut current = MaybeUninit::uninit();
     if unsafe { GetPointerPenInfo(id, current.as_mut_ptr()) } == 0 {
-        if active && message == WM_POINTERUP {
-            cancel(input);
+        if active && (message == WM_POINTERUP || !message_contact) {
+            end_contact(input, None);
         }
         return active;
     }
     let current = unsafe { current.assume_init() };
-    if current.pointerInfo.pointerFlags & POINTER_FLAG_CANCELED != 0 {
+    let flags = current.pointerInfo.pointerFlags;
+    if flags & POINTER_FLAG_CANCELED != 0 {
         if active {
-            cancel(input);
+            end_contact(input, None);
         }
         return active;
     }
     if message == WM_POINTERDOWN {
+        if active {
+            end_contact(input, None);
+        }
+        if input.active.get().is_some() {
+            return false;
+        }
+        input.native_press.set(false);
         let Some(pos) = client_position(hwnd, current.pointerInfo.ptPixelLocation) else {
             return false;
         };
-        if input.active.get().is_some() || !hit_surface(input, pos) {
+        if !hit_surface(input, pos) || !in_contact(flags) {
             return false;
         }
         input.active.set(Some(id));
-        input.last_sample.set(None);
-        push(input, hwnd, &current, Phase::Down);
+        input.native_press.set(true);
+        push_contact(input, hwnd, &current);
         return true;
     }
-    if message == WM_POINTERUP {
-        push(input, hwnd, &current, Phase::Up);
-        input.active.set(None);
-        input.last_sample.set(None);
+    if message == WM_POINTERUP || flags & POINTER_FLAG_UP != 0 {
+        let release = client_position(hwnd, current.pointerInfo.ptPixelLocation)
+            .map(|point| (point, current.pointerInfo.dwTime));
+        end_contact(input, release);
+        return true;
+    }
+    if !message_contact || !in_contact(flags) {
+        end_contact(input, None);
         return true;
     }
 
     // The current record already supplies the required capacity. Win32 writes
     // newest-first and may report fewer entries than requested.
     let mut count = current.pointerInfo.historyCount.clamp(1, 8192);
+    if count == 1 {
+        push_contact(input, hwnd, &current);
+        return true;
+    }
     let mut history = vec![current; count as usize];
-    if count == 1 || unsafe { GetPointerPenInfoHistory(id, &mut count, history.as_mut_ptr()) } == 0
-    {
-        push(input, hwnd, &current, Phase::Move);
+    if unsafe { GetPointerPenInfoHistory(id, &mut count, history.as_mut_ptr()) } == 0 {
+        push_contact(input, hwnd, &current);
     } else {
         let available = history.len().min(count as usize);
         for record in history[..available].iter().rev() {
-            if record.pointerInfo.pointerFlags & (POINTER_FLAG_INCONTACT | POINTER_FLAG_UPDATE)
-                == (POINTER_FLAG_INCONTACT | POINTER_FLAG_UPDATE)
-            {
-                push(input, hwnd, record, Phase::Move);
+            let record_flags = record.pointerInfo.pointerFlags;
+            if in_contact(record_flags) && record_flags & POINTER_FLAG_UPDATE != 0 {
+                push_contact(input, hwnd, record);
             }
         }
     }
     true
+}
+
+fn in_contact(flags: u32) -> bool {
+    flags & (POINTER_FLAG_INCONTACT | POINTER_FLAG_UP | POINTER_FLAG_CANCELED)
+        == POINTER_FLAG_INCONTACT
 }
 
 fn client_position(hwnd: HWND, mut point: POINT) -> Option<egui::Pos2> {
@@ -214,7 +289,7 @@ fn client_position(hwnd: HWND, mut point: POINT) -> Option<egui::Pos2> {
         .then(|| egui::pos2(point.x as f32, point.y as f32))
 }
 
-fn push(input: &Input, hwnd: HWND, record: &POINTER_PEN_INFO, phase: Phase) {
+fn push_contact(input: &Input, hwnd: HWND, record: &POINTER_PEN_INFO) {
     let pointer = &record.pointerInfo;
     let position = pointer.ptPixelLocation;
     let key = (
@@ -224,16 +299,14 @@ fn push(input: &Input, hwnd: HWND, record: &POINTER_PEN_INFO, phase: Phase) {
         position.y,
         record.pressure,
     );
-    if matches!(phase, Phase::Move) {
-        if let Some(last) = input.last_sample.get() {
-            let older = if key.0 != 0 && last.0 != 0 {
-                key.0 < last.0
-            } else {
-                (key.1.wrapping_sub(last.1) as i32) < 0
-            };
-            if older || key == last {
-                return;
-            }
+    if let Some(last) = input.last_sample.get() {
+        let older = if key.0 != 0 && last.0 != 0 {
+            key.0 < last.0
+        } else {
+            (key.1.wrapping_sub(last.1) as i32) < 0
+        };
+        if older || key == last {
+            return;
         }
     }
     let Some(position) = client_position(hwnd, position) else {
@@ -245,10 +318,59 @@ fn push(input: &Input, hwnd: HWND, record: &POINTER_PEN_INFO, phase: Phase) {
     } else {
         0.65
     };
+    let Some(phase) = contact_phase(input, pressure) else {
+        return;
+    };
     input.samples.borrow_mut().push(PenSample {
         position: [position.x, position.y],
         pressure,
         timestamp_ms: pointer.dwTime,
         phase,
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn light_contact_waits_for_pressure_and_recovers_after_zero() {
+        let input = Input::default();
+        input.active.set(Some(1));
+        assert_eq!(contact_phase(&input, 0.), None);
+        assert_eq!(contact_phase(&input, 0.001), Some(Phase::Down));
+        assert_eq!(contact_phase(&input, 0.2), Some(Phase::Move));
+        assert_eq!(contact_phase(&input, 0.), Some(Phase::Cancel));
+        assert_eq!(input.active.get(), Some(1));
+        assert_eq!(contact_phase(&input, 0.), None);
+        assert_eq!(contact_phase(&input, 0.16), Some(Phase::Down));
+    }
+
+    #[test]
+    fn lift_closes_contact_and_suppresses_its_promoted_release() {
+        let input = Input::default();
+        assert!(!suppress_promoted(&input, WM_LBUTTONDOWN));
+        assert!(!suppress_promoted(&input, WM_LBUTTONUP));
+        input.active.set(Some(1));
+        input.native_press.set(true);
+        assert!(suppress_promoted(&input, WM_LBUTTONDOWN));
+        assert_eq!(contact_phase(&input, 0.3), Some(Phase::Down));
+
+        end_contact(&input, Some((egui::pos2(160., 20.), 10)));
+        assert_eq!(input.active.get(), None);
+        let samples = input.samples.take();
+        assert_eq!(samples.len(), 1);
+        assert_eq!(samples[0].phase, Phase::Up);
+        assert_eq!(samples[0].pressure, 0.);
+        assert!(suppress_promoted(&input, WM_LBUTTONUP));
+        assert!(!suppress_promoted(&input, WM_LBUTTONDOWN));
+    }
+
+    #[test]
+    fn hover_and_cancelled_history_cannot_feed_paint() {
+        assert!(in_contact(POINTER_FLAG_UPDATE | POINTER_FLAG_INCONTACT));
+        assert!(!in_contact(POINTER_FLAG_UPDATE));
+        assert!(!in_contact(POINTER_FLAG_INCONTACT | POINTER_FLAG_UP));
+        assert!(!in_contact(POINTER_FLAG_INCONTACT | POINTER_FLAG_CANCELED));
+    }
 }
