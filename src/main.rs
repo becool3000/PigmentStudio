@@ -53,6 +53,8 @@ fn main() -> std::process::ExitCode {
     let args: Vec<String> = std::env::args().collect();
     let is_cli = args.iter().any(|arg| {
         arg == "--benchmark"
+            || arg == "--benchmark-knife"
+            || arg == "--benchmark-flat"
             || arg == "--notes"
             || arg == "--note-done"
             || arg == "--inspect-pixel"
@@ -195,7 +197,15 @@ fn main() -> std::process::ExitCode {
         }
     }
 
-    let benchmark = args.iter().any(|argument| argument == "--benchmark");
+    let benchmark = if args.iter().any(|argument| argument == "--benchmark-knife") {
+        Some(Brush::PaletteKnife)
+    } else if args.iter().any(|argument| argument == "--benchmark-flat") {
+        Some(Brush::Flat)
+    } else if args.iter().any(|argument| argument == "--benchmark") {
+        Some(Brush::Round)
+    } else {
+        None
+    };
     let reference = args
         .iter()
         .position(|a| a == "--reference")
@@ -208,7 +218,7 @@ fn main() -> std::process::ExitCode {
         .map(PathBuf::from);
     if let Err(error) = run(benchmark, reference, replay) {
         eprintln!("{error}");
-        if !benchmark {
+        if benchmark.is_none() {
             rfd::MessageDialog::new()
                 .set_title("Pigment Studio")
                 .set_description(error)
@@ -220,10 +230,14 @@ fn main() -> std::process::ExitCode {
     std::process::ExitCode::SUCCESS
 }
 
-fn run(benchmark: bool, reference: Option<PathBuf>, replay: Option<PathBuf>) -> Result<(), String> {
+fn run(
+    benchmark: Option<Brush>,
+    reference: Option<PathBuf>,
+    replay: Option<PathBuf>,
+) -> Result<(), String> {
     let event_loop = EventLoop::new().map_err(|e| e.to_string())?;
     let mut app = App {
-        benchmark: benchmark.then(benchmark::Benchmark::default),
+        benchmark: benchmark.map(benchmark::Benchmark::new),
         reference,
         replay,
         ..Default::default()
@@ -526,16 +540,17 @@ impl ApplicationHandler for App {
         }
         if let (Some(benchmark), Some(rect)) = (self.benchmark.as_mut(), studio.canvas) {
             if !studio.benchmark_seeded {
+                studio.brush = benchmark.brush;
+                studio.workbench.sizes[studio.brush.size_index()] = 64.;
                 studio.commands.extend([
                     Command::SeedBenchmark,
-                    Command::Service(Brush::Round, BrushService::Load(0)),
+                    Command::Service(studio.brush, BrushService::Load(0)),
                 ]);
                 studio.benchmark_seeded = true;
                 studio.window.request_redraw();
                 return;
             }
             let now = Instant::now();
-            studio.workbench.sizes[0] = 64.;
             for (i, point, pressure, time) in benchmark.ready_samples(now) {
                 let physical = rect.min + point.to_vec2() * rect.width();
                 if i == 0 {
@@ -618,6 +633,7 @@ struct Studio {
     selected_dossier: Option<&'static cabinet::PigmentDef>,
     brush: Brush,
     auto_follow: bool,
+    flat_dip_lane: Option<gpu::BrushLane>,
     workbench: workbench::Workbench,
     placement_pending: bool,
     placement_result: Option<Receiver<Option<bool>>>,
@@ -722,7 +738,7 @@ impl Studio {
         }
         if let Some(rep_p) = replay_path {
             if let Ok(text) = std::fs::read_to_string(&rep_p) {
-                if let Ok(rec) = serde_json::from_str::<Recording>(&text) {
+                if let Ok(rec) = Recording::parse(&text) {
                     if let Some(lighting) = rec.lighting.clone() {
                         workbench.lighting = lighting.into();
                         paint.lighting = workbench.lighting;
@@ -763,6 +779,7 @@ impl Studio {
             pen_waits_for_ui: false,
             brush: Brush::Round,
             auto_follow: true,
+            flat_dip_lane: None,
             workbench,
             placement_pending: false,
             placement_result: None,
@@ -922,9 +939,27 @@ impl Studio {
     fn dip_from_jar(&mut self, service: BrushService) {
         self.end_stroke();
         self.snapshot();
+        let service = match (self.brush, self.flat_dip_lane, service) {
+            (Brush::Flat, Some(lane), BrushService::DipRack(slot)) => {
+                BrushService::DipRackLane(slot, lane)
+            }
+            (Brush::Flat, Some(lane), BrushService::DipCustom(slot)) => {
+                BrushService::DipCustomLane(slot, lane)
+            }
+            _ => service,
+        };
+        let dose = if matches!(
+            service,
+            BrushService::DipRackLane(..) | BrushService::DipCustomLane(..)
+        ) {
+            0.25 / 3.0
+        } else {
+            0.25
+        };
         let load = &mut self.workbench.session.loads[self.brush.index()];
-        *load = (*load + 0.25).min(1.0);
+        *load = (*load + dose).min(1.0);
         self.recording.events.push(RecordedEvent::Service {
+            legacy_reservoir: false,
             brush: self.brush.into(),
             action: service.into(),
         });
@@ -946,6 +981,7 @@ impl Studio {
         self.workbench.session.loads[self.brush.index()] = target;
         let action = BrushService::Wipe(scale);
         self.recording.events.push(RecordedEvent::Service {
+            legacy_reservoir: false,
             brush: self.brush.into(),
             action: action.into(),
         });
@@ -953,14 +989,12 @@ impl Studio {
     }
 
     fn clean_brush(&mut self) {
-        if self.workbench.session.loads[self.brush.index()] <= 0.0001 {
-            return;
-        }
         self.end_stroke();
         self.snapshot();
         self.workbench.session.loads[self.brush.index()] = 0.0;
         let action = BrushService::Wipe(0.0);
         self.recording.events.push(RecordedEvent::Service {
+            legacy_reservoir: false,
             brush: self.brush.into(),
             action: action.into(),
         });
@@ -1074,6 +1108,7 @@ impl Studio {
             point,
             pressure,
             timestamp_ms,
+            angle: None,
         };
         self.active_stroke_samples.clear();
         self.active_stroke_samples.push(RecordedSample {
@@ -1081,6 +1116,7 @@ impl Studio {
             y: point.y,
             pressure,
             timestamp_ms,
+            angle_deg: None,
         });
         self.stroke = Some(
             if self.paint.layers.active == gpu::ActiveLayer::Sketch && surface == Surface::Canvas {
@@ -1097,7 +1133,7 @@ impl Studio {
             } else {
                 if surface == Surface::Canvas {
                     let dep = (0.0008
-                        * (self.workbench.sizes[self.brush.index()] / 64.0).clamp(0.4, 2.0)
+                        * (self.workbench.sizes[self.brush.size_index()] / 64.0).clamp(0.4, 2.0)
                         * pressure)
                         .min(0.002);
                     let load = &mut self.workbench.session.loads[self.brush.index()];
@@ -1107,13 +1143,14 @@ impl Studio {
                 Stroke::start_full(
                     source,
                     sample,
-                    self.workbench.sizes[self.brush.index()],
+                    self.workbench.sizes[self.brush.size_index()],
                     surface,
                     self.brush,
                     self.workbench.angle.to_radians(),
                     self.auto_follow && surface == Surface::Canvas,
                     load_ratio,
                     self.paint.tile,
+                    matches!(self.brush, Brush::PaletteKnife | Brush::Flat),
                     &mut self.commands,
                 )
             },
@@ -1155,6 +1192,7 @@ impl Studio {
                 y: point.y,
                 pressure,
                 timestamp_ms,
+                angle_deg: None,
             });
             let before = self.commands.len();
             let surface = stroke.surface;
@@ -1163,6 +1201,7 @@ impl Studio {
                     point,
                     pressure,
                     timestamp_ms,
+                    angle: None,
                 },
                 &mut self.commands,
             );
@@ -1170,7 +1209,7 @@ impl Studio {
                 let dabs = self.commands.len() - before;
                 if dabs > 0 {
                     let dep = (0.0008
-                        * (self.workbench.sizes[self.brush.index()] / 64.0).clamp(0.4, 2.0)
+                        * (self.workbench.sizes[self.brush.size_index()] / 64.0).clamp(0.4, 2.0)
                         * pressure)
                         .min(0.002);
                     let load = &mut self.workbench.session.loads[self.brush.index()];
@@ -1189,10 +1228,13 @@ impl Studio {
                 self.paint.layers.active == gpu::ActiveLayer::Sketch && surface == Surface::Canvas;
             let ink = !is_charcoal
                 && (stroke.ink_is_held() || (self.ink_selected && surface == Surface::Canvas));
+            let auto_follow = stroke.follows_path();
+            let swept = stroke.sweeps_contact();
             stroke.finish(&mut self.commands);
             if !self.active_stroke_samples.is_empty() {
                 let samples = std::mem::take(&mut self.active_stroke_samples);
                 self.recording.events.push(RecordedEvent::Stroke {
+                    legacy_reservoir: false,
                     surface: surface.into(),
                     brush: self.brush.into(),
                     ink,
@@ -1201,9 +1243,12 @@ impl Studio {
                     diameter: if is_charcoal {
                         self.charcoal_size
                     } else {
-                        self.workbench.sizes[self.brush.index()]
+                        self.workbench.sizes[self.brush.size_index()]
                     },
                     angle_deg: self.workbench.angle,
+                    auto_follow,
+                    knife_sweep: swept && self.brush == Brush::PaletteKnife,
+                    bristle_sweep: swept && self.brush == Brush::Flat,
                     tile: Some(self.paint.tile && surface == Surface::Canvas),
                     samples,
                 });
@@ -1211,8 +1256,8 @@ impl Studio {
             if !self.ink_selected && surface == Surface::Canvas {
                 let dabs = self.commands.len() - before;
                 if dabs > 0 {
-                    let dep =
-                        0.0008 * (self.workbench.sizes[self.brush.index()] / 64.0).clamp(0.4, 2.0);
+                    let dep = 0.0008
+                        * (self.workbench.sizes[self.brush.size_index()] / 64.0).clamp(0.4, 2.0);
                     let load = &mut self.workbench.session.loads[self.brush.index()];
                     *load = (*load - dabs as f32 * dep).max(0.0);
                 }
@@ -1552,7 +1597,7 @@ impl Studio {
         {
             match std::fs::read_to_string(&p)
                 .map_err(|e| e.to_string())
-                .and_then(|s| serde_json::from_str::<Recording>(&s).map_err(|e| e.to_string()))
+                .and_then(|s| Recording::parse(&s))
             {
                 Ok(rec) => {
                     self.snapshot();
@@ -2351,7 +2396,10 @@ impl Studio {
         );
         let name_pos = egui::pos2(tile.left() + name_x, tile.center().y - name.size().y * 0.5);
         ui.painter().galley(name_pos, name, name_color);
-        if dip.on_hover_text("Dip brush (+25% load)").clicked() {
+        if dip
+            .on_hover_text("Dip the selected part of the brush")
+            .clicked()
+        {
             self.dip_from_jar(BrushService::DipRack(slot));
         }
 
@@ -2489,10 +2537,13 @@ impl Studio {
             );
         } else if !self.ink_selected {
             ui.add(
-                egui::Slider::new(&mut self.workbench.sizes[self.brush.index()], 4.0..=96.0)
-                    .text("Size")
-                    .suffix(" px")
-                    .integer(),
+                egui::Slider::new(
+                    &mut self.workbench.sizes[self.brush.size_index()],
+                    4.0..=96.0,
+                )
+                .text("Size")
+                .suffix(" px")
+                .integer(),
             );
         }
         if self.paint.layers.active == gpu::ActiveLayer::Paint
@@ -2513,6 +2564,25 @@ impl Studio {
                     )
                     .on_hover_text("Manual angle when Auto-follow is off.");
                 });
+            });
+        }
+        if self.brush == Brush::Flat
+            && self.paint.layers.active == gpu::ActiveLayer::Paint
+            && !self.ink_selected
+        {
+            use gpu::BrushLane::{Left, Middle, Right};
+            ui.horizontal(|ui| {
+                ui.label("Jar dip").on_hover_text(
+                    "Choose which part of the flat brush to load from the next jar.",
+                );
+                for (lane, label) in [
+                    (None, "All"),
+                    (Some(Left), "Left"),
+                    (Some(Middle), "Middle"),
+                    (Some(Right), "Right"),
+                ] {
+                    ui.selectable_value(&mut self.flat_dip_lane, lane, label);
+                }
             });
         }
         ui.add(egui::ProgressBar::new(self.pressure).text(format!(
@@ -2539,15 +2609,18 @@ impl Studio {
                 if visible.is_positive() {
                     self.rag = Some(physical_rect(ui.ctx(), visible));
                 }
-                if ui
-                    .button("Clean brush")
-                    .on_hover_text("Completely remove all paint from active brush")
-                    .clicked()
-                {
-                    self.clean_brush();
-                }
+                ui.label(egui::RichText::new("Swipe to wipe off 10% load.").weak());
             });
-            ui.label(egui::RichText::new("Swipe rag to wipe off 10% load.").weak());
+            if ui
+                .add_sized(
+                    egui::vec2(ui.available_width(), 44.),
+                    egui::Button::new("Clean brush"),
+                )
+                .on_hover_text("Completely remove all paint from active brush")
+                .clicked()
+            {
+                self.clean_brush();
+            }
         }
     }
 
@@ -2759,7 +2832,8 @@ impl Studio {
         if load > 0.005 {
             let fill_width = (track.width() * load).max(2.);
             let fill_rect = Rect::from_min_size(track.min, egui::vec2(fill_width, track.height()));
-            let lane = if brush.is_directional() { 2 } else { 0 };
+            let lane = brush.load_start() + u32::from(brush.is_directional());
+            painter.rect_filled(fill_rect, 2., Color32::from_gray(97));
             painter.image(
                 self.texture_id,
                 fill_rect,

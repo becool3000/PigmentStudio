@@ -228,7 +228,7 @@ pub fn brush(painter: &Painter, origin: Pos2, brush: Brush, texture: TextureId, 
 
 fn paint_on_tip(painter: &Painter, tip: &[Pos2], brush: Brush, texture: TextureId, load: f32) {
     let bounds = Rect::from_points(tip);
-    let lanes = if brush.is_directional() { 1..4 } else { 0..1 };
+    let lanes = brush.load_lanes();
     let lane_height = bounds.height() / lanes.len() as f32;
     let center = bounds.center();
     let painted_width = (bounds.width() * load).max(1.5);

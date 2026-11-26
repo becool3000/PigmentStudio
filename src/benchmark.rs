@@ -1,3 +1,4 @@
+use crate::gpu::Brush;
 use std::time::{Duration, Instant};
 
 const RATE: usize = 120;
@@ -11,14 +12,23 @@ pub struct FrameTiming {
     pub gpu_and_submit: Duration,
 }
 
-#[derive(Default)]
 pub struct Benchmark {
+    pub brush: Brush,
     start: Option<Instant>,
     sample: usize,
     frames: Vec<FrameTiming>,
 }
 
 impl Benchmark {
+    pub fn new(brush: Brush) -> Self {
+        Self {
+            brush,
+            start: None,
+            sample: 0,
+            frames: Vec::new(),
+        }
+    }
+
     pub fn next_deadline(&self) -> Instant {
         self.start.unwrap_or_else(Instant::now)
             + Duration::from_secs_f64(self.sample as f64 / RATE as f64)

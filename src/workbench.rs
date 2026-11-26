@@ -1,3 +1,4 @@
+use crate::gpu::BRUSH_COUNT;
 use std::collections::VecDeque;
 
 pub const CUSTOM_JAR_COUNT: usize = 64;
@@ -5,14 +6,14 @@ pub const MAX_UNDO: usize = 64;
 
 #[derive(Clone, Copy)]
 pub struct Session {
-    pub loads: [f32; 2],
+    pub loads: [f32; BRUSH_COUNT],
     pub jars: [bool; CUSTOM_JAR_COUNT],
 }
 
 impl Default for Session {
     fn default() -> Self {
         Self {
-            loads: [0.0; 2],
+            loads: [0.0; BRUSH_COUNT],
             jars: [false; CUSTOM_JAR_COUNT],
         }
     }

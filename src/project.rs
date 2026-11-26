@@ -1,10 +1,14 @@
-use crate::gpu::{ActiveLayer, Brush, Layers, PROJECT_BYTES};
+use crate::gpu::{
+    ActiveLayer, Brush, Layers, BRUSH_BYTES, BRUSH_COUNT, BRUSH_LOAD_BYTES, LEGACY_BRUSH_BYTES,
+    PROJECT_BYTES,
+};
 use crate::recording::{BrushKind, LightingConfig, Recording};
 use serde::{Deserialize, Serialize};
 use std::io::{Read, Write};
 use std::path::Path;
 
-const MAGIC: &[u8; 8] = b"PIGMENT1";
+const MAGIC: &[u8; 8] = b"PIGMENT2";
+const LEGACY_MAGIC: &[u8; 8] = b"PIGMENT1";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -80,7 +84,8 @@ fn default_calibration_version() -> u32 {
 pub struct ProjectMeta {
     #[serde(default = "default_calibration_version")]
     pub calibration_version: u32,
-    pub loads: [f32; 2],
+    #[serde(deserialize_with = "deserialize_loads")]
+    pub loads: [f32; BRUSH_COUNT],
     pub jars: Vec<bool>,
     pub sizes: [f32; 2],
     pub angle: f32,
@@ -98,6 +103,42 @@ impl ProjectMeta {
     pub fn brush(&self) -> Brush {
         self.brush.into()
     }
+}
+
+fn deserialize_loads<'de, D>(deserializer: D) -> Result<[f32; BRUSH_COUNT], D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum LoadMeters {
+        Independent([f32; BRUSH_COUNT]),
+        Shared([f32; 2]),
+    }
+
+    Ok(match LoadMeters::deserialize(deserializer)? {
+        LoadMeters::Independent(loads) => loads,
+        LoadMeters::Shared([round, flat]) => {
+            let mut loads = [0.0; BRUSH_COUNT];
+            loads[Brush::Round.index()] = round;
+            loads[Brush::Flat.index()] = flat;
+            loads
+        }
+    })
+}
+
+fn reservoir_loads(gpu_bytes: &[u8]) -> [f32; BRUSH_COUNT] {
+    let start = (PROJECT_BYTES - BRUSH_BYTES) as usize;
+    Brush::ALL.map(|brush| {
+        let lanes = brush.load_lanes();
+        let brush_bytes =
+            &gpu_bytes[start + lanes.start as usize * 32..start + lanes.end as usize * 32];
+        let mass = brush_bytes
+            .chunks_exact(4)
+            .map(|bytes| f32::from_le_bytes(bytes.try_into().unwrap()))
+            .sum::<f32>();
+        (mass / 184_000.0).clamp(0.0, 1.0)
+    })
 }
 
 /// PackBits-style RLE over 32-bit words:
@@ -164,7 +205,7 @@ fn rle_decode_u32(encoded: &[u8], expected_bytes: usize) -> Result<Vec<u8>, Stri
             }
             words.resize(words.len() + count, word);
         } else if header < 0 {
-            let count = (-header) as usize;
+            let count = header.unsigned_abs() as usize;
             let byte_len = count * 4;
             if pos + byte_len > encoded.len() || words.len() + count > expected_words {
                 return Err("Corrupt RLE literal block in .pigment file.".into());
@@ -187,11 +228,12 @@ fn rle_decode_u32(encoded: &[u8], expected_bytes: usize) -> Result<Vec<u8>, Stri
     Ok(bytemuck::cast_slice(&words).to_vec())
 }
 
-pub fn write_project(path: &Path, meta: &ProjectMeta, gpu_bytes: &[u8]) -> Result<(), String> {
+pub fn write_project(path: &Path, mut meta: ProjectMeta, gpu_bytes: &[u8]) -> Result<(), String> {
     if gpu_bytes.len() as u64 != PROJECT_BYTES {
         return Err("Unexpected GPU buffer size for project save.".into());
     }
-    let meta_json = serde_json::to_vec(meta).map_err(|e| e.to_string())?;
+    meta.loads = reservoir_loads(gpu_bytes);
+    let meta_json = serde_json::to_vec(&meta).map_err(|e| e.to_string())?;
     let meta_len = u32::try_from(meta_json.len()).map_err(|_| "Metadata too large.".to_string())?;
     let compressed = rle_encode_u32(gpu_bytes);
 
@@ -222,15 +264,32 @@ pub fn read_project(path: &Path) -> Result<(ProjectMeta, std::sync::Arc<Vec<u8>>
 }
 
 pub fn read_project_bytes(bytes: &[u8]) -> Result<(ProjectMeta, std::sync::Arc<Vec<u8>>), String> {
-    if bytes.len() < 12 || &bytes[0..8] != MAGIC {
+    if bytes.len() < 12 || (&bytes[..8] != MAGIC && &bytes[..8] != LEGACY_MAGIC) {
         return Err("Not a valid Pigment Studio (.pigment) file.".into());
     }
     let meta_len = u32::from_le_bytes(bytes[8..12].try_into().unwrap()) as usize;
     if 12 + meta_len > bytes.len() {
         return Err("Corrupt .pigment metadata header.".into());
     }
-    let meta: ProjectMeta =
+    let mut meta: ProjectMeta =
         serde_json::from_slice(&bytes[12..12 + meta_len]).map_err(|e| e.to_string())?;
-    let gpu_bytes = rle_decode_u32(&bytes[12 + meta_len..], PROJECT_BYTES as usize)?;
+    meta.recording.upgrade_legacy_reservoirs();
+    let payload = &bytes[12 + meta_len..];
+    let gpu_bytes = if &bytes[..8] == LEGACY_MAGIC {
+        let brush_offset = (PROJECT_BYTES - BRUSH_BYTES) as usize;
+        let mut gpu_bytes = rle_decode_u32(payload, brush_offset + LEGACY_BRUSH_BYTES)?;
+        // Round and Flat keep the first four legacy lanes. Insert the remaining
+        // reservoirs before the shared transfer scratch and placement state.
+        let legacy_load_end = brush_offset + 4 * 32;
+        let tail = gpu_bytes.split_off(legacy_load_end);
+        gpu_bytes.reserve_exact(BRUSH_LOAD_BYTES - 4 * 32 + tail.len());
+        gpu_bytes.resize(brush_offset + BRUSH_LOAD_BYTES, 0);
+        gpu_bytes.extend(tail);
+        gpu_bytes
+    } else {
+        rle_decode_u32(payload, PROJECT_BYTES as usize)?
+    };
+    debug_assert_eq!(gpu_bytes.len(), PROJECT_BYTES as usize);
+    meta.loads = reservoir_loads(&gpu_bytes);
     Ok((meta, std::sync::Arc::new(gpu_bytes)))
 }

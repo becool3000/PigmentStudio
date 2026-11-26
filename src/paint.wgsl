@@ -4,11 +4,12 @@ struct Dab {
     axis: vec4<f32>,
     mode: vec4<u32>, // operation, brush index, pigment or source x, source y
     tubes: vec4<u32>, // one-based palette recipe
+    sweep: vec4<f32>, // brush displacement, end radius and end pressure
 }
 struct Pigments { lo: vec4<f32>, hi: vec4<f32> }
 struct Band { k0: vec4<f32>, k1: vec4<f32>, s0: vec4<f32>, s1: vec4<f32>, xyz: vec4<f32> }
 struct BrushState {
-    loads: array<Pigments, 4>,
+    loads: array<Pigments, 14>,
     transfer: array<Pigments, 3>,
     slots: array<u32, 8>,
     placement_ok: u32,
@@ -53,12 +54,16 @@ fn wrap_canvas_pixel(raw: vec2<u32>, wrap: bool) -> vec2<u32> {
     return select(raw, raw % 1024u, wrap);
 }
 
-fn tip(pixel: vec2<u32>) -> vec2<f32> {
+fn tip_delta(pixel: vec2<u32>) -> vec2<f32> {
     var delta = vec2<f32>(pixel) + vec2<f32>(0.5) - dab.brush.xy;
     if (dab.mode.w != 0u) {
         delta = delta - round(delta / 1024.0) * 1024.0;
     }
-    let p = delta / dab.brush.z;
+    return delta;
+}
+
+fn tip(pixel: vec2<u32>) -> vec2<f32> {
+    let p = tip_delta(pixel) / dab.brush.z;
     let profile = dab.mode.z;
     if (profile == 0u) {
         return vec2<f32>(1.0 - smoothstep(0.3, 1.0, length(p)), 0.0);
@@ -80,8 +85,12 @@ fn tip(pixel: vec2<u32>) -> vec2<f32> {
 
     if (profile == 4u) {
         // Palette Knife: crisp steel blade edge with trailing ridge bias
-        let edge = max(abs(across), abs(local.y) / 0.22);
-        let blade = 1.0 - smoothstep(0.86, 1.0, edge);
+        let along = abs(local.y) / 0.22;
+        let across_edge = 1.0 - smoothstep(0.86, 1.0, abs(across));
+        let square = min(across_edge, 1.0 - smoothstep(0.86, 1.0, along));
+        // Give consecutive moving dabs a gradual overlap along the travel axis.
+        let continuous = across_edge * (1.0 - smoothstep(0.18, 1.0, along));
+        let blade = select(square, continuous, dab.axis.w > 0.0);
         let ridge = 0.85 + 0.15 * smoothstep(-0.22, 0.22, -local.y);
         return vec2<f32>(blade * ridge, group);
     }
@@ -109,15 +118,83 @@ fn tip(pixel: vec2<u32>) -> vec2<f32> {
     return vec2<f32>((1.0 - smoothstep(0.76, 1.0, edge)) * ridge * tooth_mask, group);
 }
 
+fn sweep_distance() -> f32 {
+    return length(dab.sweep.xy) / (0.125 * (dab.brush.z + dab.sweep.z));
+}
+
+fn hog_bristle_contact(across: f32, along: f32, pressure: f32, tooth: f32) -> f32 {
+    let clumps = (across + 1.0) * 4.6 + 0.23 * sin(across * 8.7);
+    let gap = abs(fract(clumps) - 0.5);
+    let bundle = 1.0 - smoothstep(0.22, 0.48, gap);
+    let stiffness = 0.07 + 0.17 * (0.5 + 0.5 * sin(floor(clumps) * 2.4));
+    let light_touch = bundle * smoothstep(stiffness, stiffness + 0.24, pressure + 0.10 * tooth);
+    let full_contact = mix(0.68, 1.0, bundle);
+    let bristles = mix(light_touch * mix(0.20, 1.0, tooth), full_contact, smoothstep(0.20, 0.68, pressure));
+    let edge = (1.0 - smoothstep(0.82, 1.0, abs(across))) * (1.0 - smoothstep(0.18, 1.0, abs(along) / 0.36));
+    return edge * bristles;
+}
+
+// Integrate directional contact over a short segment. Each quadrature
+// point contributes to the lanes it crosses, so turning keeps the split load.
+fn moving_contact(delta: vec2<f32>, t: f32, tooth: f32) -> vec3<f32> {
+    let p = (delta - (t - 0.5) * dab.sweep.xy) / mix(dab.brush.z, dab.sweep.z, t);
+    let axis = normalize(mix(dab.axis.xy, dab.axis.zw, t));
+    let pressure = mix(dab.brush.w, dab.sweep.w, t);
+    let across = dot(p, axis) / mix(0.83, 1.0, pressure);
+    let along = dot(p, vec2<f32>(-axis.y, axis.x));
+    let flat = dab.mode.z == 1u;
+    var contact: f32;
+    if (flat) {
+        contact = hog_bristle_contact(across, along, pressure, tooth);
+    } else {
+        let sides = 1.0 - smoothstep(0.86, 1.0, abs(across));
+        let travel = 1.0 - smoothstep(0.18, 1.0, abs(along) / 0.22);
+        let ridge = 0.85 + 0.15 * smoothstep(-0.22, 0.22, -along);
+        contact = sides * travel * ridge;
+    }
+    let blend = select(0.05, 0.10, flat);
+    let center = smoothstep(-0.33 - blend, -0.33 + blend, across);
+    let far = smoothstep(0.33 - blend, 0.33 + blend, across);
+    return vec3<f32>(1.0 - center, center - far, far) * contact;
+}
+
+fn swept_exposure(pixel: vec2<u32>) -> vec3<f32> {
+    let delta = tip_delta(pixel);
+    var tooth = 1.0;
+    if (dab.mode.z == 1u) {
+        let weave = (cos(f32(pixel.x) * 1.9635) - cos(f32(pixel.y) * 1.9635)) * 0.5 + 0.5;
+        tooth = smoothstep(0.3, 0.83, weave);
+    }
+    let ends = moving_contact(delta, 0.0694318, tooth) + moving_contact(delta, 0.9305682, tooth);
+    let middle = moving_contact(delta, 0.3300095, tooth) + moving_contact(delta, 0.6699905, tooth);
+    return (ends * 0.1739274 + middle * 0.3260726) * sweep_distance();
+}
+
+fn pickup_rate(rate: f32, exposure: f32) -> f32 {
+    if (dab.sweep.z > 0.0) {
+        return 1.0 - pow(1.0 - rate, exposure);
+    }
+    return rate * exposure;
+}
+
 fn pickup(w: f32) -> f32 {
-    var canvas_rate = mix(0.075, 0.23, dab.brush.w);
+    let pressure = select(dab.brush.w, 0.5 * (dab.brush.w + dab.sweep.w), dab.sweep.z > 0.0);
+    var canvas_rate = mix(0.075, 0.23, pressure);
     if (dab.mode.z == 4u) {
-        canvas_rate = mix(0.45, 0.80, dab.brush.w);
+        canvas_rate = mix(0.45, 0.80, pressure);
     } else if (dab.mode.z == 5u) {
         canvas_rate = mix(0.28, 0.52, dab.brush.w);
     }
-    let palette_rate = mix(0.16, 0.43, dab.brush.w);
-    return w * select(canvas_rate, palette_rate, dab.brush.y >= 1024.0);
+    let palette_rate = mix(0.16, 0.43, pressure);
+    return pickup_rate(select(canvas_rate, palette_rate, dab.brush.y >= 1024.0), w);
+}
+
+fn swept_transfer_weights(pixel: vec2<u32>) -> vec3<f32> {
+    let exposure = swept_exposure(pixel);
+    let total = dot(exposure, vec3<f32>(1.0));
+    // Apply the same distance-dependent factor to pickup and replenishment.
+    // For a fully loaded brush, subdividing a stroke then gives the same film.
+    return exposure * (pickup(total) / (max(total, 0.00000001) * pickup(1.0)));
 }
 
 @compute @workgroup_size(64)
@@ -131,11 +208,18 @@ fn gather(@builtin(local_invocation_index) i: u32, @builtin(workgroup_id) work: 
             dab.bounds.xy + vec2<u32>(k % dab.bounds.z, k / dab.bounds.z),
             dab.mode.w != 0u
         );
-        let footprint = tip(pixel);
-        if (u32(footprint.y) == group && footprint.x > 0.0) {
-            let pixel_paint = canvas[index(pixel)];
-            paint = add(paint, scale(pixel_paint, pickup(footprint.x)));
-            area += footprint.x;
+        if (dab.sweep.z > 0.0) {
+            let lane = swept_transfer_weights(pixel)[group];
+            if (lane > 0.0) {
+                paint = add(paint, scale(canvas[index(pixel)], pickup(1.0) * lane));
+                area += lane;
+            }
+        } else {
+            let footprint = tip(pixel);
+            if (u32(footprint.y) == group && footprint.x > 0.0) {
+                paint = add(paint, scale(canvas[index(pixel)], pickup(footprint.x)));
+                area += footprint.x;
+            }
         }
     }
     sampled[i] = paint;
@@ -152,12 +236,17 @@ fn gather(@builtin(local_invocation_index) i: u32, @builtin(workgroup_id) work: 
         let load_index = dab.mode.y + group;
         let mixed = add(state.loads[load_index], sampled[0]);
         let area_sum = weights[0];
+        let pressure = select(dab.brush.w, 0.5 * (dab.brush.w + dab.sweep.w), dab.sweep.z > 0.0);
         let deposit_rate = select(
-            mix(0.085, 0.25, dab.brush.w),
-            mix(0.14, 0.38, dab.brush.w),
+            mix(0.085, 0.25, pressure),
+            mix(0.14, 0.38, pressure),
             dab.mode.z == 4u
         );
-        let deposit = min(area_sum * deposit_rate, amount(mixed) * mix(0.045, 0.12, dab.brush.w));
+        var load_fraction = mix(0.045, 0.12, pressure);
+        if (dab.sweep.z > 0.0) {
+            load_fraction = 1.0 - pow(1.0 - load_fraction, sweep_distance());
+        }
+        let deposit = min(area_sum * deposit_rate, amount(mixed) * load_fraction);
         let used_fraction = deposit / max(amount(mixed), 0.00000001);
         state.loads[load_index] = scale(mixed, 1.0 - used_fraction);
         state.transfer[group] = scale(mixed, used_fraction / max(area_sum, 0.00000001));
@@ -314,12 +403,21 @@ fn apply(@builtin(global_invocation_id) id: vec3<u32>) {
     let at = index(pixel);
     var paint = canvas[at];
     if (dab.mode.x == 0u) {
+        if (dab.sweep.z > 0.0) {
+            let weights = swept_transfer_weights(pixel);
+            let w = dot(weights, vec3<f32>(1.0));
+            if (w <= 0.0) { return; }
+            let transferred = add(scale(state.transfer[0], weights.x), scale(state.transfer[1], weights.y));
+            let deposited = add(transferred, scale(state.transfer[2], weights.z));
+            paint = add(scale(paint, max(0.0, 1.0 - pickup(1.0) * w)), deposited);
+        } else {
             let footprint = tip(pixel);
             let w = footprint.x;
             if (w <= 0.0) { return; }
             paint = add(scale(paint, 1.0 - pickup(w)), scale(state.transfer[u32(footprint.y)], w));
-            canvas[at] = paint;
-        } else if (dab.mode.x == 2u) {
+        }
+        canvas[at] = paint;
+    } else if (dab.mode.x == 2u) {
             let tube = state.slots[pixel.x / 64u];
             if (tube == 0u) { return; }
             let delta = vec2<f32>(vec2<u32>(pixel.x % 64u, pixel.y - 1024u)) + vec2<f32>(0.5) - vec2<f32>(32.0);
@@ -678,12 +776,14 @@ fn display(@builtin(global_invocation_id) id: vec3<u32>) {
 @compute @workgroup_size(4)
 fn service(@builtin(local_invocation_index) lane: u32) {
     let first = dab.mode.y;
-    let count = select(3u, 1u, first == 0u);
+    let single = first == 0u || first == 13u;
+    let count = select(3u, 1u, single);
     if (lane >= count) { return; }
+    if ((dab.mode.x == 11u || dab.mode.x == 12u) && dab.mode.w != 0u && lane + 1u != dab.mode.w) { return; }
     let i = first + lane;
     if (dab.mode.x == 5u) {
         state.loads[i] = add(state.loads[i], pure(dab.mode.z, dab.brush.w / f32(count)));
-        let capacity = select(61333.3, 184000.0, first == 0u);
+        let capacity = select(61333.3, 184000.0, single);
         let cur = amount(state.loads[i]);
         if (cur > capacity) {
             state.loads[i] = scale(state.loads[i], capacity / cur);
@@ -695,7 +795,7 @@ fn service(@builtin(local_invocation_index) lane: u32) {
             let added = scale(source_paint, (dab.brush.w / f32(count)) / src_amt);
             state.loads[i] = add(state.loads[i], added);
         }
-        let capacity = select(61333.3, 184000.0, first == 0u);
+        let capacity = select(61333.3, 184000.0, single);
         let cur = amount(state.loads[i]);
         if (cur > capacity) {
             state.loads[i] = scale(state.loads[i], capacity / cur);
@@ -707,7 +807,7 @@ fn service(@builtin(local_invocation_index) lane: u32) {
             let added = scale(source_paint, (dab.brush.w / f32(count)) / src_amt);
             state.loads[i] = add(state.loads[i], added);
         }
-        let capacity = select(61333.3, 184000.0, first == 0u);
+        let capacity = select(61333.3, 184000.0, single);
         let cur = amount(state.loads[i]);
         if (cur > capacity) {
             state.loads[i] = scale(state.loads[i], capacity / cur);
@@ -717,8 +817,9 @@ fn service(@builtin(local_invocation_index) lane: u32) {
     }
 }
 
-@compute @workgroup_size(4)
+@compute @workgroup_size(16)
 fn preview(@builtin(local_invocation_index) lane: u32) {
+    if (lane >= 14u) { return; }
     let paint = state.loads[lane];
     let mass = amount(paint);
     var swatch = vec4<f32>(0.0);

@@ -113,7 +113,7 @@ fn values(bytes: &[u8]) -> impl Iterator<Item = [f32; 8]> + '_ {
 
 fn totals(a: &[u8], b: &[u8]) -> [f64; 6] {
     let mut totals = [0.; 6];
-    for p in values(a).chain(values(&b[..128])) {
+    for p in values(a).chain(values(&b[..gpu::BRUSH_LOAD_BYTES])) {
         for i in 0..6 {
             totals[i] += f64::from(p[i]);
         }
@@ -337,7 +337,10 @@ fn dx12_oil_workbench() {
     assert!(pixel(&canvas, 420, 500)[2] < 245);
     assert_eq!(rig.canvas(&[Command::Undo]), blank);
     let (_, restored) = rig.state(&[]);
-    assert_eq!(&restored[..128], &streaked[..128]);
+    assert_eq!(
+        &restored[..gpu::BRUSH_LOAD_BYTES],
+        &streaked[..gpu::BRUSH_LOAD_BYTES]
+    );
     let mut worn = Vec::new();
     for y in [150., 230., 310., 390., 470.] {
         worn.extend(line([90., y], [960., y], Surface::Canvas, Brush::Round));
@@ -365,7 +368,10 @@ fn dx12_oil_workbench() {
     assert!(load[1] > load[3] * 3.9);
     assert_eq!(load[3], values(&clean).next().unwrap()[3]);
     let (_, restored) = rig.state(&[Command::Undo]);
-    assert_eq!(&restored[..128], &clean[..128]);
+    assert_eq!(
+        &restored[..gpu::BRUSH_LOAD_BYTES],
+        &clean[..gpu::BRUSH_LOAD_BYTES]
+    );
 
     let (_, custom_dipped) = rig.state(&[
         Command::Snapshot,
@@ -374,7 +380,10 @@ fn dx12_oil_workbench() {
     let custom_load = values(&custom_dipped).next().unwrap();
     assert!(custom_load[1] > 10., "{custom_load:?}");
     let (_, restored_after_custom) = rig.state(&[Command::Undo]);
-    assert_eq!(&restored_after_custom[..128], &clean[..128]);
+    assert_eq!(
+        &restored_after_custom[..gpu::BRUSH_LOAD_BYTES],
+        &clean[..gpu::BRUSH_LOAD_BYTES]
+    );
 
     let cad_red = cabinet::find_pigment("cadmium_red").unwrap();
     let (_, rack_dipped) = rig.state(&[
@@ -388,7 +397,10 @@ fn dx12_oil_workbench() {
         "rack dip should transfer pigment recipe to brush: {rack_load:?}"
     );
     let (_, restored_after_rack) = rig.state(&[Command::Undo]);
-    assert_eq!(&restored_after_rack[..128], &clean[..128]);
+    assert_eq!(
+        &restored_after_rack[..gpu::BRUSH_LOAD_BYTES],
+        &clean[..gpu::BRUSH_LOAD_BYTES]
+    );
 
     assert!(rig.check_tubes([5, 4, 2, 4]));
     rig.canvas(&[Command::Tubes]);
@@ -441,6 +453,7 @@ fn dx12_oil_workbench() {
             point: egui::pos2(96.5, 96.5),
             pressure: 0.65,
             timestamp_ms: 0,
+            angle: None,
         },
         26.,
         Surface::Palette,
@@ -470,6 +483,7 @@ fn dx12_oil_workbench() {
         point: egui::pos2(x, 440.),
         pressure,
         timestamp_ms,
+        angle: None,
     };
     let mut stroke = Stroke::start(
         Source::Pen,
@@ -542,6 +556,7 @@ fn dx12_oil_workbench() {
             point: pool,
             pressure: 0.98,
             timestamp_ms: 0,
+            angle: None,
         },
         &mut hold,
     );
@@ -1441,6 +1456,7 @@ fn test_phase_b_seamless_tiling_and_underlayer_import() {
             point: egui::pos2(1014., 512.),
             pressure: 1.0,
             timestamp_ms: 0,
+            angle: None,
         },
         48.,
         Surface::Canvas,
@@ -1454,6 +1470,7 @@ fn test_phase_b_seamless_tiling_and_underlayer_import() {
             point: egui::pos2(1034., 512.),
             pressure: 1.0,
             timestamp_ms: 16,
+            angle: None,
         },
         &mut stroke_cmds,
     );
@@ -1480,10 +1497,12 @@ fn test_phase_c_recording_headless_and_deep_undo() {
     let rec = Recording {
         events: vec![
             RecordedEvent::Service {
+                legacy_reservoir: false,
                 brush: BrushKind::Round,
                 action: ServiceAction::Load { tube: 6 },
             },
             RecordedEvent::Stroke {
+                legacy_reservoir: false,
                 surface: SurfaceKind::Canvas,
                 brush: BrushKind::Round,
                 ink: false,
@@ -1491,6 +1510,9 @@ fn test_phase_c_recording_headless_and_deep_undo() {
                 erase: false,
                 diameter: 48.0,
                 angle_deg: 0.0,
+                auto_follow: false,
+                knife_sweep: false,
+                bristle_sweep: false,
                 tile: Some(false),
                 samples: vec![
                     RecordedSample {
@@ -1498,12 +1520,14 @@ fn test_phase_c_recording_headless_and_deep_undo() {
                         y: 500.0,
                         pressure: 1.0,
                         timestamp_ms: 0,
+                        angle_deg: None,
                     },
                     RecordedSample {
                         x: 600.0,
                         y: 500.0,
                         pressure: 1.0,
                         timestamp_ms: 16,
+                        angle_deg: None,
                     },
                 ],
             },
@@ -1538,12 +1562,14 @@ fn test_phase_c_recording_headless_and_deep_undo() {
         wb.snapshot();
         if step == 0 {
             events.push(RecordedEvent::Service {
+                legacy_reservoir: false,
                 brush: BrushKind::Round,
                 action: ServiceAction::Load { tube: 1 },
             });
         }
         let x = 100.0 + step as f32 * 60.0;
         events.push(RecordedEvent::Stroke {
+            legacy_reservoir: false,
             surface: SurfaceKind::Canvas,
             brush: BrushKind::Round,
             ink: false,
@@ -1551,12 +1577,16 @@ fn test_phase_c_recording_headless_and_deep_undo() {
             erase: false,
             diameter: 32.0,
             angle_deg: 0.0,
+            auto_follow: false,
+            knife_sweep: false,
+            bristle_sweep: false,
             tile: Some(false),
             samples: vec![RecordedSample {
                 x,
                 y: 500.0,
                 pressure: 1.0,
                 timestamp_ms: step as u32 * 20,
+                angle_deg: None,
             }],
         });
     }
@@ -1700,11 +1730,15 @@ fn test_project_save_and_load_pigment_file() {
 
     let dir = tempfile::tempdir().unwrap();
     let proj_path = dir.path().join("test.pigment");
+    rig.state(&[
+        Command::Service(Brush::Flat, BrushService::Dip(0)),
+        Command::Service(Brush::SoftMop, BrushService::Dip(1)),
+    ]);
     let mut jars = vec![false; crate::workbench::CUSTOM_JAR_COUNT];
     jars[0] = true;
     let meta = crate::project::ProjectMeta {
         calibration_version: crate::project::CURRENT_CALIBRATION_VERSION,
-        loads: [0.5, 0.0],
+        loads: [0.5, 0.0, 0.0, 0.0, 0.0, 0.0],
         jars,
         sizes: [48.0, 64.0],
         angle: 30.0,
@@ -1731,6 +1765,9 @@ fn test_project_save_and_load_pigment_file() {
     assert_eq!(loaded_meta.sizes, [48.0, 64.0]);
     assert!(loaded_meta.tile);
     assert!(loaded_meta.jars[0]);
+    assert!((loaded_meta.loads[Brush::Flat.index()] - 0.25).abs() < 0.0001);
+    assert_eq!(loaded_meta.loads[Brush::SoftMop.index()], 0.25);
+    assert_eq!(loaded_meta.loads[Brush::PaletteKnife.index()], 0.0);
 
     let mut rig2 = Rig::new();
     let loaded = rig2.canvas(&[Command::Snapshot, Command::LoadProject(bytes)]);
@@ -1742,6 +1779,15 @@ fn test_project_save_and_load_pigment_file() {
         pixel(&loaded, 200, 200)[0] < 180,
         "loaded project must preserve charcoal sketch"
     );
+    let (_, loads) = rig2.state(&[]);
+    let flat = values(&loads)
+        .nth(Brush::Flat.load_start() as usize)
+        .unwrap();
+    let mop = values(&loads)
+        .nth(Brush::SoftMop.load_start() as usize)
+        .unwrap();
+    assert!(flat[0] > 15_000. && flat[1] == 0.);
+    assert_eq!(mop[1], 46_000.);
 
     // Undo restores clean canvas
     let undone = rig2.canvas(&[Command::Undo]);
@@ -1802,6 +1848,7 @@ fn test_robust_oil_brush_pack_and_auto_follow() {
             point: egui::pos2(490., 500.),
             pressure: 0.9,
             timestamp_ms: 0,
+            angle: None,
         },
         48.,
         Surface::Canvas,
@@ -1810,6 +1857,7 @@ fn test_robust_oil_brush_pack_and_auto_follow() {
         true,
         0.0,
         false,
+        true,
         &mut cmds,
     );
     knife_stroke.extend(
@@ -1817,6 +1865,7 @@ fn test_robust_oil_brush_pack_and_auto_follow() {
             point: egui::pos2(518., 500.),
             pressure: 0.9,
             timestamp_ms: 16,
+            angle: None,
         },
         &mut cmds,
     );
@@ -1827,6 +1876,280 @@ fn test_robust_oil_brush_pack_and_auto_follow() {
         pulled[0] > 200 && pulled[1] < 230,
         "unloaded Palette Knife must scrape and smear paint forward: {pulled:?}"
     );
+}
+
+#[test]
+fn dx12_palette_knife_turn_carries_wet_pigments_over_dry_paint() {
+    let mut rig = Rig::new();
+    rig.state(&[
+        Command::Service(Brush::Round, BrushService::Load(6)),
+        mark(550., 510., Surface::Canvas, Brush::Round),
+        Command::DryCanvas,
+        Command::Service(Brush::Round, BrushService::Wipe(0.0)),
+        Command::Service(Brush::Round, BrushService::Load(0)),
+        mark(487., 500., Surface::Canvas, Brush::Round),
+        Command::Service(Brush::Round, BrushService::Wipe(0.0)),
+        Command::Service(Brush::Round, BrushService::Load(1)),
+        mark(520., 500., Surface::Canvas, Brush::Round),
+    ]);
+    let dry = rig.dry_state();
+    let (before, brush_before) = rig.state(&[]);
+    let recording: Recording = serde_json::from_str(
+        r#"{
+            "format":"pigment-studio-recording-v1",
+            "events":[{
+                "type":"stroke","surface":"canvas","brush":"palette_knife","diameter":52,"knife_sweep":true,
+                "samples":[
+                    {"x":483,"y":500,"pressure":0.95,"angle_deg":90},
+                    {"x":521,"y":500,"pressure":0.95,"angle_deg":104},
+                    {"x":553,"y":510,"pressure":0.85,"angle_deg":125},
+                    {"x":566,"y":521,"pressure":0.10,"angle_deg":148}
+                ]
+            }]
+        }"#,
+    )
+    .unwrap();
+    let commands = recording::compile_events(&recording.events, &mut false);
+    let (after, brush_after) = rig.state(&commands);
+    let mixed = values(&after).enumerate().any(|(index, pigment)| {
+        let x = index % SIDE as usize;
+        let y = index / SIDE as usize;
+        (548..566).contains(&x)
+            && (495..529).contains(&y)
+            && pigment[0] > 0.005
+            && pigment[1] > 0.005
+    });
+    assert!(
+        mixed,
+        "the blade should carry both wet pigments beyond their source dabs"
+    );
+    assert_eq!(
+        rig.dry_state(),
+        dry,
+        "the dry underpainting should stay locked"
+    );
+    for (a, b) in totals(&before, &brush_before)
+        .into_iter()
+        .zip(totals(&after, &brush_after))
+    {
+        assert!(
+            (a - b).abs() < 0.001 * a.max(1.0),
+            "paint mass changed: {a} -> {b}"
+        );
+    }
+}
+
+#[test]
+fn dx12_swept_knife_lays_even_height_at_different_sample_rates() {
+    let mut rig = Rig::new();
+    rig.paint.lighting.canvas_weave = 0.0;
+    let mut commands = Vec::new();
+    for (y, intervals, sweep) in [(300., 16, true), (500., 197, true), (700., 16, false)] {
+        commands.extend([
+            Command::Service(Brush::PaletteKnife, BrushService::Wipe(0.0)),
+            Command::Service(Brush::PaletteKnife, BrushService::Dip(0)),
+        ]);
+        let sample = |i| Sample {
+            point: egui::pos2(200. + 440. * i as f32 / intervals as f32, y),
+            pressure: 1.0,
+            timestamp_ms: i,
+            angle: Some(std::f32::consts::FRAC_PI_2),
+        };
+        let mut stroke = Stroke::start_full(
+            Source::Mouse,
+            sample(0),
+            64.,
+            Surface::Canvas,
+            Brush::PaletteKnife,
+            std::f32::consts::FRAC_PI_2,
+            false,
+            1.0,
+            false,
+            sweep,
+            &mut commands,
+        );
+        for i in 1..=intervals {
+            stroke.extend(sample(i), &mut commands);
+        }
+        stroke.finish(&mut commands);
+    }
+    let (paint, _) = rig.state(&commands);
+    let row = |y| {
+        values(&paint[y * SIDE as usize * 32..])
+            .skip(240)
+            .take(360)
+            .map(|pigment| pigment[0])
+            .collect::<Vec<_>>()
+    };
+    let sparse = row(300);
+    let dense = row(500);
+    let stamped = row(700);
+    let span = |row: &[f32]| {
+        row.iter().copied().fold(0.0, f32::max) - row.iter().copied().fold(f32::INFINITY, f32::min)
+    };
+    let max_resampling_error = sparse
+        .iter()
+        .zip(&dense)
+        .map(|(a, b)| (a - b).abs())
+        .fold(0.0, f32::max);
+    assert!(
+        span(&sparse) < span(&stamped) * 0.25 && span(&dense) < span(&stamped) * 0.25,
+        "peak-to-peak thickness should drop by at least 75%: sparse {}, dense {}, stamped {}",
+        span(&sparse),
+        span(&dense),
+        span(&stamped),
+    );
+    assert!(
+        max_resampling_error < 0.012 && sparse.iter().all(|mass| *mass > 0.15),
+        "changing the sample density should keep a continuous ribbon: {max_resampling_error}"
+    );
+
+    let height = rig.export(gpu::ExportKind::Height);
+    for y in [300, 500] {
+        let samples: Vec<_> = (240..600).map(|x| pixel(&height, x, y)[0]).collect();
+        let min = samples.iter().min().unwrap();
+        let max = samples.iter().max().unwrap();
+        assert!(
+            max - min <= 3,
+            "visible height-map ripple at row {y}: {min}..{max}"
+        );
+    }
+}
+
+#[test]
+fn dx12_hog_bristle_flat_split_load_turn_and_lift() {
+    let mut rig = Rig::new();
+    let recording: Recording = serde_json::from_str(
+        r#"{
+            "format":"pigment-studio-recording-v1",
+            "events":[
+                {"type":"service","brush":"flat","action":{"kind":"dip_rack","slot":1,"lane":"left"}},
+                {"type":"service","brush":"flat","action":{"kind":"dip_rack","slot":4,"lane":"right"}},
+                {"type":"service","brush":"flat","action":{"kind":"dip_rack","slot":1,"lane":"middle"}},
+                {"type":"service","brush":"flat","action":{"kind":"dip_rack","slot":4,"lane":"middle"}},
+                {"type":"stroke","surface":"canvas","brush":"flat","diameter":60,"bristle_sweep":true,
+                 "samples":[
+                    {"x":200,"y":400,"pressure":0.86,"angle_deg":90},
+                    {"x":450,"y":400,"pressure":0.86,"angle_deg":90},
+                    {"x":510,"y":415,"pressure":0.60,"angle_deg":112},
+                    {"x":560,"y":452,"pressure":0.32,"angle_deg":130},
+                    {"x":595,"y":500,"pressure":0.12,"angle_deg":155},
+                    {"x":625,"y":552,"pressure":0.05,"angle_deg":155}
+                 ]}
+            ]
+        }"#,
+    )
+    .unwrap();
+    let mut seed = vec![Command::Initialize];
+    recording::equip_cabinet(&mut seed);
+    seed.extend(recording::compile_events(
+        &recording.events[..2],
+        &mut false,
+    ));
+    let (_, split) = rig.state(&seed);
+    let lanes: Vec<_> = values(&split).skip(1).take(3).collect();
+    assert!(lanes[0][0] > 15_000. && lanes[0][1] == 0.);
+    assert!(lanes[1].iter().all(|mass| *mass == 0.));
+    assert!(lanes[2][1] > 15_000. && lanes[2][0] == 0.);
+
+    let (before, loads_before) = rig.state(&recording::compile_events(
+        &recording.events[2..4],
+        &mut false,
+    ));
+    let (after, loads_after) = rig.state(&recording::compile_events(
+        &recording.events[4..],
+        &mut false,
+    ));
+    let pigment = |x, y| values(&after).nth(y * SIDE as usize + x).unwrap();
+    let yellow = pigment(330, 382);
+    let green = pigment(330, 400);
+    let blue = pigment(330, 418);
+    assert!(yellow[0] > 0.10 && yellow[1] < 0.001, "{yellow:?}");
+    assert!(green[0] > 0.10 && green[1] > 0.10, "{green:?}");
+    assert!(blue[1] > 0.10 && blue[0] < 0.001, "{blue:?}");
+    let count_contact = |y, x0, x1, threshold| {
+        (x0..x1)
+            .filter(|x| {
+                let paint = pigment(*x, y);
+                paint[0] + paint[1] > threshold
+            })
+            .count()
+    };
+    assert!(count_contact(400, 310, 350, 0.10) >= 35);
+    let lift = count_contact(500, 580, 610, 0.01);
+    assert!(
+        (1..18).contains(&lift),
+        "unexpected contact at lift: {lift}"
+    );
+    for (a, b) in totals(&before, &loads_before)
+        .into_iter()
+        .zip(totals(&after, &loads_after))
+    {
+        assert!(
+            (a - b).abs() < 0.001 * a.max(1.0),
+            "paint mass changed: {a} -> {b}"
+        );
+    }
+}
+
+#[test]
+fn dx12_brush_reservoirs_are_independent_and_clean_is_local() {
+    let mut rig = Rig::new();
+    let all = Brush::ALL;
+    let mut load = vec![Command::Initialize];
+    for brush in all {
+        load.push(Command::Service(brush, BrushService::Dip(brush.index())));
+    }
+    let (_, before) = rig.state(&load);
+    for brush in all {
+        for lane in brush.load_lanes() {
+            let pigment = values(&before).nth(lane as usize).unwrap();
+            assert!(pigment[brush.index()] > 15_000.0);
+            for (i, mass) in pigment.into_iter().enumerate() {
+                if i != brush.index() {
+                    assert_eq!(mass, 0.0, "{brush:?} got another brush's pigment");
+                }
+            }
+        }
+    }
+
+    let selected = Brush::Filbert;
+    let (_, after) = rig.state(&[
+        Command::Snapshot,
+        Command::Service(selected, BrushService::Wipe(0.0)),
+    ]);
+    for brush in all {
+        for lane in brush.load_lanes() {
+            let actual = values(&after).nth(lane as usize).unwrap();
+            let expected = if brush == selected {
+                [0.0; 8]
+            } else {
+                values(&before).nth(lane as usize).unwrap()
+            };
+            assert_eq!(actual, expected, "{brush:?} lane {lane}");
+        }
+    }
+    let (_, restored) = rig.state(&[Command::Undo]);
+    assert_eq!(
+        &restored[..gpu::BRUSH_LOAD_BYTES],
+        &before[..gpu::BRUSH_LOAD_BYTES]
+    );
+
+    let events = r#","events":[
+        {"type":"service","brush":"fan","action":{"kind":"dip","tube":0}},
+        {"type":"stroke","surface":"canvas","brush":"palette_knife","samples":[{"x":410,"y":300,"pressure":1.0}]}
+    ]}"#;
+    for version in [1, 2] {
+        let recording = Recording::parse(&format!(
+            "{{\"format\":\"pigment-studio-recording-v{version}\"{events}"
+        ))
+        .unwrap();
+        let mut commands = vec![Command::Initialize];
+        commands.extend(recording::compile_events(&recording.events, &mut false));
+        let (paint, _) = rig.state(&commands);
+        let yellow = values(&paint).nth(300 * SIDE as usize + 410).unwrap()[0];
+        assert_eq!(yellow > 0.0, version == 1, "recording format v{version}");
+    }
 }
 
 #[test]
@@ -1858,10 +2181,12 @@ fn test_phase_e_underlayer_and_batch_rendering() {
     let rec = Recording {
         events: vec![
             RecordedEvent::Service {
+                legacy_reservoir: false,
                 brush: BrushKind::Round,
                 action: ServiceAction::Load { tube: 2 },
             },
             RecordedEvent::Stroke {
+                legacy_reservoir: false,
                 surface: SurfaceKind::Canvas,
                 brush: BrushKind::Round,
                 ink: false,
@@ -1869,12 +2194,16 @@ fn test_phase_e_underlayer_and_batch_rendering() {
                 erase: false,
                 diameter: 40.0,
                 angle_deg: 0.0,
+                auto_follow: false,
+                knife_sweep: false,
+                bristle_sweep: false,
                 tile: Some(false),
                 samples: vec![RecordedSample {
                     x: 500.0,
                     y: 500.0,
                     pressure: 0.9,
                     timestamp_ms: 0,
+                    angle_deg: None,
                 }],
             },
         ],
@@ -3026,6 +3355,7 @@ fn test_v030_edge_hairline_smooth_height_and_set_tile() {
     let events = vec![
         RecordedEvent::SetTile { enabled: true },
         RecordedEvent::Stroke {
+            legacy_reservoir: false,
             surface: crate::recording::SurfaceKind::Canvas,
             brush: crate::recording::BrushKind::Round,
             ink: false,
@@ -3033,16 +3363,21 @@ fn test_v030_edge_hairline_smooth_height_and_set_tile() {
             erase: false,
             diameter: 48.0,
             angle_deg: 0.0,
+            auto_follow: false,
+            knife_sweep: false,
+            bristle_sweep: false,
             tile: None,
             samples: vec![RecordedSample {
                 x: 4.0,
                 y: 500.0,
                 pressure: 1.0,
                 timestamp_ms: 0,
+                angle_deg: None,
             }],
         },
         RecordedEvent::SetTile { enabled: false },
         RecordedEvent::Stroke {
+            legacy_reservoir: false,
             surface: crate::recording::SurfaceKind::Canvas,
             brush: crate::recording::BrushKind::Round,
             ink: false,
@@ -3050,12 +3385,16 @@ fn test_v030_edge_hairline_smooth_height_and_set_tile() {
             erase: false,
             diameter: 48.0,
             angle_deg: 0.0,
+            auto_follow: false,
+            knife_sweep: false,
+            bristle_sweep: false,
             tile: None,
             samples: vec![RecordedSample {
                 x: 4.0,
                 y: 700.0,
                 pressure: 1.0,
                 timestamp_ms: 16,
+                angle_deg: None,
             }],
         },
     ];

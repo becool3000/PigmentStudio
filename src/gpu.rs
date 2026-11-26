@@ -10,7 +10,11 @@ pub const ATLAS_HEIGHT: u32 = SIDE + PALETTE_HEIGHT;
 pub const HISTORY: usize = 8;
 pub const MAX_COMMANDS: usize = 1024;
 const PAINT_BYTES: u64 = SIDE as u64 * ATLAS_HEIGHT as u64 * 32;
-const BRUSH_BYTES: u64 = 272;
+pub const BRUSH_COUNT: usize = 6;
+pub const BRUSH_LANES: usize = 14;
+pub const BRUSH_LOAD_BYTES: usize = BRUSH_LANES * 32;
+pub const BRUSH_BYTES: u64 = BRUSH_LOAD_BYTES as u64 + 144;
+pub const LEGACY_BRUSH_BYTES: usize = 272;
 const INK_BYTES: u64 = SIDE as u64 * SIDE as u64 * 8;
 const DRY_BYTES: u64 = SIDE as u64 * SIDE as u64 * 32;
 const SUBSTRATE_BYTES: u64 = SIDE as u64 * SIDE as u64 * 64;
@@ -45,7 +49,34 @@ pub enum Brush {
     SoftMop,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BrushLane {
+    Left,
+    Middle,
+    Right,
+}
+
+impl BrushLane {
+    fn selector(self) -> u32 {
+        match self {
+            Self::Left => 1,
+            Self::Middle => 2,
+            Self::Right => 3,
+        }
+    }
+}
+
 impl Brush {
+    pub const ALL: [Self; BRUSH_COUNT] = [
+        Self::Round,
+        Self::Flat,
+        Self::Filbert,
+        Self::Fan,
+        Self::PaletteKnife,
+        Self::SoftMop,
+    ];
+
     pub fn is_directional(self) -> bool {
         matches!(
             self,
@@ -53,16 +84,36 @@ impl Brush {
         )
     }
 
-    pub fn index(self) -> usize {
+    pub fn size_index(self) -> usize {
         usize::from(self.is_directional())
     }
 
-    fn load_start(self) -> u32 {
+    pub fn index(self) -> usize {
+        self.profile_id() as usize
+    }
+
+    pub fn legacy_reservoir(self) -> Self {
         if self.is_directional() {
-            1
+            Self::Flat
         } else {
-            0
+            Self::Round
         }
+    }
+
+    pub fn load_start(self) -> u32 {
+        match self {
+            Self::Round => 0,
+            Self::Flat => 1,
+            Self::Filbert => 4,
+            Self::Fan => 7,
+            Self::PaletteKnife => 10,
+            Self::SoftMop => 13,
+        }
+    }
+
+    pub fn load_lanes(self) -> std::ops::Range<u32> {
+        let start = self.load_start();
+        start..start + if self.is_directional() { 3 } else { 1 }
     }
 
     pub fn profile_id(self) -> u32 {
@@ -85,9 +136,24 @@ pub struct Dab {
     axis: [f32; 4],
     mode: [u32; 4],
     tubes: [u32; 4],
+    sweep: [f32; 4],
+}
+
+#[derive(Clone, Copy)]
+pub struct BrushContact {
+    pub point: egui::Pos2,
+    pub radius: f32,
+    pub pressure: f32,
+    pub angle: f32,
 }
 
 impl Dab {
+    pub fn use_legacy_reservoir(&mut self, brush: Brush) {
+        if self.mode[0] == 0 {
+            self.mode[1] = brush.legacy_reservoir().load_start();
+        }
+    }
+
     #[cfg(test)]
     pub fn new(
         position: egui::Pos2,
@@ -109,16 +175,68 @@ impl Dab {
         angle: f32,
         tiled: bool,
     ) -> Self {
-        let [origin_x, origin_y, w, h] = surface.bounds();
         let wrap = tiled && surface == Surface::Canvas;
-        let pad = radius * 1.07;
+        let (bounds, center) =
+            Self::footprint_bounds(position, egui::Vec2::splat(radius * 1.07), surface, wrap);
+        let (sin, cos) = angle.sin_cos();
+        Self {
+            bounds,
+            brush: [center.x, center.y, radius, pressure],
+            axis: [cos, sin, 1.0, 0.0],
+            mode: [0, brush.load_start(), brush.profile_id(), u32::from(wrap)],
+            tubes: [0; 4],
+            sweep: [0.0; 4],
+        }
+    }
+
+    /// The start and end axes share `axis`. The sweep stores displacement,
+    /// end radius and end pressure. A zero end radius denotes a stationary dab.
+    pub fn swept_contact(
+        start: BrushContact,
+        end: BrushContact,
+        brush: Brush,
+        surface: Surface,
+        tiled: bool,
+    ) -> Self {
+        let wrap = tiled && surface == Surface::Canvas;
+        let delta = end.point - start.point;
+        let radius = start.radius.max(end.radius);
+        let (start_sin, start_cos) = start.angle.sin_cos();
+        let (end_sin, end_cos) = end.angle.sin_cos();
+        let x = start_cos.abs().max(end_cos.abs());
+        let y = start_sin.abs().max(end_sin.abs());
+        // Bound the rectangular blade between both endpoints. Sine and cosine
+        // change by at most the angle to the nearer endpoint.
+        let depth = if brush == Brush::Flat { 0.36 } else { 0.22 };
+        let turn_margin = (1.0 + depth) * 0.5 * (end.angle - start.angle).abs();
+        let footprint = egui::vec2(x + depth * y, y + depth * x);
+        let pad = (footprint + egui::Vec2::splat(turn_margin)) * radius + 0.5 * delta.abs();
+        let (bounds, center) =
+            Self::footprint_bounds(start.point + delta * 0.5, pad, surface, wrap);
+        Self {
+            bounds,
+            brush: [center.x, center.y, start.radius, start.pressure],
+            axis: [start_cos, start_sin, end_cos, end_sin],
+            mode: [0, brush.load_start(), brush.profile_id(), u32::from(wrap)],
+            tubes: [0; 4],
+            sweep: [delta.x, delta.y, end.radius, end.pressure],
+        }
+    }
+
+    fn footprint_bounds(
+        position: egui::Pos2,
+        pad: egui::Vec2,
+        surface: Surface,
+        wrap: bool,
+    ) -> ([u32; 4], egui::Pos2) {
+        let [origin_x, origin_y, w, h] = surface.bounds();
         let (pos_x, pos_y, x, width, y, height) = if wrap {
             let px = position.x.rem_euclid(w as f32);
             let py = position.y.rem_euclid(h as f32);
-            let x0 = (px - pad).floor() as i32;
-            let x1 = (px + pad).ceil() as i32;
-            let y0 = (py - pad).floor() as i32;
-            let y1 = (py + pad).ceil() as i32;
+            let x0 = (px - pad.x).floor() as i32;
+            let x1 = (px + pad.x).ceil() as i32;
+            let y0 = (py - pad.y).floor() as i32;
+            let y1 = (py + pad.y).ceil() as i32;
             (
                 px,
                 py,
@@ -128,28 +246,19 @@ impl Dab {
                 ((y1 - y0) as u32).clamp(1, h),
             )
         } else {
-            let extent = |coordinate: f32, limit: u32| {
+            let extent = |coordinate: f32, pad: f32, limit: u32| {
                 let start = (coordinate - pad).floor().clamp(0., limit as f32) as u32;
                 let end = (coordinate + pad).ceil().clamp(0., limit as f32) as u32;
                 (start, end - start)
             };
-            let (x, width) = extent(position.x, w);
-            let (y, height) = extent(position.y, h);
+            let (x, width) = extent(position.x, pad.x, w);
+            let (y, height) = extent(position.y, pad.y, h);
             (position.x, position.y, x, width, y, height)
         };
-        let (sin, cos) = angle.sin_cos();
-        Self {
-            bounds: [x + origin_x, y + origin_y, width, height],
-            brush: [
-                pos_x + origin_x as f32,
-                pos_y + origin_y as f32,
-                radius,
-                pressure,
-            ],
-            axis: [cos, sin, 1.0, 0.],
-            mode: [0, brush.load_start(), brush.profile_id(), u32::from(wrap)],
-            tubes: [0; 4],
-        }
+        (
+            [x + origin_x, y + origin_y, width, height],
+            egui::pos2(pos_x + origin_x as f32, pos_y + origin_y as f32),
+        )
     }
 
     #[cfg(test)]
@@ -189,6 +298,10 @@ impl Dab {
         dab
     }
 
+    pub fn soften_knife_travel_edge(&mut self) {
+        self.axis[3] = 1.0;
+    }
+
     pub fn charcoal(
         position: egui::Pos2,
         radius: f32,
@@ -222,6 +335,7 @@ impl Dab {
             axis: [0.; 4],
             mode: [operation, 0, 0, 0],
             tubes: [0; 4],
+            sweep: [0.0; 4],
         }
     }
 }
@@ -308,6 +422,8 @@ pub enum BrushService {
     Dip(usize),
     DipCustom(usize),
     DipRack(usize),
+    DipCustomLane(usize, BrushLane),
+    DipRackLane(usize, BrushLane),
     Wipe(f32),
 }
 
@@ -935,6 +1051,17 @@ impl PaintGpu {
                             dab.mode[2] = slot as u32;
                             dab.brush[3] = 46000.;
                         }
+                        BrushService::DipRackLane(slot, lane)
+                        | BrushService::DipCustomLane(slot, lane) => {
+                            dab.mode[0] = if matches!(action, BrushService::DipRackLane(..)) {
+                                12
+                            } else {
+                                11
+                            };
+                            dab.mode[2] = slot as u32;
+                            dab.mode[3] = lane.selector();
+                            dab.brush[3] = 46000.;
+                        }
                         BrushService::Wipe(fraction) => {
                             dab.mode[0] = 6;
                             dab.brush[3] = fraction;
@@ -976,7 +1103,7 @@ impl PaintGpu {
                         encoder,
                         &self.gather,
                         offset,
-                        [if dab.mode[1] == 0 { 1 } else { 3 }, 1],
+                        [if matches!(dab.mode[2], 0 | 5) { 1 } else { 3 }, 1],
                     );
                 }
                 8 => self.dispatch(encoder, &self.choose_slots, offset, [1, 1]),
@@ -1061,7 +1188,7 @@ impl PaintGpu {
             dirty
                 .into_iter()
                 .flatten()
-                .chain((preview_needed || placement).then_some([512, SIDE, 4, 1])),
+                .chain((preview_needed || placement).then_some([512, SIDE, BRUSH_LANES as u32, 1])),
         );
         if !upload.is_empty() {
             queue.write_buffer(&self.uniforms, 0, &upload);
@@ -1333,8 +1460,17 @@ impl PaintGpu {
         encoder.copy_buffer_to_buffer(&self.canvas, offset, &staging, 0, 32);
         encoder.copy_buffer_to_buffer(&self.dry_canvas, offset, &staging, 32, 32);
         encoder.copy_buffer_to_buffer(&self.ink_canvas, ink_offset, &staging, 64, 8);
-        encoder.copy_buffer_to_buffer(&self.state, 0, &staging, 72, 128);
-        encoder.copy_buffer_to_buffer(&self.dry_substrate, sub_offset, &staging, 200, 64);
+        const LOAD_END: usize = 72 + BRUSH_LOAD_BYTES;
+        const SUBSTRATE_END: usize = LOAD_END + 64;
+        const PIXEL_START: usize = SUBSTRATE_END.next_multiple_of(256);
+        encoder.copy_buffer_to_buffer(&self.state, 0, &staging, 72, BRUSH_LOAD_BYTES as u64);
+        encoder.copy_buffer_to_buffer(
+            &self.dry_substrate,
+            sub_offset,
+            &staging,
+            LOAD_END as u64,
+            64,
+        );
         encoder.copy_texture_to_buffer(
             wgpu::TexelCopyTextureInfo {
                 texture: &self.output,
@@ -1345,7 +1481,7 @@ impl PaintGpu {
             wgpu::TexelCopyBufferInfo {
                 buffer: &staging,
                 layout: wgpu::TexelCopyBufferLayout {
-                    offset: 512,
+                    offset: PIXEL_START as u64,
                     bytes_per_row: Some(256),
                     rows_per_image: Some(1),
                 },
@@ -1371,9 +1507,9 @@ impl PaintGpu {
         let wet_channels: [f32; 8] = *bytemuck::from_bytes(&slice[0..32]);
         let dry_channels: [f32; 8] = *bytemuck::from_bytes(&slice[32..64]);
         let ink: [f32; 2] = *bytemuck::from_bytes(&slice[64..72]);
-        let brush_loads: [[f32; 8]; 4] = *bytemuck::from_bytes(&slice[72..200]);
-        let substrate_words: [u32; 16] = *bytemuck::from_bytes(&slice[200..264]);
-        let display_srgb: [u8; 3] = [slice[512], slice[513], slice[514]];
+        let brush_loads = bytemuck::cast_slice::<u8, [f32; 8]>(&slice[72..LOAD_END]).to_vec();
+        let substrate_words: [u32; 16] = *bytemuck::from_bytes(&slice[LOAD_END..SUBSTRATE_END]);
+        let display_srgb = slice[PIXEL_START..PIXEL_START + 3].try_into().unwrap();
         drop(slice);
         staging.unmap();
 
@@ -1583,7 +1719,7 @@ pub fn save_project(
             }
             std::thread::spawn(move || {
                 let bytes = mapped_buffer.slice(..).get_mapped_range();
-                let result = crate::project::write_project(&path, &meta, &bytes).map(|()| path);
+                let result = crate::project::write_project(&path, meta, &bytes).map(|()| path);
                 drop(bytes);
                 mapped_buffer.unmap();
                 let _ = done.send(result);

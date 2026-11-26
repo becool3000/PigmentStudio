@@ -37,6 +37,9 @@ The release benchmark tests continuous rendering under heavy input load:
 cargo run --release --locked -- --benchmark
 ```
 
+Run the same input workload with the swept palette knife using `cargo run --release --locked -- --benchmark-knife`.
+Use `cargo run --release --locked -- --benchmark-flat` for the hog-bristle flat.
+
 - Seeds a wet underpainting with a preloaded 64 px brush.
 - Dispatches 1,200 synthetic inputs at 120 Hz over 10 seconds.
 - Enforces a **p95 total frame latency target of <= 16.7 ms** (consistent 60+ FPS).
@@ -54,6 +57,7 @@ Run these hands-on checks with a pen tablet or mouse:
 6. **Ink pen dripping:** Switch to **Ink Pen**, press down firmly (>56% pressure), and pause. Verify that ink pools at the tip and continues dripping downward under gravity after lifting.
 7. **Undo:** Perform painting, swatching, and dabbing actions; press `Ctrl+Z` or click **Undo** up to 8 times to confirm step-by-step restoration.
 8. **Rapid pen input:** Start a stroke with very light pressure, then press harder without lifting. Lift while moving sideways and hover across the canvas. Confirm that paint stops at the last point of contact. Tap a color jar, make a short stroke immediately, then repeat with other jars and the Clean brush control. Confirm that each new stroke starts with the latest brush load.
+9. **Independent brush loads:** Dip the Flat and Knife in different jars. Switch between them, clean one, and verify that the other keeps its paint. Use a clean brush to lift wet palette paint, click **Clean brush** even if the meter says Empty, and try a stroke on bare canvas.
 
 ## Troubleshooting
 

@@ -31,7 +31,7 @@ pub struct GpuDiagnostics {
     pub ink: [f32; 2],
     pub display_srgb: [u8; 3],
     pub optical: OpticalDiagnostics,
-    pub brush_loads: [[f32; 8]; 4],
+    pub brush_loads: Vec<[f32; 8]>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

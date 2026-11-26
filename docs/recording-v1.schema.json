@@ -1,14 +1,14 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/becool3000/PigmentStudio/docs/recording-v1.schema.json",
-  "title": "Pigment Studio Recording (v1)",
+  "title": "Pigment Studio Recording (v1 and v2)",
   "description": "Deterministic stroke and command recording format for Pigment Studio headless rendering, batch animation, and AI agent control.",
   "type": "object",
   "required": ["format", "events"],
   "properties": {
     "format": {
       "type": "string",
-      "const": "pigment-studio-recording-v1"
+      "enum": ["pigment-studio-recording-v1", "pigment-studio-recording-v2"]
     },
     "underlayer_path": {
       "type": "string",
@@ -73,7 +73,8 @@
           "required": ["kind", "slot"],
           "properties": {
             "kind": { "const": "dip_rack" },
-            "slot": { "type": "integer", "minimum": 0, "maximum": 19 }
+            "slot": { "type": "integer", "minimum": 0, "maximum": 19 },
+            "lane": { "enum": ["left", "middle", "right"], "description": "Dip just this flat-brush lane. Omit to dip the whole brush." }
           }
         },
         {
@@ -81,7 +82,8 @@
           "required": ["kind", "slot"],
           "properties": {
             "kind": { "const": "dip_custom" },
-            "slot": { "type": "integer", "minimum": 0, "maximum": 63 }
+            "slot": { "type": "integer", "minimum": 0, "maximum": 63 },
+            "lane": { "enum": ["left", "middle", "right"], "description": "Dip just this flat-brush lane. Omit to dip the whole brush." }
           }
         },
         {
@@ -101,7 +103,8 @@
         "x": { "type": "number" },
         "y": { "type": "number" },
         "pressure": { "type": "number", "minimum": 0, "maximum": 1 },
-        "timestamp_ms": { "type": "integer", "minimum": 0, "default": 0 }
+        "timestamp_ms": { "type": "integer", "minimum": 0, "default": 0 },
+        "angle_deg": { "type": "number", "description": "Optional directional brush angle at this sample, interpolated along the shortest rotation." }
       }
     },
     "RecordedEvent": {
@@ -112,7 +115,8 @@
           "properties": {
             "type": { "const": "service" },
             "brush": { "$ref": "#/$defs/BrushKind" },
-            "action": { "$ref": "#/$defs/ServiceAction" }
+            "action": { "$ref": "#/$defs/ServiceAction" },
+            "legacy_reservoir": { "type": "boolean", "default": false, "description": "Use the legacy Round or Flat reservoir for this action when preserving v1 replay." }
           }
         },
         {
@@ -141,6 +145,10 @@
             "erase": { "type": "boolean", "default": false },
             "diameter": { "type": "number", "minimum": 1, "maximum": 256, "default": 64 },
             "angle_deg": { "type": "number", "default": 0 },
+            "auto_follow": { "type": "boolean", "default": false, "description": "Turn directional brushes along the stroke wherever a sample does not set its own angle." },
+            "knife_sweep": { "type": "boolean", "default": false, "description": "Integrate palette knife contact between samples. The desktop records this for new palette knife strokes." },
+            "bristle_sweep": { "type": "boolean", "default": false, "description": "Integrate hog-bristle flat contact between samples. The desktop records this for new flat strokes." },
+            "legacy_reservoir": { "type": "boolean", "default": false, "description": "Use the legacy Round or Flat reservoir for this stroke when preserving v1 replay." },
             "tile": { "type": "boolean", "default": false },
             "samples": {
               "type": "array",

@@ -14,6 +14,8 @@ Status: v0.1 prototype is implemented and passes all automated tests and benchma
 - [x] Implement 4-dip (25% step) brush capacity with tip-inward reservoir fill.
 - [x] Add brush card mini progress bar, live percentage readout, and multi-lane paint hue rendering.
 - [x] Streamline brush maintenance: Wipe rag knocks off 10% per swipe; Clean brush clears to 0%; remove Rinse cup.
+- [x] Give Clean brush a 44-point, full-width target below the wipe rag.
+- [x] Always send a GPU clear from Clean brush and keep separate pigment reservoirs and rack previews for the six oil brushes.
 - [x] Scaled brush capacity 10x (184,000 max load) for long, multi-stroke painting runs.
 - [x] Scaled mixing palette dab volume 10x (45.0 mass per pixel) for deep, reusable paint puddles.
 - [x] Implemented "Fill Jar" and functional Custom Jars (up to 64 slots) with dipping, dabbing, and safe deletion.
@@ -62,7 +64,12 @@ Status: v0.1 prototype is implemented and passes all automated tests and benchma
 - [x] Phthalo Blue calibration phase 2. Apply studio lighting in linear RGB, report same-film black/white luminance hiding, and check the canvas and white-matched PNG alpha over multiple grounds.
 - [x] Limit the built-in workbench rack to Studio Essentials during calibration and retain legacy pigment slots for replay.
 - [x] Palette knife tool for crisp scraping, blending, and applying thick opaque patches.
+- [x] Interpolate palette knife turns, soften the overlap between steered knife dabs, record desktop Auto-follow for replay, and expose blade angles per sample.
+- [x] Sweep the moving palette knife between samples, with distance-based transfer and DX12 checks for paint-height uniformity and wet pigment conservation.
+- [ ] Validate palette knife placement, turning, and lift on a physical pen tablet at 100% and 150% Windows DPI scaling.
 - [x] Robust oil brush pack (Hog-Bristle Flat, Filbert, Fan, Palette Knife, Soft Mop, Dry-brush skip, and Auto-follow stroke rotation).
+- [x] Add split jar dips and swept hog-bristle flat contact with pressure-dependent bundle breakup.
+- [ ] Validate flat-brush split loading, pressure, and lift with a physical tablet at 100% and 150% Windows DPI scaling.
 - [ ] Additional pigments / customizable palette slots (e.g. Raw Umber, Cadmium Red, Viridian).
 - [x] Project persistence / session save-and-load (saving canvas, palette state, and swatches to disk).
 

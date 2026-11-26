@@ -1,4 +1,4 @@
-use crate::gpu::{Brush, Command, Dab, Surface};
+use crate::gpu::{Brush, BrushContact, Command, Dab, Surface};
 use egui::Pos2;
 use std::time::{Duration, Instant};
 
@@ -13,6 +13,7 @@ pub struct Sample {
     pub point: Pos2,
     pub pressure: f32,
     pub timestamp_ms: u32,
+    pub angle: Option<f32>,
 }
 
 pub struct Stroke {
@@ -25,6 +26,10 @@ pub struct Stroke {
     brush: Brush,
     angle: f32,
     auto_angle: bool,
+    pending_first_dab: bool,
+    continuous_knife: bool,
+    sweep: bool,
+    swept: bool,
     load_ratio: f32,
     tile: bool,
     charcoal_erase: Option<bool>,
@@ -47,6 +52,7 @@ impl Stroke {
         )
     }
 
+    #[cfg(test)]
     #[allow(clippy::too_many_arguments)]
     pub fn start_tiled(
         source: Source,
@@ -59,7 +65,7 @@ impl Stroke {
         commands: &mut Vec<Command>,
     ) -> Self {
         Self::start_full(
-            source, sample, diameter, surface, brush, angle, false, 1.0, tile, commands,
+            source, sample, diameter, surface, brush, angle, false, 1.0, tile, false, commands,
         )
     }
 
@@ -74,6 +80,7 @@ impl Stroke {
         auto_angle: bool,
         load_ratio: f32,
         tile: bool,
+        sweep: bool,
         commands: &mut Vec<Command>,
     ) -> Self {
         let stroke = Self {
@@ -84,14 +91,26 @@ impl Stroke {
             diameter,
             surface,
             brush,
-            angle,
+            angle: sample
+                .angle
+                .filter(|_| brush.is_directional())
+                .unwrap_or(angle),
             auto_angle,
+            pending_first_dab: auto_angle
+                && (brush == Brush::PaletteKnife || (brush == Brush::Flat && sweep))
+                && sample.angle.is_none(),
+            continuous_knife: brush == Brush::PaletteKnife
+                && (auto_angle || sample.angle.is_some()),
+            sweep: sweep && matches!(brush, Brush::PaletteKnife | Brush::Flat),
+            swept: false,
             load_ratio,
             tile,
             charcoal_erase: None,
             ink_hold: None,
         };
-        stroke.dab(sample, commands);
+        if !stroke.pending_first_dab && !stroke.sweep {
+            stroke.dab(sample, stroke.angle, commands);
+        }
         stroke
     }
 
@@ -116,12 +135,16 @@ impl Stroke {
             brush: Brush::Round,
             angle: 0.,
             auto_angle: false,
+            pending_first_dab: false,
+            continuous_knife: false,
+            sweep: false,
+            swept: false,
             load_ratio: 1.0,
             tile,
             charcoal_erase: None,
             ink_hold: Some((Instant::now() + Duration::from_millis(34), sample.point)),
         };
-        stroke.dab(sample, commands);
+        stroke.dab(sample, stroke.angle, commands);
         stroke
     }
 
@@ -143,17 +166,29 @@ impl Stroke {
             brush: Brush::Round,
             angle: 0.,
             auto_angle: false,
+            pending_first_dab: false,
+            continuous_knife: false,
+            sweep: false,
+            swept: false,
             load_ratio: 1.0,
             tile,
             charcoal_erase: Some(erase),
             ink_hold: None,
         };
-        stroke.dab(sample, commands);
+        stroke.dab(sample, stroke.angle, commands);
         stroke
     }
 
     pub fn ink_is_held(&self) -> bool {
         self.ink_hold.is_some() && self.last.pressure > 0.56
+    }
+
+    pub fn follows_path(&self) -> bool {
+        self.auto_angle && self.brush.is_directional()
+    }
+
+    pub fn sweeps_contact(&self) -> bool {
+        self.sweep
     }
 
     pub fn dwell(&mut self, now: Instant, commands: &mut Vec<Command>) {
@@ -176,25 +211,65 @@ impl Stroke {
 
     pub fn extend(&mut self, sample: Sample, commands: &mut Vec<Command>) {
         if sample.pressure <= 0.0 {
-            self.last = sample;
+            if !self.pending_first_dab && !self.sweep {
+                self.last = sample;
+            }
             return;
         }
         if (sample.timestamp_ms.wrapping_sub(self.last.timestamp_ms) as i32) < 0 {
             return;
         }
-        let distance = self.last.point.distance(sample.point);
-        if self.auto_angle && self.brush.is_directional() && distance >= 1.5 {
-            let delta = sample.point - self.last.point;
+        let delta = sample.point - self.last.point;
+        let distance = delta.length();
+        let knife = self.brush == Brush::PaletteKnife;
+        let explicit_angle = sample.angle.filter(|_| self.brush.is_directional());
+        let mut previous_angle = self.angle;
+        if let Some(angle) = explicit_angle {
+            self.angle += angle_delta(self.angle, angle);
+            self.continuous_knife |= knife;
+        } else if self.follows_path()
+            && distance
+                >= if (knife || self.sweep) && !self.pending_first_dab {
+                    0.25
+                } else {
+                    1.5
+                }
+        {
             let target = delta.y.atan2(delta.x) + std::f32::consts::FRAC_PI_2;
-            let mut diff = (target - self.angle).rem_euclid(std::f32::consts::TAU);
-            if diff > std::f32::consts::PI {
-                diff -= std::f32::consts::TAU;
+            let weight = if self.pending_first_dab {
+                1.0
+            } else {
+                0.45 * (distance / 1.5).min(1.0)
+            };
+            self.angle += angle_delta(self.angle, target) * weight;
+        }
+        if self.pending_first_dab {
+            if distance < 1.5 && explicit_angle.is_none() {
+                if distance == 0.0 {
+                    self.last = sample;
+                }
+                return;
             }
-            self.angle += diff * 0.45;
+            self.pending_first_dab = false;
+            if explicit_angle.is_none() {
+                previous_angle = self.angle;
+            }
+            if !self.sweep {
+                self.dab(self.last, previous_angle, commands);
+                self.pressure_at_dab = self.last.pressure;
+            }
+        }
+        if self.sweep {
+            if distance > 0.0 {
+                self.sweep_contact(sample, previous_angle, distance, commands);
+                self.swept = true;
+            }
+            self.last = sample;
+            return;
         }
         if distance == 0. {
             if (sample.pressure - self.pressure_at_dab).abs() >= 0.04 {
-                self.dab(sample, commands);
+                self.dab(sample, self.angle, commands);
                 self.distance_since_dab = 0.;
                 self.pressure_at_dab = sample.pressure;
             }
@@ -206,12 +281,19 @@ impl Stroke {
             while next <= distance {
                 let fraction = next / distance;
                 let pressure = egui::lerp(self.last.pressure..=sample.pressure, fraction);
+                let angle = if knife || explicit_angle.is_some() {
+                    egui::lerp(previous_angle..=self.angle, fraction)
+                } else {
+                    self.angle
+                };
                 self.dab(
                     Sample {
                         point: self.last.point.lerp(sample.point, fraction),
                         pressure,
                         timestamp_ms: sample.timestamp_ms,
+                        angle: None,
                     },
+                    angle,
                     commands,
                 );
                 self.pressure_at_dab = pressure;
@@ -223,8 +305,49 @@ impl Stroke {
     }
 
     pub fn finish(self, commands: &mut Vec<Command>) {
-        if self.distance_since_dab > 0.01 {
-            self.dab(self.last, commands);
+        let needs_final_dab = if self.sweep {
+            !self.swept
+        } else {
+            self.pending_first_dab || self.distance_since_dab > 0.01
+        };
+        if needs_final_dab {
+            self.dab(self.last, self.angle, commands);
+        }
+    }
+
+    fn sweep_contact(
+        &self,
+        sample: Sample,
+        previous_angle: f32,
+        distance: f32,
+        commands: &mut Vec<Command>,
+    ) {
+        // Keep quadrature accurate when a long input interval crosses much of
+        // the blade or turns sharply. Ordinary pen samples typically need one segment.
+        let radius = self.radius(sample.pressure.min(self.last.pressure));
+        let max_distance = (radius * 0.25).max(0.75);
+        let turn = (self.angle - previous_angle).abs();
+        let steps = (distance / max_distance).max(turn / 0.16).ceil() as u32;
+        let contact = |t| {
+            let pressure = egui::lerp(self.last.pressure..=sample.pressure, t);
+            BrushContact {
+                point: self.last.point.lerp(sample.point, t),
+                radius: self.radius(pressure),
+                pressure,
+                angle: egui::lerp(previous_angle..=self.angle, t),
+            }
+        };
+        let mut start = contact(0.0);
+        for i in 1..=steps {
+            let end = contact(i as f32 / steps as f32);
+            commands.push(Command::Dab(Dab::swept_contact(
+                start,
+                end,
+                self.brush,
+                self.surface,
+                self.tile,
+            )));
+            start = end;
         }
     }
 
@@ -235,7 +358,7 @@ impl Stroke {
         (0.5 * self.diameter * (0.22 + 0.78 * pressure.sqrt())).max(0.75)
     }
 
-    fn dab(&self, sample: Sample, commands: &mut Vec<Command>) {
+    fn dab(&self, sample: Sample, angle: f32, commands: &mut Vec<Command>) {
         if let Some(erase) = self.charcoal_erase {
             commands.push(Command::Dab(Dab::charcoal(
                 sample.point,
@@ -255,15 +378,41 @@ impl Stroke {
             )));
             return;
         }
-        commands.push(Command::Dab(Dab::new_with_load(
+        let mut dab = Dab::new_with_load(
             sample.point,
             self.radius(sample.pressure),
             sample.pressure,
             self.surface,
             self.brush,
-            self.angle,
+            angle,
             self.tile,
             self.load_ratio,
-        )));
+        );
+        if self.continuous_knife {
+            dab.soften_knife_travel_edge();
+        }
+        commands.push(Command::Dab(dab));
+    }
+}
+
+fn angle_delta(from: f32, to: f32) -> f32 {
+    let diff = (to - from).rem_euclid(std::f32::consts::TAU);
+    if diff > std::f32::consts::PI {
+        diff - std::f32::consts::TAU
+    } else {
+        diff
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::angle_delta;
+
+    #[test]
+    fn blade_turn_uses_the_short_arc_across_zero() {
+        let a = 350_f32.to_radians();
+        let b = 10_f32.to_radians();
+        assert!((angle_delta(a, b).to_degrees() - 20.0).abs() < 0.001);
+        assert!((angle_delta(b, a).to_degrees() + 20.0).abs() < 0.001);
     }
 }

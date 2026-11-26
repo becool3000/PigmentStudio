@@ -1,5 +1,6 @@
 use crate::gpu::{
-    self, Brush, BrushService, Command, ExportKind, Lighting, PaintGpu, Surface, MAX_COMMANDS,
+    self, Brush, BrushLane, BrushService, Command, ExportKind, Lighting, PaintGpu, Surface,
+    MAX_COMMANDS,
 };
 use crate::stroke::{Sample, Source, Stroke};
 use serde::{Deserialize, Serialize};
@@ -70,11 +71,25 @@ impl From<SurfaceKind> for Surface {
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ServiceAction {
-    Load { tube: usize },
-    Dip { tube: usize },
-    DipCustom { slot: usize },
-    DipRack { slot: usize },
-    Wipe { fraction: f32 },
+    Load {
+        tube: usize,
+    },
+    Dip {
+        tube: usize,
+    },
+    DipCustom {
+        slot: usize,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        lane: Option<BrushLane>,
+    },
+    DipRack {
+        slot: usize,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        lane: Option<BrushLane>,
+    },
+    Wipe {
+        fraction: f32,
+    },
 }
 
 impl From<BrushService> for ServiceAction {
@@ -82,8 +97,16 @@ impl From<BrushService> for ServiceAction {
         match s {
             BrushService::Load(tube) => Self::Load { tube },
             BrushService::Dip(tube) => Self::Dip { tube },
-            BrushService::DipCustom(slot) => Self::DipCustom { slot },
-            BrushService::DipRack(slot) => Self::DipRack { slot },
+            BrushService::DipCustom(slot) => Self::DipCustom { slot, lane: None },
+            BrushService::DipRack(slot) => Self::DipRack { slot, lane: None },
+            BrushService::DipCustomLane(slot, lane) => Self::DipCustom {
+                slot,
+                lane: Some(lane),
+            },
+            BrushService::DipRackLane(slot, lane) => Self::DipRack {
+                slot,
+                lane: Some(lane),
+            },
             BrushService::Wipe(fraction) => Self::Wipe { fraction },
         }
     }
@@ -94,8 +117,16 @@ impl From<ServiceAction> for BrushService {
         match s {
             ServiceAction::Load { tube } => Self::Load(tube),
             ServiceAction::Dip { tube } => Self::Dip(tube),
-            ServiceAction::DipCustom { slot } => Self::DipCustom(slot),
-            ServiceAction::DipRack { slot } => Self::DipRack(slot),
+            ServiceAction::DipCustom { slot, lane: None } => Self::DipCustom(slot),
+            ServiceAction::DipRack { slot, lane: None } => Self::DipRack(slot),
+            ServiceAction::DipCustom {
+                slot,
+                lane: Some(lane),
+            } => Self::DipCustomLane(slot, lane),
+            ServiceAction::DipRack {
+                slot,
+                lane: Some(lane),
+            } => Self::DipRackLane(slot, lane),
             ServiceAction::Wipe { fraction } => Self::Wipe(fraction),
         }
     }
@@ -108,6 +139,8 @@ pub struct RecordedSample {
     pub pressure: f32,
     #[serde(default)]
     pub timestamp_ms: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub angle_deg: Option<f32>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -116,6 +149,8 @@ pub enum RecordedEvent {
     Service {
         brush: BrushKind,
         action: ServiceAction,
+        #[serde(default)]
+        legacy_reservoir: bool,
     },
     EquipRack {
         slot: usize,
@@ -124,6 +159,8 @@ pub enum RecordedEvent {
     Stroke {
         surface: SurfaceKind,
         brush: BrushKind,
+        #[serde(default)]
+        legacy_reservoir: bool,
         #[serde(default)]
         ink: bool,
         #[serde(default)]
@@ -134,6 +171,12 @@ pub enum RecordedEvent {
         diameter: f32,
         #[serde(default)]
         angle_deg: f32,
+        #[serde(default)]
+        auto_follow: bool,
+        #[serde(default)]
+        knife_sweep: bool,
+        #[serde(default)]
+        bristle_sweep: bool,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         tile: Option<bool>,
         samples: Vec<RecordedSample>,
@@ -220,11 +263,37 @@ pub struct Recording {
 impl Default for Recording {
     fn default() -> Self {
         Self {
-            format: "pigment-studio-recording-v1".into(),
+            format: "pigment-studio-recording-v2".into(),
             underlayer_path: None,
             lighting: None,
             tile: None,
             events: Vec::new(),
+        }
+    }
+}
+
+impl Recording {
+    pub fn parse(text: &str) -> Result<Self, String> {
+        let mut recording: Self = serde_json::from_str(text).map_err(|e| e.to_string())?;
+        recording.upgrade_legacy_reservoirs();
+        Ok(recording)
+    }
+
+    pub fn upgrade_legacy_reservoirs(&mut self) {
+        if self.format != "pigment-studio-recording-v1" {
+            return;
+        }
+        self.format = "pigment-studio-recording-v2".into();
+        for event in &mut self.events {
+            match event {
+                RecordedEvent::Stroke {
+                    legacy_reservoir, ..
+                }
+                | RecordedEvent::Service {
+                    legacy_reservoir, ..
+                } => *legacy_reservoir = true,
+                _ => {}
+            }
         }
     }
 }
@@ -252,8 +321,27 @@ pub fn compile_events_in(
     let mut commands = Vec::new();
     for event in events {
         match event {
-            RecordedEvent::Service { brush, action } => {
-                commands.push(Command::Service((*brush).into(), (*action).into()));
+            RecordedEvent::Service {
+                brush,
+                action,
+                legacy_reservoir,
+            } => {
+                let service = (*action).into();
+                if *brush != BrushKind::Flat
+                    && matches!(
+                        service,
+                        BrushService::DipRackLane(..) | BrushService::DipCustomLane(..)
+                    )
+                {
+                    return Err("Split jar dips require the flat brush.".into());
+                }
+                let brush = Brush::from(*brush);
+                let reservoir = if *legacy_reservoir {
+                    brush.legacy_reservoir()
+                } else {
+                    brush
+                };
+                commands.push(Command::Service(reservoir, service));
             }
             RecordedEvent::EquipRack { slot, recipe } => {
                 commands.push(Command::EquipRack(*slot, *recipe));
@@ -261,11 +349,15 @@ pub fn compile_events_in(
             RecordedEvent::Stroke {
                 surface,
                 brush,
+                legacy_reservoir,
                 ink,
                 charcoal,
                 erase,
                 diameter,
                 angle_deg,
+                auto_follow,
+                knife_sweep,
+                bristle_sweep,
                 tile,
                 samples,
             } => {
@@ -276,8 +368,10 @@ pub fn compile_events_in(
                     point: egui::pos2(s.x, s.y),
                     pressure: s.pressure,
                     timestamp_ms: s.timestamp_ms,
+                    angle: s.angle_deg.map(f32::to_radians),
                 };
                 let stroke_tile = tile.unwrap_or(*tile_state);
+                let first_command = commands.len();
                 let mut stroke = if *charcoal && *surface == SurfaceKind::Canvas {
                     Stroke::start_charcoal(
                         Source::Mouse,
@@ -295,14 +389,18 @@ pub fn compile_events_in(
                         &mut commands,
                     )
                 } else {
-                    Stroke::start_tiled(
+                    Stroke::start_full(
                         Source::Mouse,
                         to_sample(first),
                         *diameter,
                         (*surface).into(),
                         (*brush).into(),
                         angle_deg.to_radians(),
+                        *auto_follow,
+                        1.0,
                         stroke_tile,
+                        (*brush == BrushKind::PaletteKnife && *knife_sweep)
+                            || (*brush == BrushKind::Flat && *bristle_sweep),
                         &mut commands,
                     )
                 };
@@ -310,6 +408,13 @@ pub fn compile_events_in(
                     stroke.extend(to_sample(s), &mut commands);
                 }
                 stroke.finish(&mut commands);
+                if *legacy_reservoir {
+                    for command in &mut commands[first_command..] {
+                        if let Command::Dab(dab) = command {
+                            dab.use_legacy_reservoir((*brush).into());
+                        }
+                    }
+                }
             }
             RecordedEvent::Clear { surface } => {
                 commands.push(Command::Clear((*surface).into()));
@@ -374,7 +479,7 @@ pub fn render_headless_with_options(
     smooth_height: bool,
 ) -> Result<usize, String> {
     let text = std::fs::read_to_string(recording_path).map_err(|e| e.to_string())?;
-    let recording: Recording = serde_json::from_str(&text).map_err(|e| e.to_string())?;
+    let recording = Recording::parse(&text)?;
     let base_dir = recording_path
         .parent()
         .filter(|p| !p.as_os_str().is_empty());
@@ -460,7 +565,7 @@ fn render_one(
         queue.submit([encoder.finish()]);
         let meta = crate::project::ProjectMeta {
             calibration_version: crate::project::CURRENT_CALIBRATION_VERSION,
-            loads: [0.0, 0.0],
+            loads: [0.0; crate::gpu::BRUSH_COUNT],
             jars: vec![false; crate::workbench::CUSTOM_JAR_COUNT],
             sizes: [48.0, 64.0],
             angle: 0.0,
@@ -558,7 +663,7 @@ pub fn render_batch(manifest_path: &Path) -> Result<Vec<BatchJobOutput>, String>
         } else {
             let rec_text = std::fs::read_to_string(&rec_path)
                 .map_err(|e| format!("Job {index} recording {}: {e}", rec_path.display()))?;
-            let parsed: Recording = serde_json::from_str(&rec_text)
+            let parsed = Recording::parse(&rec_text)
                 .map_err(|e| format!("Job {index} recording {}: {e}", rec_path.display()))?;
             cache.insert(rec_path.clone(), parsed.clone());
             parsed

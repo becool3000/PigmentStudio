@@ -1,6 +1,6 @@
 # Pigment Studio Recording & Headless CLI Reference
 
-Pigment Studio can be driven headlessly on Direct3D 12 using `pigment-studio-recording-v1` JSON files (schema: [recording-v1.schema.json](recording-v1.schema.json)).
+Use `pigment-studio-recording-v2` for new Direct3D 12 recordings. Each oil brush keeps its own paint. The [recording schema](recording-v1.schema.json) also covers v1, which replays with shared Round and Flat reservoirs. When Studio extends a v1 recording, it saves the imported strokes and service actions with `legacy_reservoir: true` so they still replay with their original paint routing.
 
 ## Headless CLI Commands
 
@@ -88,3 +88,40 @@ The workbench shows Studio Essentials (slots 0–7). Slots 8–19 are reserved f
 | `soft_mop` | No | Feathered radial blender with high pickup for softening wet edges |
 
 Set `"ink": true` on a `stroke` for fluid dripping ink, or `"charcoal": true` (`"erase": true` to erase) to draw on the Sketch layer.
+
+### Continuous palette knife strokes
+
+Set `"auto_follow": true` on a knife stroke to steer the blade across the path. The first moving pass starts perpendicular to travel. A stationary tap uses the stroke's `angle_deg`.
+
+Set `"knife_sweep": true` to integrate the blade's contact between samples. Pickup and deposit follow the distance traveled. New desktop knife strokes record this flag for both manual and automatic steering. Existing recordings default to their original dab behavior.
+
+For a deliberate turn, set `angle_deg` on individual samples. A sample angle overrides auto-follow at that point and the blade interpolates along the shortest rotation between samples. The angle describes the blade's long edge, with 0° horizontal and 90° vertical. Reduce `pressure` toward the end to taper the mark.
+
+```json
+{
+  "type": "stroke",
+  "surface": "canvas",
+  "brush": "palette_knife",
+  "knife_sweep": true,
+  "diameter": 64,
+  "samples": [
+    { "x": 300, "y": 500, "pressure": 0.85, "angle_deg": 90 },
+    { "x": 440, "y": 540, "pressure": 0.70, "angle_deg": 115 },
+    { "x": 520, "y": 610, "pressure": 0.10, "angle_deg": 140 }
+  ]
+}
+```
+
+Use one stroke for the full sweep so the blade carries wet pigment forward across sample points.
+
+### Split-loading the hog-bristle flat
+
+Select **Flat** and choose **All**, **Left**, **Middle**, or **Right** under **Jar dip**. Clicking a built-in or custom jar loads the selected part of the tip. The lanes rotate with the brush.
+
+In a recording, give a flat brush's `dip_rack` or `dip_custom` action an optional `lane`. For example, this loads Hansa Yellow Light onto the left edge:
+
+```json
+{"type":"service","brush":"flat","action":{"kind":"dip_rack","slot":1,"lane":"left"}}
+```
+
+For a three-color stroke, dip the opposite edge in Phthalo Blue (slot 4) and dip the middle in both jars. Use `"bristle_sweep": true` on the flat stroke. Broad pressure brings the bundles into contact and lighter pressure leaves broken bristle marks. Use Auto-follow or per-sample angles to turn the brush. New desktop flat strokes record the swept contact flag. Older recordings use their original footprint.
