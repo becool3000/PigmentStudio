@@ -40,6 +40,7 @@ cargo run --release --locked -- --benchmark
 Run the same input workload with the swept palette knife using `cargo run --release --locked -- --benchmark-knife`.
 Use `cargo run --release --locked -- --benchmark-flat` for the hog-bristle flat.
 Use `cargo run --release --locked -- --benchmark-filbert` for the Filbert.
+Use `cargo run --release --locked -- --benchmark-fan` for the Fan.
 
 - Seeds a wet underpainting with a preloaded 64 px brush.
 - Dispatches 1,200 synthetic inputs at 120 Hz over 10 seconds.

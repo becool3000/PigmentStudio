@@ -1514,6 +1514,7 @@ fn test_phase_c_recording_headless_and_deep_undo() {
                 knife_sweep: false,
                 bristle_sweep: false,
                 filbert_sweep: false,
+                fan_sweep: false,
                 round_pressure: false,
                 tile: Some(false),
                 samples: vec![
@@ -1583,6 +1584,7 @@ fn test_phase_c_recording_headless_and_deep_undo() {
             knife_sweep: false,
             bristle_sweep: false,
             filbert_sweep: false,
+            fan_sweep: false,
             round_pressure: false,
             tile: Some(false),
             samples: vec![RecordedSample {
@@ -2291,6 +2293,72 @@ fn dx12_filbert_roll_and_lift_preserve_paint_and_bristle_texture() {
 }
 
 #[test]
+fn dx12_fan_separates_tufts_and_merges_them_under_pressure() {
+    let mut rig = Rig::new();
+    let recording = Recording::parse(
+        r#"{"format":"pigment-studio-recording-v2","events":[
+            {"type":"stroke","surface":"canvas","brush":"fan","fan_sweep":true,"diameter":72,
+             "samples":[
+                {"x":120,"y":290,"pressure":0.24,"angle_deg":90},
+                {"x":560,"y":290,"pressure":0.24,"angle_deg":90}
+             ]},
+            {"type":"stroke","surface":"canvas","brush":"fan","fan_sweep":true,"diameter":72,
+             "samples":[
+                {"x":120,"y":500,"pressure":0.92,"angle_deg":90},
+                {"x":530,"y":500,"pressure":0.92,"angle_deg":90},
+                {"x":700,"y":524,"pressure":0.72,"angle_deg":111},
+                {"x":820,"y":596,"pressure":0.29,"angle_deg":126},
+                {"x":890,"y":654,"pressure":0.08,"angle_deg":130}
+             ]}
+        ]}"#,
+    )
+    .unwrap();
+    let (before, loads_before) = rig.state(&[Command::Service(Brush::Fan, BrushService::Dip(1))]);
+    let (paint, loads_after) = rig.state(&recording::compile_events(&recording.events, &mut false));
+    let mass = |x, y| paint_at(&paint, x, y)[1];
+    let runs = |center: usize| {
+        let mut was_painted = false;
+        let mut count = 0;
+        for y in center - 20..center + 21 {
+            let painted = mass(320, y) > 0.012;
+            count += usize::from(painted && !was_painted);
+            was_painted = painted;
+        }
+        count
+    };
+    let separated = runs(290);
+    assert!(
+        (7..=9).contains(&separated),
+        "expected distinct tufts, got {separated}"
+    );
+    assert_eq!(runs(500), 1, "firm pressure should join the tufts");
+
+    // Sixteen pixels repeat the canvas weave phase so this measures stroke banding.
+    let track = (180..500).step_by(16).map(|x| mass(x, 290));
+    let min = track.clone().fold(f32::INFINITY, f32::min);
+    let max = track.fold(0.0, f32::max);
+    assert!(
+        min > 0.02 && max - min < 0.015,
+        "light central tuft bands: {min}..{max}"
+    );
+    let firm: f32 = (455..545).map(|y| mass(330, y)).sum();
+    let lift: f32 = (590..665).map(|y| mass(865, y)).sum();
+    assert!(
+        lift > 0.01 && lift < firm * 0.25,
+        "expected a lighter curved lift: {lift} vs {firm}"
+    );
+    for (a, b) in totals(&before, &loads_before)
+        .into_iter()
+        .zip(totals(&paint, &loads_after))
+    {
+        assert!(
+            (a - b).abs() < 0.001 * a.max(1.0),
+            "paint mass changed: {a} -> {b}"
+        );
+    }
+}
+
+#[test]
 fn test_phase_e_underlayer_and_batch_rendering() {
     use crate::recording::{
         render_batch, render_headless, BatchJob, BatchManifest, BrushKind, RecordedEvent,
@@ -2336,6 +2404,7 @@ fn test_phase_e_underlayer_and_batch_rendering() {
                 knife_sweep: false,
                 bristle_sweep: false,
                 filbert_sweep: false,
+                fan_sweep: false,
                 round_pressure: false,
                 tile: Some(false),
                 samples: vec![RecordedSample {
@@ -3507,6 +3576,7 @@ fn test_v030_edge_hairline_smooth_height_and_set_tile() {
             knife_sweep: false,
             bristle_sweep: false,
             filbert_sweep: false,
+            fan_sweep: false,
             round_pressure: false,
             tile: None,
             samples: vec![RecordedSample {
@@ -3531,6 +3601,7 @@ fn test_v030_edge_hairline_smooth_height_and_set_tile() {
             knife_sweep: false,
             bristle_sweep: false,
             filbert_sweep: false,
+            fan_sweep: false,
             round_pressure: false,
             tile: None,
             samples: vec![RecordedSample {

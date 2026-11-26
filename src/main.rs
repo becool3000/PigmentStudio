@@ -58,6 +58,7 @@ fn main() -> std::process::ExitCode {
             || arg == "--benchmark-knife"
             || arg == "--benchmark-flat"
             || arg == "--benchmark-filbert"
+            || arg == "--benchmark-fan"
             || arg == "--notes"
             || arg == "--note-done"
             || arg == "--inspect-pixel"
@@ -209,6 +210,8 @@ fn main() -> std::process::ExitCode {
         .any(|argument| argument == "--benchmark-filbert")
     {
         Some(Brush::Filbert)
+    } else if args.iter().any(|argument| argument == "--benchmark-fan") {
+        Some(Brush::Fan)
     } else if args.iter().any(|argument| argument == "--benchmark") {
         Some(Brush::Round)
     } else {
@@ -1192,7 +1195,11 @@ impl Studio {
                     self.paint.tile,
                     matches!(
                         self.brush,
-                        Brush::Round | Brush::PaletteKnife | Brush::Flat | Brush::Filbert
+                        Brush::Round
+                            | Brush::PaletteKnife
+                            | Brush::Flat
+                            | Brush::Filbert
+                            | Brush::Fan
                     ),
                     &mut self.commands,
                 )
@@ -1294,6 +1301,7 @@ impl Studio {
                     knife_sweep: swept && self.brush == Brush::PaletteKnife,
                     bristle_sweep: swept && self.brush == Brush::Flat,
                     filbert_sweep: swept && self.brush == Brush::Filbert,
+                    fan_sweep: swept && self.brush == Brush::Fan,
                     round_pressure,
                     tile: Some(self.paint.tile && surface == Surface::Canvas),
                     samples,

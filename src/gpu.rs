@@ -210,6 +210,7 @@ impl Dab {
         let depth = match brush {
             Brush::Flat => 0.36,
             Brush::Filbert => 0.52,
+            Brush::Fan => 0.51,
             _ => 0.22,
         };
         let turn_margin = (1.0 + depth) * 0.5 * (end.angle - start.angle).abs();

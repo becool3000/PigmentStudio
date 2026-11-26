@@ -149,6 +149,7 @@
             "knife_sweep": { "type": "boolean", "default": false, "description": "Integrate palette knife contact between samples. The desktop records this for new palette knife strokes." },
             "bristle_sweep": { "type": "boolean", "default": false, "description": "Integrate hog-bristle flat contact between samples. The desktop records this for new flat strokes." },
             "filbert_sweep": { "type": "boolean", "default": false, "description": "Integrate soft oval Filbert contact between samples. The desktop records this for new Filbert strokes." },
+            "fan_sweep": { "type": "boolean", "default": false, "description": "Integrate pressure-dependent Fan tuft contact between samples. The desktop records this for new Fan strokes." },
             "round_pressure": { "type": "boolean", "default": false, "description": "Use the refined Round brush pressure curve. The desktop records this for new Round strokes." },
             "legacy_reservoir": { "type": "boolean", "default": false, "description": "Use the legacy Round or Flat reservoir for this stroke when preserving v1 replay." },
             "tile": { "type": "boolean", "default": false },

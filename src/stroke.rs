@@ -99,12 +99,16 @@ impl Stroke {
             auto_angle,
             pending_first_dab: auto_angle
                 && (brush == Brush::PaletteKnife
-                    || (refined && matches!(brush, Brush::Flat | Brush::Filbert)))
+                    || (refined && matches!(brush, Brush::Flat | Brush::Filbert | Brush::Fan)))
                 && sample.angle.is_none(),
             continuous_knife: brush == Brush::PaletteKnife
                 && (auto_angle || sample.angle.is_some()),
             round_pressure: brush == Brush::Round && refined,
-            sweep: refined && matches!(brush, Brush::PaletteKnife | Brush::Flat | Brush::Filbert),
+            sweep: refined
+                && matches!(
+                    brush,
+                    Brush::PaletteKnife | Brush::Flat | Brush::Filbert | Brush::Fan
+                ),
             swept: false,
             load_ratio,
             tile,
@@ -368,6 +372,8 @@ impl Stroke {
             0.12 + 0.88 * pressure.powf(0.75)
         } else if self.sweep && self.brush == Brush::Filbert {
             0.18 + 0.82 * pressure.powf(0.65)
+        } else if self.sweep && self.brush == Brush::Fan {
+            0.36 + 0.64 * pressure.sqrt()
         } else {
             0.22 + 0.78 * pressure.sqrt()
         };
@@ -408,7 +414,9 @@ impl Stroke {
             let pressure = ((sample.pressure - 0.015) / 0.735).clamp(0.0, 1.0);
             let contact = pressure * pressure * (3.0 - 2.0 * pressure);
             dab.set_refined_tip(0.08 + 0.92 * contact);
-        } else if self.continuous_knife || (self.sweep && self.brush == Brush::Filbert) {
+        } else if self.continuous_knife
+            || (self.sweep && matches!(self.brush, Brush::Filbert | Brush::Fan))
+        {
             dab.set_refined_tip(1.0);
         }
         commands.push(Command::Dab(dab));

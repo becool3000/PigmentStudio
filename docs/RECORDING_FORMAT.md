@@ -133,3 +133,7 @@ Set `"round_pressure": true` on a Round stroke to use the desktop brush's refine
 ### Filbert rolls and tapers
 
 Set `"filbert_sweep": true` on a Filbert stroke to use the desktop brush's swept oval contact. Start with the long axis across the path for a broad mark. Turn the long axis toward the path with per-sample `angle_deg` to present the narrow edge, then ease `pressure` as you lift. Auto-follow holds the broad orientation through curves. The three paint lanes carry color through the turn.
+
+### Fan brush tufts
+
+Set `"fan_sweep": true` on a Fan stroke to use the desktop brush's nine spreading tufts. A light pass leaves separate streaks. Firm pressure splays the tufts into a continuous mark, and easing pressure separates them again near the lift. Use Auto-follow or per-sample angles to turn the fan through a curve.

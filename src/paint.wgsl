@@ -73,6 +73,21 @@ fn filbert_contact(across: f32, along: f32, pressure: f32, tooth: f32) -> f32 {
     return edge * bristles * contact;
 }
 
+fn fan_contact(across: f32, along: f32, pressure: f32, tooth: f32) -> f32 {
+    let spread = smoothstep(0.10, 0.88, pressure);
+    let tuft_phase = (across + 1.0) * 4.5 + 0.11 * sin(across * 6.0);
+    let gap = abs(fract(tuft_phase) - 0.5);
+    let half_width = mix(0.16, 0.51, spread);
+    let tuft = 1.0 - smoothstep(half_width - 0.12, half_width + 0.02, gap);
+    let overlap = mix(0.0, 0.62, spread);
+    let arc = along + 0.22 * across * across;
+    let depth = mix(0.20, 0.29, pressure);
+    let edge = (1.0 - smoothstep(0.84, 1.0, abs(across))) * (1.0 - smoothstep(0.16, 1.0, abs(arc) / depth));
+    let contact = mix(0.24, 1.0, smoothstep(0.04, 0.64, pressure));
+    let grain = mix(mix(0.64, 1.0, tooth), 1.0, spread);
+    return edge * mix(tuft, 1.0, overlap) * contact * grain;
+}
+
 fn tip(pixel: vec2<u32>) -> vec2<f32> {
     let p = tip_delta(pixel) / dab.brush.z;
     let profile = dab.mode.z;
@@ -120,6 +135,9 @@ fn tip(pixel: vec2<u32>) -> vec2<f32> {
 
     if (profile == 3u) {
         // Fan Brush: curved arc of 9 separated bristle tufts
+        if (dab.axis.w > 0.0) {
+            return vec2<f32>(fan_contact(across, local.y, dab.brush.w, smoothstep(0.3, 0.83, weave_tooth)), group);
+        }
         let arc_y = local.y + 0.22 * across * across;
         let edge = max(abs(across), abs(arc_y) / 0.26);
         let shape = 1.0 - smoothstep(0.65, 1.0, edge);
@@ -159,18 +177,21 @@ fn moving_contact(delta: vec2<f32>, t: f32, tooth: f32) -> vec3<f32> {
     let across = dot(p, axis) / mix(select(0.83, 0.70, filbert), 1.0, pressure);
     let along = dot(p, vec2<f32>(-axis.y, axis.x));
     let flat = dab.mode.z == 1u;
+    let fan = dab.mode.z == 3u;
     var contact: f32;
     if (flat) {
         contact = hog_bristle_contact(across, along, pressure, tooth);
     } else if (filbert) {
         contact = filbert_contact(across, along, pressure, tooth);
+    } else if (fan) {
+        contact = fan_contact(across, along, pressure, tooth);
     } else {
         let sides = 1.0 - smoothstep(0.86, 1.0, abs(across));
         let travel = 1.0 - smoothstep(0.18, 1.0, abs(along) / 0.22);
         let ridge = 0.85 + 0.15 * smoothstep(-0.22, 0.22, -along);
         contact = sides * travel * ridge;
     }
-    let blend = select(0.05, 0.10, flat || filbert);
+    let blend = select(0.05, 0.10, flat || filbert || fan);
     let center = smoothstep(-0.33 - blend, -0.33 + blend, across);
     let far = smoothstep(0.33 - blend, 0.33 + blend, across);
     return vec3<f32>(1.0 - center, center - far, far) * contact;
@@ -179,7 +200,7 @@ fn moving_contact(delta: vec2<f32>, t: f32, tooth: f32) -> vec3<f32> {
 fn swept_exposure(pixel: vec2<u32>) -> vec3<f32> {
     let delta = tip_delta(pixel);
     var tooth = 1.0;
-    if (dab.mode.z == 1u || dab.mode.z == 2u) {
+    if (dab.mode.z == 1u || dab.mode.z == 2u || dab.mode.z == 3u) {
         let weave = (cos(f32(pixel.x) * 1.9635) - cos(f32(pixel.y) * 1.9635)) * 0.5 + 0.5;
         tooth = smoothstep(0.3, 0.83, weave);
     }
