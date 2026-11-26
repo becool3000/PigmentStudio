@@ -4113,3 +4113,69 @@ fn test_slice1_gravity_conservation_and_downward_flow() {
         "expected paint to drip below y=326, got {below_after}"
     );
 }
+
+#[test]
+fn test_slice2_pollock_splatter_and_recording() {
+    let mut rig = Rig::new();
+    let events = vec![
+        RecordedEvent::EquipRack {
+            slot: 0,
+            recipe: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0],
+        },
+        RecordedEvent::Service {
+            legacy_reservoir: false,
+            brush: recording::BrushKind::Round,
+            action: recording::ServiceAction::DipRack {
+                slot: 0,
+                clean: false,
+                lane: None,
+            },
+        },
+        RecordedEvent::Splatter {
+            id: Some("whip_red".into()),
+            group: None,
+            brush: recording::BrushKind::Round,
+            settings: crate::splatter::SplatterSettings {
+                viscosity: 0.30,
+                sling_throw: 1.5,
+                droplet_size: 20.0,
+                spray_density: 1.5,
+            },
+            tile: Some(false),
+            samples: vec![
+                RecordedSample {
+                    x: 250.0,
+                    y: 512.0,
+                    pressure: 0.9,
+                    timestamp_ms: 0,
+                    angle_deg: None,
+                },
+                RecordedSample {
+                    x: 480.0,
+                    y: 512.0,
+                    pressure: 0.9,
+                    timestamp_ms: 20,
+                    angle_deg: None,
+                },
+            ],
+        },
+    ];
+    let mut tile = false;
+    let cmds = recording::compile_events(&events, &mut tile);
+    assert!(cmds.len() >= 4, "expected poured + flung splatter dabs");
+    let (pigments_bytes, _) = rig.state(&cmds);
+    let px: &[[f32; 8]] = bytemuck::cast_slice(&pigments_bytes);
+    let mut flung_ahead_mass = 0.0f64;
+    for y in 420..604 {
+        for x in 490..750 {
+            flung_ahead_mass += px[y * SIDE as usize + x]
+                .iter()
+                .map(|&v| f64::from(v))
+                .sum::<f64>();
+        }
+    }
+    assert!(
+        flung_ahead_mass > 0.05,
+        "expected fast whip to fling paint ahead of x=480, got {flung_ahead_mass}"
+    );
+}

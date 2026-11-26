@@ -1,4 +1,5 @@
 use crate::gpu::{Brush, BrushContact, Command, Dab, Surface};
+use crate::splatter::{SplatterEngine, SplatterSettings};
 use egui::Pos2;
 use std::time::{Duration, Instant};
 
@@ -35,6 +36,7 @@ pub struct Stroke {
     tile: bool,
     charcoal_erase: Option<bool>,
     ink_hold: Option<(Instant, Pos2)>,
+    splatter: Option<(SplatterEngine, SplatterSettings)>,
 }
 
 impl Stroke {
@@ -114,6 +116,7 @@ impl Stroke {
             tile,
             charcoal_erase: None,
             ink_hold: None,
+            splatter: None,
         };
         if !stroke.pending_first_dab && !stroke.sweep {
             stroke.dab(sample, stroke.angle, commands);
@@ -151,6 +154,7 @@ impl Stroke {
             tile,
             charcoal_erase: None,
             ink_hold: Some((Instant::now() + Duration::from_millis(34), sample.point)),
+            splatter: None,
         };
         stroke.dab(sample, stroke.angle, commands);
         stroke
@@ -183,9 +187,50 @@ impl Stroke {
             tile,
             charcoal_erase: Some(erase),
             ink_hold: None,
+            splatter: None,
         };
         stroke.dab(sample, stroke.angle, commands);
         stroke
+    }
+
+    pub fn start_splatter(
+        source: Source,
+        sample: Sample,
+        brush: Brush,
+        tile: bool,
+        settings: SplatterSettings,
+        commands: &mut Vec<Command>,
+    ) -> Self {
+        let engine = SplatterEngine::start(
+            sample.point,
+            sample.pressure,
+            sample.timestamp_ms,
+            brush,
+            tile,
+            settings,
+            commands,
+        );
+        Self {
+            source,
+            last: sample,
+            pressure_at_dab: sample.pressure,
+            distance_since_dab: 0.,
+            diameter: settings.droplet_size,
+            surface: Surface::Canvas,
+            brush,
+            angle: 0.,
+            auto_angle: false,
+            pending_first_dab: false,
+            continuous_knife: false,
+            round_pressure: false,
+            sweep: false,
+            swept: false,
+            load_ratio: 1.0,
+            tile,
+            charcoal_erase: None,
+            ink_hold: None,
+            splatter: Some((engine, settings)),
+        }
     }
 
     pub fn ink_is_held(&self) -> bool {
@@ -230,6 +275,19 @@ impl Stroke {
             return;
         }
         if (sample.timestamp_ms.wrapping_sub(self.last.timestamp_ms) as i32) < 0 {
+            return;
+        }
+        if let Some((engine, settings)) = &mut self.splatter {
+            engine.advance(
+                sample.point,
+                sample.pressure,
+                sample.timestamp_ms,
+                self.brush,
+                self.tile,
+                *settings,
+                commands,
+            );
+            self.last = sample;
             return;
         }
         let delta = sample.point - self.last.point;

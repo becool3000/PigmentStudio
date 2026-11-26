@@ -234,6 +234,29 @@ pub enum RecordedEvent {
     ImportReference {
         words: std::sync::Arc<Vec<u32>>,
     },
+    Splatter {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        id: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        group: Option<String>,
+        brush: BrushKind,
+        #[serde(default)]
+        settings: crate::splatter::SplatterSettings,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        tile: Option<bool>,
+        samples: Vec<RecordedSample>,
+    },
+    GravityStep {
+        strength: f32,
+        viscosity: f32,
+        angle_deg: f32,
+        #[serde(default = "default_one")]
+        steps: u32,
+    },
+}
+
+fn default_one() -> u32 {
+    1
 }
 
 fn default_true() -> bool {
@@ -510,6 +533,50 @@ pub fn compile_events_in(
             }
             RecordedEvent::ImportReference { words } => {
                 commands.push(Command::ImportReference(words.clone()));
+            }
+            RecordedEvent::Splatter {
+                brush,
+                settings,
+                tile,
+                samples,
+                ..
+            } => {
+                let Some(first) = samples.first() else {
+                    continue;
+                };
+                let to_sample = |s: &RecordedSample| Sample {
+                    point: egui::pos2(s.x, s.y),
+                    pressure: s.pressure,
+                    timestamp_ms: s.timestamp_ms,
+                    angle: s.angle_deg.map(f32::to_radians),
+                };
+                let stroke_tile = tile.unwrap_or(*tile_state);
+                let mut stroke = Stroke::start_splatter(
+                    Source::Mouse,
+                    to_sample(first),
+                    (*brush).into(),
+                    stroke_tile,
+                    *settings,
+                    &mut commands,
+                );
+                for s in &samples[1..] {
+                    stroke.extend(to_sample(s), &mut commands);
+                }
+                stroke.finish(&mut commands);
+            }
+            RecordedEvent::GravityStep {
+                strength,
+                viscosity,
+                angle_deg,
+                steps,
+            } => {
+                for _ in 0..(*steps).min(600) {
+                    commands.push(Command::AdvanceGravity {
+                        strength: *strength,
+                        viscosity: *viscosity,
+                        angle_deg: *angle_deg,
+                    });
+                }
             }
         }
     }

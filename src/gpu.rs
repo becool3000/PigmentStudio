@@ -189,6 +189,39 @@ impl Dab {
         }
     }
 
+    /// Velocity-elongated splatter droplet stamped from `brush`'s Kubelka-Munk reservoir.
+    pub fn splat(
+        position: egui::Pos2,
+        radius: f32,
+        pressure: f32,
+        brush: Brush,
+        angle: f32,
+        elongation: f32,
+        tiled: bool,
+    ) -> Self {
+        let elong = elongation.clamp(1.0, 4.0);
+        let (bounds, center) = Self::footprint_bounds(
+            position,
+            egui::Vec2::splat(radius * elong * 1.12),
+            Surface::Canvas,
+            tiled,
+        );
+        let (sin, cos) = angle.sin_cos();
+        Self {
+            bounds,
+            brush: [
+                center.x,
+                center.y,
+                radius.max(1.0),
+                pressure.clamp(0.05, 1.0),
+            ],
+            axis: [cos, sin, elong, 0.0],
+            mode: [0, brush.load_start(), 0, u32::from(tiled)],
+            tubes: [0; 4],
+            sweep: [0.0; 4],
+        }
+    }
+
     /// The start and end axes share `axis`. The sweep stores displacement,
     /// end radius and end pressure. A zero end radius denotes a stationary dab.
     pub fn swept_contact(

@@ -94,7 +94,12 @@ fn tip(pixel: vec2<u32>) -> vec2<f32> {
     let profile = dab.mode.z;
     if (profile == 0u) {
         let contact = select(1.0, dab.axis.w, dab.axis.w > 0.0);
-        return vec2<f32>((1.0 - smoothstep(0.3, 1.0, length(p))) * contact, 0.0);
+        var q = p;
+        if (dab.axis.z > 1.01) {
+            let local = vec2<f32>(dot(p, dab.axis.xy), dot(p, vec2<f32>(-dab.axis.y, dab.axis.x)));
+            q = vec2<f32>(local.x / dab.axis.z, local.y);
+        }
+        return vec2<f32>((1.0 - smoothstep(0.3, 1.0, length(q))) * contact, 0.0);
     }
     if (profile == 5u) {
         // Soft Mop: wide, feathered radial blender

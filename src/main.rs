@@ -10,6 +10,7 @@ mod pigment;
 mod project;
 mod recording;
 mod serve;
+mod splatter;
 mod stroke;
 mod window_placement;
 mod workbench;
@@ -779,6 +780,8 @@ struct Studio {
     workbench_status: String,
     benchmark_seeded: bool,
     ink_selected: bool,
+    splatter_selected: bool,
+    splatter: splatter::SplatterSettings,
     charcoal_erase: bool,
     charcoal_size: f32,
     next_ink_step: Instant,
@@ -927,6 +930,8 @@ impl Studio {
             workbench_status: String::new(),
             benchmark_seeded: false,
             ink_selected: false,
+            splatter_selected: false,
+            splatter: splatter::SplatterSettings::default(),
             charcoal_erase: false,
             charcoal_size: 14.0,
             next_ink_step: Instant::now(),
@@ -1273,6 +1278,15 @@ impl Studio {
                 )
             } else if self.ink_selected && surface == Surface::Canvas {
                 Stroke::start_ink_tiled(source, sample, self.paint.tile, &mut self.commands)
+            } else if self.splatter_selected && surface == Surface::Canvas {
+                Stroke::start_splatter(
+                    source,
+                    sample,
+                    self.brush,
+                    self.paint.tile,
+                    self.splatter,
+                    &mut self.commands,
+                )
             } else {
                 if surface == Surface::Canvas {
                     let dep = (0.0008
@@ -1381,33 +1395,46 @@ impl Studio {
             let auto_follow = stroke.follows_path();
             let swept = stroke.sweeps_contact();
             let round_pressure = stroke.has_round_pressure();
+            let splatter =
+                !is_charcoal && !ink && self.splatter_selected && surface == Surface::Canvas;
             stroke.finish(&mut self.commands);
             if !self.active_stroke_samples.is_empty() {
                 let samples = std::mem::take(&mut self.active_stroke_samples);
-                self.recording.events.push(RecordedEvent::Stroke {
-                    id: None,
-                    group: None,
-                    legacy_reservoir: false,
-                    surface: surface.into(),
-                    brush: self.brush.into(),
-                    ink,
-                    charcoal: is_charcoal,
-                    erase: self.charcoal_erase,
-                    diameter: if is_charcoal {
-                        self.charcoal_size
-                    } else {
-                        self.workbench.sizes[self.brush.size_index()]
-                    },
-                    angle_deg: self.workbench.angle,
-                    auto_follow,
-                    knife_sweep: swept && self.brush == Brush::PaletteKnife,
-                    bristle_sweep: swept && self.brush == Brush::Flat,
-                    filbert_sweep: swept && self.brush == Brush::Filbert,
-                    fan_sweep: swept && self.brush == Brush::Fan,
-                    round_pressure,
-                    tile: Some(self.paint.tile && surface == Surface::Canvas),
-                    samples,
-                });
+                if splatter {
+                    self.recording.events.push(RecordedEvent::Splatter {
+                        id: None,
+                        group: None,
+                        brush: self.brush.into(),
+                        settings: self.splatter,
+                        tile: Some(self.paint.tile),
+                        samples,
+                    });
+                } else {
+                    self.recording.events.push(RecordedEvent::Stroke {
+                        id: None,
+                        group: None,
+                        legacy_reservoir: false,
+                        surface: surface.into(),
+                        brush: self.brush.into(),
+                        ink,
+                        charcoal: is_charcoal,
+                        erase: self.charcoal_erase,
+                        diameter: if is_charcoal {
+                            self.charcoal_size
+                        } else {
+                            self.workbench.sizes[self.brush.size_index()]
+                        },
+                        angle_deg: self.workbench.angle,
+                        auto_follow,
+                        knife_sweep: swept && self.brush == Brush::PaletteKnife,
+                        bristle_sweep: swept && self.brush == Brush::Flat,
+                        filbert_sweep: swept && self.brush == Brush::Filbert,
+                        fan_sweep: swept && self.brush == Brush::Fan,
+                        round_pressure,
+                        tile: Some(self.paint.tile && surface == Surface::Canvas),
+                        samples,
+                    });
+                }
             }
             if !self.ink_selected && surface == Surface::Canvas {
                 let dabs = self.commands.len() - before;
@@ -2128,19 +2155,34 @@ impl Studio {
                         (Brush::SoftMop, "Soft Mop (Blender)"),
                     ] {
                         if ui
-                            .radio(on_paint && !self.ink_selected && self.brush == b, label)
+                            .radio(
+                                on_paint && !self.ink_selected && !self.splatter_selected && self.brush == b,
+                                label,
+                            )
                             .clicked()
                         {
                             self.end_stroke();
                             self.paint.layers.active = gpu::ActiveLayer::Paint;
                             self.ink_selected = false;
+                            self.splatter_selected = false;
                             self.brush = b;
                             ui.close_menu();
                         }
                     }
+                    if ui
+                        .radio(on_paint && self.splatter_selected, "Splatter / Sling (Pollock)")
+                        .clicked()
+                    {
+                        self.end_stroke();
+                        self.paint.layers.active = gpu::ActiveLayer::Paint;
+                        self.ink_selected = false;
+                        self.splatter_selected = true;
+                        ui.close_menu();
+                    }
                     if ui.radio(on_paint && self.ink_selected, "Ink Pen").clicked() {
                         self.end_stroke();
                         self.paint.layers.active = gpu::ActiveLayer::Paint;
+                        self.splatter_selected = false;
                         self.ink_selected = true;
                         ui.close_menu();
                     }
@@ -2651,7 +2693,19 @@ impl Studio {
                 }
             });
         }
-        ui.horizontal(|ui| {
+        ui.horizontal_wrapped(|ui| {
+            let splat_on =
+                self.paint.layers.active == gpu::ActiveLayer::Paint && self.splatter_selected;
+            if ui
+                .selectable_label(splat_on, "🎨 Splatter")
+                .on_hover_text("Jackson Pollock Splatter / Sling tool: slow pour = beaded strings, fast whip = flung droplets using your active pigment mix.")
+                .clicked()
+            {
+                self.end_stroke();
+                self.paint.layers.active = gpu::ActiveLayer::Paint;
+                self.ink_selected = false;
+                self.splatter_selected = true;
+            }
             let ink_on = self.paint.layers.active == gpu::ActiveLayer::Paint && self.ink_selected;
             if ui
                 .selectable_label(ink_on, "Ink Pen")
@@ -2660,6 +2714,7 @@ impl Studio {
             {
                 self.end_stroke();
                 self.paint.layers.active = gpu::ActiveLayer::Paint;
+                self.splatter_selected = false;
                 self.ink_selected = true;
             }
             let sketch_on = self.paint.layers.active == gpu::ActiveLayer::Sketch;
@@ -2691,6 +2746,34 @@ impl Studio {
                     .suffix(" px")
                     .integer(),
             );
+        } else if self.splatter_selected {
+            ui.group(|ui| {
+                ui.strong("🎨 Pollock Splatter / Sling");
+                ui.add(
+                    egui::Slider::new(&mut self.splatter.viscosity, 0.05..=1.0).text("Viscosity"),
+                )
+                .on_hover_text(
+                    "Low = fine mist & wide scatter; High = thick poured enamel strings",
+                );
+                ui.add(
+                    egui::Slider::new(&mut self.splatter.sling_throw, 0.0..=2.0)
+                        .text("Sling / Throw"),
+                )
+                .on_hover_text("How far fast flicks & whips fling paint ahead of the cursor");
+                ui.add(
+                    egui::Slider::new(&mut self.splatter.droplet_size, 4.0..=48.0)
+                        .text("Droplet Size")
+                        .suffix(" px")
+                        .integer(),
+                );
+                ui.add(
+                    egui::Slider::new(&mut self.splatter.spray_density, 0.2..=2.0)
+                        .text("Spray Density"),
+                );
+                if ui.small_button("↺ Reset Pollock").clicked() {
+                    self.splatter = splatter::SplatterSettings::default();
+                }
+            });
         } else if !self.ink_selected {
             ui.add(
                 egui::Slider::new(
@@ -2704,6 +2787,7 @@ impl Studio {
         }
         if self.paint.layers.active == gpu::ActiveLayer::Paint
             && !self.ink_selected
+            && !self.splatter_selected
             && self.brush.is_directional()
         {
             ui.horizontal(|ui| {
@@ -3065,6 +3149,7 @@ impl Studio {
             self.end_stroke();
             self.paint.layers.active = gpu::ActiveLayer::Paint;
             self.ink_selected = false;
+            self.splatter_selected = false;
             self.brush = brush;
         }
     }
