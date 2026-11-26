@@ -86,6 +86,8 @@ pub enum ServiceAction {
         slot: usize,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         lane: Option<BrushLane>,
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        clean: bool,
     },
     Wipe {
         fraction: f32,
@@ -98,7 +100,11 @@ impl From<BrushService> for ServiceAction {
             BrushService::Load(tube) => Self::Load { tube },
             BrushService::Dip(tube) => Self::Dip { tube },
             BrushService::DipCustom(slot) => Self::DipCustom { slot, lane: None },
-            BrushService::DipRack(slot) => Self::DipRack { slot, lane: None },
+            BrushService::DipRack(slot) => Self::DipRack {
+                slot,
+                lane: None,
+                clean: false,
+            },
             BrushService::DipCustomLane(slot, lane) => Self::DipCustom {
                 slot,
                 lane: Some(lane),
@@ -106,6 +112,7 @@ impl From<BrushService> for ServiceAction {
             BrushService::DipRackLane(slot, lane) => Self::DipRack {
                 slot,
                 lane: Some(lane),
+                clean: false,
             },
             BrushService::Wipe(fraction) => Self::Wipe { fraction },
         }
@@ -118,7 +125,9 @@ impl From<ServiceAction> for BrushService {
             ServiceAction::Load { tube } => Self::Load(tube),
             ServiceAction::Dip { tube } => Self::Dip(tube),
             ServiceAction::DipCustom { slot, lane: None } => Self::DipCustom(slot),
-            ServiceAction::DipRack { slot, lane: None } => Self::DipRack(slot),
+            ServiceAction::DipRack {
+                slot, lane: None, ..
+            } => Self::DipRack(slot),
             ServiceAction::DipCustom {
                 slot,
                 lane: Some(lane),
@@ -126,6 +135,7 @@ impl From<ServiceAction> for BrushService {
             ServiceAction::DipRack {
                 slot,
                 lane: Some(lane),
+                ..
             } => Self::DipRackLane(slot, lane),
             ServiceAction::Wipe { fraction } => Self::Wipe(fraction),
         }
@@ -156,7 +166,19 @@ pub enum RecordedEvent {
         slot: usize,
         recipe: [f32; 8],
     },
+    SetMix {
+        brush: BrushKind,
+        recipe: [f32; 8],
+        #[serde(default = "default_true")]
+        clean: bool,
+        #[serde(default)]
+        legacy_reservoir: bool,
+    },
     Stroke {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        id: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        group: Option<String>,
         surface: SurfaceKind,
         brush: BrushKind,
         #[serde(default)]
@@ -212,6 +234,10 @@ pub enum RecordedEvent {
     ImportReference {
         words: std::sync::Arc<Vec<u32>>,
     },
+}
+
+fn default_true() -> bool {
+    true
 }
 
 fn default_diameter() -> f32 {
@@ -347,12 +373,35 @@ pub fn compile_events_in(
                 } else {
                     brush
                 };
+                if matches!(action, ServiceAction::DipRack { clean: true, .. }) {
+                    commands.push(Command::Service(reservoir, BrushService::Wipe(0.0)));
+                }
                 commands.push(Command::Service(reservoir, service));
             }
             RecordedEvent::EquipRack { slot, recipe } => {
                 commands.push(Command::EquipRack(*slot, *recipe));
             }
+            RecordedEvent::SetMix {
+                brush,
+                recipe,
+                clean,
+                legacy_reservoir,
+            } => {
+                let brush = Brush::from(*brush);
+                let reservoir = if *legacy_reservoir {
+                    brush.legacy_reservoir()
+                } else {
+                    brush
+                };
+                if *clean {
+                    commands.push(Command::Service(reservoir, BrushService::Wipe(0.0)));
+                }
+                commands.push(Command::EquipRack(19, *recipe));
+                commands.push(Command::Service(reservoir, BrushService::DipRack(19)));
+            }
             RecordedEvent::Stroke {
+                id: _,
+                group: _,
                 surface,
                 brush,
                 legacy_reservoir,
@@ -473,6 +522,15 @@ pub fn equip_cabinet(commands: &mut Vec<Command>) {
     }
 }
 
+fn export_mode_name(mode: ExportKind) -> &'static str {
+    match mode {
+        ExportKind::Color => "color",
+        ExportKind::Transparent => "transparent",
+        ExportKind::Height => "height",
+        ExportKind::Normal => "normal",
+    }
+}
+
 #[cfg(test)]
 pub fn render_headless(
     recording_path: &Path,
@@ -480,16 +538,26 @@ pub fn render_headless(
     mode: ExportKind,
     underlayer_override: Option<&Path>,
 ) -> Result<usize, String> {
-    render_headless_with_options(recording_path, out_path, mode, underlayer_override, false)
+    let modes = vec![(export_mode_name(mode).to_string(), mode)];
+    let (events, _) = render_modes_headless(
+        recording_path,
+        out_path,
+        &modes,
+        underlayer_override,
+        false,
+        false,
+    )?;
+    Ok(events)
 }
 
-pub fn render_headless_with_options(
+pub fn render_modes_headless(
     recording_path: &Path,
     out_path: &Path,
-    mode: ExportKind,
+    modes: &[(String, ExportKind)],
     underlayer_override: Option<&Path>,
     smooth_height: bool,
-) -> Result<usize, String> {
+    gl_normals: bool,
+) -> Result<(usize, Vec<(String, std::path::PathBuf)>), String> {
     let text = std::fs::read_to_string(recording_path).map_err(|e| e.to_string())?;
     let recording = Recording::parse(&text)?;
     let base_dir = recording_path
@@ -503,7 +571,8 @@ pub fn render_headless_with_options(
     let (device, queue, _) = pollster::block_on(gpu::device(&inst, None))?;
     let mut paint = PaintGpu::new(&device);
     paint.smooth_height = smooth_height;
-    render_one(
+    paint.gl_normals = gl_normals;
+    render_modes_on_gpu(
         &device,
         &queue,
         &mut paint,
@@ -511,7 +580,7 @@ pub fn render_headless_with_options(
         base_dir,
         underlayer_override,
         out_path,
-        mode,
+        modes,
     )
 }
 
@@ -526,6 +595,31 @@ fn render_one(
     out_path: &Path,
     mode: ExportKind,
 ) -> Result<usize, String> {
+    let modes = vec![(export_mode_name(mode).to_string(), mode)];
+    let (events, _) = render_modes_on_gpu(
+        device,
+        queue,
+        paint,
+        recording,
+        base_dir,
+        underlayer_override,
+        out_path,
+        &modes,
+    )?;
+    Ok(events)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn render_modes_on_gpu(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    paint: &mut PaintGpu,
+    recording: &Recording,
+    base_dir: Option<&Path>,
+    underlayer_override: Option<&Path>,
+    out_path: &Path,
+    modes: &[(String, ExportKind)],
+) -> Result<(usize, Vec<(String, std::path::PathBuf)>), String> {
     paint.lighting = recording
         .lighting
         .clone()
@@ -567,12 +661,14 @@ fn render_one(
         queue.submit([encoder.finish()]);
     }
 
-    let mut encoder = device.create_command_encoder(&Default::default());
+    let mut outputs = Vec::with_capacity(modes.len());
+    let multi = modes.len() > 1;
     if out_path
         .extension()
         .and_then(|e| e.to_str())
         .is_some_and(|e| e.eq_ignore_ascii_case("pigment"))
     {
+        let mut encoder = device.create_command_encoder(&Default::default());
         let buffer = paint.readback_project(device, &mut encoder);
         queue.submit([encoder.finish()]);
         let meta = crate::project::ProjectMeta {
@@ -593,14 +689,23 @@ fn render_one(
         let rx = gpu::save_project(buffer, meta, out_path.to_path_buf());
         let _ = device.poll(wgpu::Maintain::Wait);
         rx.recv().map_err(|e| e.to_string())??;
+        outputs.push(("project".to_string(), out_path.to_path_buf()));
     } else {
-        let buffer = paint.readback_kind(device, queue, &mut encoder, mode);
-        queue.submit([encoder.finish()]);
-        let rx = gpu::export_with_srgb(buffer, out_path.to_path_buf(), mode.is_srgb());
-        let _ = device.poll(wgpu::Maintain::Wait);
-        rx.recv().map_err(|e| e.to_string())??;
+        for (mode_name, mode) in modes {
+            let target = format_mode_out_path(out_path, mode_name, multi);
+            if let Some(parent) = target.parent().filter(|p| !p.as_os_str().is_empty()) {
+                std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+            }
+            let mut encoder = device.create_command_encoder(&Default::default());
+            let buffer = paint.readback_kind(device, queue, &mut encoder, *mode);
+            queue.submit([encoder.finish()]);
+            let rx = gpu::export_with_srgb(buffer, target.clone(), mode.is_srgb());
+            let _ = device.poll(wgpu::Maintain::Wait);
+            rx.recv().map_err(|e| e.to_string())??;
+            outputs.push((mode_name.clone(), target));
+        }
     }
-    Ok(recording.events.len())
+    Ok((recording.events.len(), outputs))
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -622,6 +727,8 @@ pub struct BatchJob {
     pub mode: Option<String>,
     #[serde(default)]
     pub smooth_height: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub normal_convention: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -633,7 +740,7 @@ pub struct BatchJobOutput {
 }
 
 pub fn parse_export_mode(mode_str: &str) -> Result<ExportKind, String> {
-    match mode_str {
+    match mode_str.trim() {
         "color" => Ok(ExportKind::Color),
         "transparent" => Ok(ExportKind::Transparent),
         "height" => Ok(ExportKind::Height),
@@ -641,6 +748,44 @@ pub fn parse_export_mode(mode_str: &str) -> Result<ExportKind, String> {
         other => Err(format!(
             "Unknown mode '{other}'. Expected color, transparent, height, or normal."
         )),
+    }
+}
+
+pub fn parse_export_modes(spec: &str) -> Result<Vec<(String, ExportKind)>, String> {
+    let mut out = Vec::new();
+    for raw in spec.split(',') {
+        let name = raw.trim();
+        if name.is_empty() {
+            continue;
+        }
+        out.push((name.to_string(), parse_export_mode(name)?));
+    }
+    if out.is_empty() {
+        return Err("No export mode specified.".into());
+    }
+    Ok(out)
+}
+
+pub fn format_mode_out_path(out_path: &Path, mode_name: &str, multi: bool) -> std::path::PathBuf {
+    let raw = out_path.to_string_lossy();
+    if raw.contains("{mode}") {
+        return std::path::PathBuf::from(raw.replace("{mode}", mode_name));
+    }
+    if !multi {
+        return out_path.to_path_buf();
+    }
+    let stem = out_path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("render");
+    let ext = out_path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("png");
+    let file_name = format!("{stem}_{mode_name}.{ext}");
+    match out_path.parent() {
+        Some(p) if !p.as_os_str().is_empty() => p.join(file_name),
+        _ => std::path::PathBuf::from(file_name),
     }
 }
 
@@ -692,6 +837,7 @@ pub fn render_batch(manifest_path: &Path) -> Result<Vec<BatchJobOutput>, String>
         let mode_str = job.mode.as_deref().unwrap_or("color");
         let mode = parse_export_mode(mode_str)?;
         paint.smooth_height = job.smooth_height;
+        paint.gl_normals = matches!(job.normal_convention.as_deref(), Some("gl"));
 
         let events = render_one(
             &device,

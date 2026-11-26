@@ -703,6 +703,7 @@ fn display(@builtin(global_invocation_id) id: vec3<u32>) {
     let export_mode = select(0u, dab.mode.z, is_canvas);
     let wrap = (dab.mode.w & 1u) != 0u;
     let smooth_h = (dab.mode.w & 4u) != 0u;
+    let gl_normals = (dab.mode.w & 8u) != 0u;
 
     if (export_mode == 2u) {
         let h = sample_export_height(pixel, dab.brush.x, dab.brush.y, wrap, smooth_h);
@@ -712,7 +713,8 @@ fn display(@builtin(global_invocation_id) id: vec3<u32>) {
     }
     if (export_mode == 3u) {
         let N = compute_surface_normal(pixel, dab.brush.x, dab.brush.y, wrap, smooth_h);
-        textureStore(output, vec2<i32>(pixel), vec4<f32>(N * 0.5 + vec3<f32>(0.5), 1.0));
+        let n_out = select(N, vec3<f32>(N.x, -N.y, N.z), gl_normals);
+        textureStore(output, vec2<i32>(pixel), vec4<f32>(n_out * 0.5 + vec3<f32>(0.5), 1.0));
         return;
     }
 

@@ -1502,6 +1502,8 @@ fn test_phase_c_recording_headless_and_deep_undo() {
                 action: ServiceAction::Load { tube: 6 },
             },
             RecordedEvent::Stroke {
+                id: None,
+                group: None,
                 legacy_reservoir: false,
                 surface: SurfaceKind::Canvas,
                 brush: BrushKind::Round,
@@ -1572,6 +1574,8 @@ fn test_phase_c_recording_headless_and_deep_undo() {
         }
         let x = 100.0 + step as f32 * 60.0;
         events.push(RecordedEvent::Stroke {
+            id: None,
+            group: None,
             legacy_reservoir: false,
             surface: SurfaceKind::Canvas,
             brush: BrushKind::Round,
@@ -2392,6 +2396,8 @@ fn test_phase_e_underlayer_and_batch_rendering() {
                 action: ServiceAction::Load { tube: 2 },
             },
             RecordedEvent::Stroke {
+                id: None,
+                group: None,
                 legacy_reservoir: false,
                 surface: SurfaceKind::Canvas,
                 brush: BrushKind::Round,
@@ -2445,6 +2451,7 @@ fn test_phase_e_underlayer_and_batch_rendering() {
                 out: "out_a.png".into(),
                 mode: Some("color".into()),
                 smooth_height: false,
+                normal_convention: None,
             },
             BatchJob {
                 recording: None,
@@ -2452,6 +2459,7 @@ fn test_phase_e_underlayer_and_batch_rendering() {
                 out: "out_b.png".into(),
                 mode: Some("color".into()),
                 smooth_height: false,
+                normal_convention: None,
             },
         ],
     };
@@ -3564,6 +3572,8 @@ fn test_v030_edge_hairline_smooth_height_and_set_tile() {
     let events = vec![
         RecordedEvent::SetTile { enabled: true },
         RecordedEvent::Stroke {
+            id: None,
+            group: None,
             legacy_reservoir: false,
             surface: crate::recording::SurfaceKind::Canvas,
             brush: crate::recording::BrushKind::Round,
@@ -3589,6 +3599,8 @@ fn test_v030_edge_hairline_smooth_height_and_set_tile() {
         },
         RecordedEvent::SetTile { enabled: false },
         RecordedEvent::Stroke {
+            id: None,
+            group: None,
             legacy_reservoir: false,
             surface: crate::recording::SurfaceKind::Canvas,
             brush: crate::recording::BrushKind::Round,
@@ -3688,4 +3700,184 @@ fn test_v030_edge_hairline_smooth_height_and_set_tile() {
     }
     assert!(checked_edge > 0, "expected low-alpha edge pixels to test");
     let _ = ServiceAction::Wipe { fraction: 0.0 };
+}
+
+#[test]
+fn test_slice1_ergonomic_recording_multimode_normal_gl_and_palette() {
+    use crate::recording::{
+        format_mode_out_path, parse_export_modes, render_modes_headless, BrushKind, RecordedEvent,
+        RecordedSample, Recording, ServiceAction, SurfaceKind,
+    };
+
+    // 1. Multi-mode parsing and output path formatting
+    let modes = parse_export_modes("color,height,normal").unwrap();
+    assert_eq!(modes.len(), 3);
+    assert_eq!(
+        format_mode_out_path(std::path::Path::new("out_{mode}.png"), "normal", true),
+        std::path::PathBuf::from("out_normal.png")
+    );
+    assert_eq!(
+        format_mode_out_path(std::path::Path::new("asset.png"), "height", true),
+        std::path::PathBuf::from("asset_height.png")
+    );
+
+    // 2. dip_rack { clean: true }, set_mix, id/group round-trip, and --normal-convention gl vs dx
+    let dir = tempfile::tempdir().unwrap();
+    let rec_path = dir.path().join("slice1.json");
+    let rec = Recording {
+        format: "pigment-studio-recording-v2".into(),
+        events: vec![
+            // Load Cadmium Red, then clean-dip Hansa Yellow (must paint pure yellow, not orange)
+            RecordedEvent::Service {
+                brush: BrushKind::Round,
+                action: ServiceAction::DipRack {
+                    slot: 2,
+                    lane: None,
+                    clean: false,
+                },
+                legacy_reservoir: false,
+            },
+            RecordedEvent::Service {
+                brush: BrushKind::Round,
+                action: ServiceAction::DipRack {
+                    slot: 1,
+                    lane: None,
+                    clean: true,
+                },
+                legacy_reservoir: false,
+            },
+            RecordedEvent::Stroke {
+                id: Some("yellow_clean".into()),
+                group: Some("swatches".into()),
+                legacy_reservoir: false,
+                surface: SurfaceKind::Canvas,
+                brush: BrushKind::Round,
+                ink: false,
+                charcoal: false,
+                erase: false,
+                diameter: 60.0,
+                angle_deg: 0.0,
+                auto_follow: false,
+                knife_sweep: false,
+                bristle_sweep: false,
+                filbert_sweep: false,
+                fan_sweep: false,
+                round_pressure: false,
+                tile: Some(false),
+                samples: vec![RecordedSample {
+                    x: 300.0,
+                    y: 500.0,
+                    pressure: 1.0,
+                    timestamp_ms: 0,
+                    angle_deg: None,
+                }],
+            },
+            // set_mix 50/50 Hansa Yellow + Phthalo Blue -> green
+            RecordedEvent::SetMix {
+                brush: BrushKind::Round,
+                recipe: [0.5, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                clean: true,
+                legacy_reservoir: false,
+            },
+            RecordedEvent::Stroke {
+                id: Some("green_mix".into()),
+                group: Some("swatches".into()),
+                legacy_reservoir: false,
+                surface: SurfaceKind::Canvas,
+                brush: BrushKind::Round,
+                ink: false,
+                charcoal: false,
+                erase: false,
+                diameter: 60.0,
+                angle_deg: 0.0,
+                auto_follow: false,
+                knife_sweep: false,
+                bristle_sweep: false,
+                filbert_sweep: false,
+                fan_sweep: false,
+                round_pressure: false,
+                tile: Some(false),
+                samples: vec![RecordedSample {
+                    x: 600.0,
+                    y: 500.0,
+                    pressure: 1.0,
+                    timestamp_ms: 16,
+                    angle_deg: None,
+                }],
+            },
+        ],
+        ..Default::default()
+    };
+    let json = serde_json::to_string_pretty(&rec).unwrap();
+    assert!(json.contains("\"yellow_clean\""));
+    assert!(json.contains("\"set_mix\""));
+    std::fs::write(&rec_path, json).unwrap();
+
+    let dx_out = dir.path().join("dx_{mode}.png");
+    let (_, dx_files) = render_modes_headless(
+        &rec_path,
+        &dx_out,
+        &parse_export_modes("color,normal").unwrap(),
+        None,
+        true,
+        false,
+    )
+    .unwrap();
+    let gl_out = dir.path().join("gl_{mode}.png");
+    let (_, gl_files) = render_modes_headless(
+        &rec_path,
+        &gl_out,
+        &parse_export_modes("normal").unwrap(),
+        None,
+        true,
+        true,
+    )
+    .unwrap();
+
+    let read_px = |path: &std::path::Path, x: u32, y: u32| -> [u8; 4] {
+        let file = std::fs::File::open(path).unwrap();
+        let mut reader = png::Decoder::new(std::io::BufReader::new(file))
+            .read_info()
+            .unwrap();
+        let mut buf = vec![0u8; reader.output_buffer_size()];
+        reader.next_frame(&mut buf).unwrap();
+        let i = ((y * SIDE + x) * 4) as usize;
+        [buf[i], buf[i + 1], buf[i + 2], buf[i + 3]]
+    };
+
+    let y_px = read_px(&dx_files[0].1, 300, 500);
+    assert!(
+        y_px[0] > 210 && y_px[1] > 180 && y_px[2] < 40,
+        "clean dip_rack should paint pure yellow: {y_px:?}"
+    );
+    let g_px = read_px(&dx_files[0].1, 600, 500);
+    assert!(
+        g_px[1] > g_px[0] && g_px[1] > g_px[2],
+        "set_mix PY3+PB15:2 should paint green: {g_px:?}"
+    );
+
+    // GL normal flips Y (green channel = 255 - dx_green) on stroke slope
+    let dx_n = read_px(&dx_files[1].1, 300, 474);
+    let gl_n = read_px(&gl_files[0].1, 300, 474);
+    assert_eq!(dx_n[0], gl_n[0]);
+    assert!(
+        (dx_n[1] as i32 + gl_n[1] as i32 - 255).abs() <= 1,
+        "GL normal must flip green channel: dx={dx_n:?} gl={gl_n:?}"
+    );
+
+    // 3. CLI palette export helper
+    let pal_json = dir.path().join("pal.json");
+    let pal_gpl = dir.path().join("pal.gpl");
+    let entries: Vec<(String, [f32; 8])> = cabinet::PIGMENTS
+        .iter()
+        .map(|p| (p.name.to_string(), p.recipe))
+        .collect();
+    crate::gpu::export_named_palette(&pal_json, &entries).unwrap();
+    crate::gpu::export_named_palette(&pal_gpl, &entries).unwrap();
+    assert!(std::fs::read_to_string(&pal_json)
+        .unwrap()
+        .contains("Titanium White"));
+    assert!(std::fs::read_to_string(&pal_gpl)
+        .unwrap()
+        .starts_with("GIMP Palette"));
 }

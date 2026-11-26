@@ -74,7 +74,8 @@
           "properties": {
             "kind": { "const": "dip_rack" },
             "slot": { "type": "integer", "minimum": 0, "maximum": 19 },
-            "lane": { "enum": ["left", "middle", "right"], "description": "Dip just this flat-brush lane. Omit to dip the whole brush." }
+            "lane": { "enum": ["left", "middle", "right"], "description": "Dip just this flat-brush lane. Omit to dip the whole brush." },
+            "clean": { "type": "boolean", "default": false, "description": "Wipe the brush clean before dipping." }
           }
         },
         {
@@ -135,9 +136,22 @@
         },
         {
           "type": "object",
+          "required": ["type", "brush", "recipe"],
+          "properties": {
+            "type": { "const": "set_mix" },
+            "brush": { "$ref": "#/$defs/BrushKind" },
+            "recipe": { "type": "array", "items": { "type": "number" }, "minItems": 8, "maxItems": 8 },
+            "clean": { "type": "boolean", "default": true },
+            "legacy_reservoir": { "type": "boolean", "default": false }
+          }
+        },
+        {
+          "type": "object",
           "required": ["type", "surface", "brush", "samples"],
           "properties": {
             "type": { "const": "stroke" },
+            "id": { "type": "string", "description": "Optional unique stroke identifier for non-destructive editing." },
+            "group": { "type": "string", "description": "Optional group/layer tag for batch stroke selection." },
             "surface": { "$ref": "#/$defs/SurfaceKind" },
             "brush": { "$ref": "#/$defs/BrushKind" },
             "ink": { "type": "boolean", "default": false },

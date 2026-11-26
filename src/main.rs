@@ -39,6 +39,7 @@ use winit::{
 
 type ExportResult = Receiver<Result<PathBuf, String>>;
 
+#[allow(clippy::large_enum_variant)]
 enum PendingExport {
     Image(PathBuf, gpu::ExportKind),
     Palette(PathBuf),
@@ -65,6 +66,7 @@ fn main() -> std::process::ExitCode {
             || arg == "--clear-done-notes"
             || arg == "--render"
             || arg == "--batch"
+            || arg == "--export-palette"
     });
     #[cfg(windows)]
     if is_cli {
@@ -127,27 +129,53 @@ fn main() -> std::process::ExitCode {
             .and_then(|i| args.get(i + 1))
             .map(PathBuf::from);
         let smooth_height = args.iter().any(|a| a == "--smooth-height");
-        let mode = match recording::parse_export_mode(mode_str) {
+        let normal_conv = args
+            .iter()
+            .position(|a| a == "--normal-convention")
+            .and_then(|i| args.get(i + 1))
+            .map(String::as_str)
+            .unwrap_or("dx");
+        let gl_normals = match normal_conv {
+            "dx" => false,
+            "gl" => true,
+            other => {
+                eprintln!("Unknown --normal-convention '{other}'. Expected gl or dx.");
+                return std::process::ExitCode::FAILURE;
+            }
+        };
+        let modes = match recording::parse_export_modes(mode_str) {
             Ok(m) => m,
             Err(err) => {
                 eprintln!("{err}");
                 return std::process::ExitCode::FAILURE;
             }
         };
-        match recording::render_headless_with_options(
+        match recording::render_modes_headless(
             &rec_path,
             &out_path,
-            mode,
+            &modes,
             underlayer_path.as_deref(),
             smooth_height,
+            gl_normals,
         ) {
-            Ok(events) => {
+            Ok((events, outputs)) => {
+                let out_val = if outputs.len() == 1 {
+                    serde_json::json!(outputs[0].1.display().to_string())
+                } else {
+                    serde_json::json!(outputs
+                        .iter()
+                        .map(
+                            |(m, p)| serde_json::json!({"mode": m, "out": p.display().to_string()})
+                        )
+                        .collect::<Vec<_>>())
+                };
                 println!(
                     "{}",
                     serde_json::json!({
                         "ok": true,
-                        "out": out_path.display().to_string(),
+                        "out": out_val,
                         "mode": mode_str,
+                        "normal_convention": normal_conv,
                         "events": events,
                     })
                 );
@@ -155,6 +183,34 @@ fn main() -> std::process::ExitCode {
             }
             Err(err) => {
                 eprintln!("Headless render failed: {err}");
+                return std::process::ExitCode::FAILURE;
+            }
+        }
+    }
+
+    if let Some(pos) = args.iter().position(|arg| arg == "--export-palette") {
+        let Some(out_path) = args.get(pos + 1).map(PathBuf::from) else {
+            eprintln!("Usage: --export-palette <output.json|output.gpl>");
+            return std::process::ExitCode::FAILURE;
+        };
+        let entries: Vec<(String, [f32; 8])> = cabinet::PIGMENTS
+            .iter()
+            .map(|p| (p.name.to_string(), p.recipe))
+            .collect();
+        match gpu::export_named_palette(&out_path, &entries) {
+            Ok(()) => {
+                println!(
+                    "{}",
+                    serde_json::json!({
+                        "ok": true,
+                        "out": out_path.display().to_string(),
+                        "count": entries.len(),
+                    })
+                );
+                return std::process::ExitCode::SUCCESS;
+            }
+            Err(err) => {
+                eprintln!("Palette export failed: {err}");
                 return std::process::ExitCode::FAILURE;
             }
         }
@@ -1285,6 +1341,8 @@ impl Studio {
             if !self.active_stroke_samples.is_empty() {
                 let samples = std::mem::take(&mut self.active_stroke_samples);
                 self.recording.events.push(RecordedEvent::Stroke {
+                    id: None,
+                    group: None,
                     legacy_reservoir: false,
                     surface: surface.into(),
                     brush: self.brush.into(),

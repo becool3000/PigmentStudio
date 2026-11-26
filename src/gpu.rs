@@ -511,6 +511,7 @@ pub struct PaintGpu {
     pub layers: Layers,
     pub tile: bool,
     pub smooth_height: bool,
+    pub gl_normals: bool,
 }
 
 impl PaintGpu {
@@ -721,6 +722,7 @@ impl PaintGpu {
             layers: Layers::default(),
             tile: false,
             smooth_height: false,
+            gl_normals: false,
         }
     }
 
@@ -1291,7 +1293,8 @@ impl PaintGpu {
         dab.mode[2] = export_mode;
         dab.mode[3] = u32::from(self.tile)
             | (u32::from(!self.layers.paint_visible) << 1)
-            | (u32::from(export_mode != 0 && self.smooth_height) << 2);
+            | (u32::from(export_mode != 0 && self.smooth_height) << 2)
+            | (u32::from(export_mode == 3 && self.gl_normals) << 3);
         let sketch_alpha = if self.layers.sketch_visible {
             self.layers.sketch_opacity
         } else {
@@ -1816,27 +1819,36 @@ fn write_palette(
     channels: &[[f32; 8]],
     occupied: &[bool; crate::workbench::CUSTOM_JAR_COUNT],
 ) -> Result<(), String> {
-    let mut jars = Vec::new();
-    for (slot, &used) in occupied.iter().enumerate() {
-        if !used {
-            continue;
-        }
-        let ch = channels[slot];
-        let srgb = crate::pigment::rgb(ch);
+    let entries: Vec<(String, [f32; 8])> = occupied
+        .iter()
+        .enumerate()
+        .filter(|&(_, &used)| used)
+        .map(|(slot, _)| (format!("Jar {}", slot + 1), channels[slot]))
+        .collect();
+    export_named_palette(path, &entries)
+}
+
+pub fn export_named_palette(
+    path: &std::path::Path,
+    entries: &[(String, [f32; 8])],
+) -> Result<(), String> {
+    let mut jars = Vec::with_capacity(entries.len());
+    for (slot, (name, ch)) in entries.iter().enumerate() {
+        let srgb = crate::pigment::rgb(*ch);
         let hex = format!("#{:02X}{:02X}{:02X}", srgb[0], srgb[1], srgb[2]);
         let total: f32 = ch.iter().sum();
         let ratios = CHANNEL_NAMES
             .iter()
             .zip(ch.iter())
             .filter(|(_, &v)| v > 0.0001)
-            .map(|(&name, &v)| (name, if total > 0.0 { v / total } else { 0.0 }))
+            .map(|(&cname, &v)| (cname, if total > 0.0 { v / total } else { 0.0 }))
             .collect();
         jars.push(ExportedJar {
             slot: slot + 1,
-            name: format!("Jar {}", slot + 1),
+            name: name.clone(),
             hex,
             srgb,
-            channels: ch,
+            channels: *ch,
             ratios,
         });
     }

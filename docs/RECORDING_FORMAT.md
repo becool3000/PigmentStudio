@@ -4,12 +4,28 @@ Use `pigment-studio-recording-v2` for new Direct3D 12 recordings. Each oil brush
 
 ## Headless CLI Commands
 
-### Single Render
+### Single or Multi-Mode Render
 ```powershell
-pigment-studio-ink.exe --render strokes.json --out render.png --mode color --underlayer render_pass.png
+pigment-studio-ink.exe --render strokes.json --out out_{mode}.png --mode color,height,normal --normal-convention gl --smooth-height --underlayer render_pass.png
 ```
-* `--mode`: `color` (default), `transparent`, `height`, or `normal`.
+* `--mode`: One or more comma-separated modes: `color` (default), `transparent`, `height`, `normal`. When multiple modes are passed, `{mode}` in `--out` is replaced (or `_{mode}` is appended before `.png`).
+* `--normal-convention`: `dx` (default, DirectX Y-down) or `gl` (OpenGL Y-up, for Godot/Blender/Unity URP).
+* `--smooth-height`: Smooths the ~3.2 px deposit tooth grid in `height` and `normal` exports.
 * `--underlayer`: Optional PNG loaded onto `dry_substrate` before events run (overrides `underlayer_path` in JSON).
+
+### Palette Export
+```powershell
+pigment-studio-ink.exe --export-palette palette.json
+pigment-studio-ink.exe --export-palette palette.gpl
+```
+
+### Ergonomic Agent Events (`v2`)
+* `dip_rack` accepts `"clean": true` to wipe the brush clean before dipping.
+* `set_mix` loads a custom 8-channel recipe onto a brush in one event:
+  ```json
+  { "type": "set_mix", "brush": "round", "recipe": [0.5, 0.5, 0, 0, 0, 0, 0, 0], "clean": true }
+  ```
+* `stroke` events accept optional `"id"` and `"group"` string tags for non-destructive stroke tracking.
 
 ### Deterministic Batch Render (Animation / Overpaint)
 Initializes Direct3D 12 and `PaintGpu` **once**, then renders every job deterministically (`Command::Initialize` + `equip_cabinet` between frames):
