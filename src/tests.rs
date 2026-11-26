@@ -1513,6 +1513,7 @@ fn test_phase_c_recording_headless_and_deep_undo() {
                 auto_follow: false,
                 knife_sweep: false,
                 bristle_sweep: false,
+                filbert_sweep: false,
                 round_pressure: false,
                 tile: Some(false),
                 samples: vec![
@@ -1581,6 +1582,7 @@ fn test_phase_c_recording_headless_and_deep_undo() {
             auto_follow: false,
             knife_sweep: false,
             bristle_sweep: false,
+            filbert_sweep: false,
             round_pressure: false,
             tile: Some(false),
             samples: vec![RecordedSample {
@@ -2235,6 +2237,60 @@ fn dx12_round_pressure_ramp_and_wet_transfer() {
 }
 
 #[test]
+fn dx12_filbert_roll_and_lift_preserve_paint_and_bristle_texture() {
+    let mut rig = Rig::new();
+    let recording = Recording::parse(
+        r#"{"format":"pigment-studio-recording-v2","events":[
+            {"type":"stroke","surface":"canvas","brush":"filbert","filbert_sweep":true,"diameter":72,
+             "samples":[
+                {"x":120,"y":320,"pressure":0.86,"angle_deg":90},
+                {"x":335,"y":320,"pressure":0.86,"angle_deg":90},
+                {"x":425,"y":320,"pressure":0.86,"angle_deg":0},
+                {"x":555,"y":320,"pressure":0.86,"angle_deg":0},
+                {"x":665,"y":342,"pressure":0.31,"angle_deg":14},
+                {"x":765,"y":391,"pressure":0.09,"angle_deg":28},
+                {"x":820,"y":420,"pressure":0.09,"angle_deg":28}
+             ]}
+        ]}"#,
+    )
+    .unwrap();
+    let (before, loads_before) =
+        rig.state(&[Command::Service(Brush::Filbert, BrushService::Dip(1))]);
+    let (paint, loads_after) = rig.state(&recording::compile_events(&recording.events, &mut false));
+    let mass = |x, y| paint_at(&paint, x, y)[1];
+    let width = |x| (250..465).filter(|y| mass(x, *y) > 0.012).count();
+    let (broad, rolled, lift) = (width(230), width(500), width(790));
+    assert!(
+        broad > 40 && rolled > 10 && rolled * 4 < broad * 3 && lift > 1 && lift * 2 < rolled,
+        "unexpected widths for broad, rolled, and lifted contact: {broad}, {rolled}, {lift}"
+    );
+    let body = (180..305).map(|x| mass(x, 320));
+    let min = body.clone().fold(f32::INFINITY, f32::min);
+    let max = body.fold(0., f32::max);
+    assert!(
+        min > 0.08 && max - min < 0.015,
+        "banding along the broad stroke: {min}..{max}"
+    );
+    let strands = (308..332).map(|y| mass(230, y));
+    let min = strands.clone().fold(f32::INFINITY, f32::min);
+    let max = strands.fold(0., f32::max);
+    assert!(
+        min > 0.05 && max - min > 0.012,
+        "missing continuous bristle variation: {min}..{max}"
+    );
+    assert!(mass(230, 344) > 0.005 && mass(230, 344) < min);
+    for (a, b) in totals(&before, &loads_before)
+        .into_iter()
+        .zip(totals(&paint, &loads_after))
+    {
+        assert!(
+            (a - b).abs() < 0.001 * a.max(1.0),
+            "paint mass changed: {a} -> {b}"
+        );
+    }
+}
+
+#[test]
 fn test_phase_e_underlayer_and_batch_rendering() {
     use crate::recording::{
         render_batch, render_headless, BatchJob, BatchManifest, BrushKind, RecordedEvent,
@@ -2279,6 +2335,7 @@ fn test_phase_e_underlayer_and_batch_rendering() {
                 auto_follow: false,
                 knife_sweep: false,
                 bristle_sweep: false,
+                filbert_sweep: false,
                 round_pressure: false,
                 tile: Some(false),
                 samples: vec![RecordedSample {
@@ -3449,6 +3506,7 @@ fn test_v030_edge_hairline_smooth_height_and_set_tile() {
             auto_follow: false,
             knife_sweep: false,
             bristle_sweep: false,
+            filbert_sweep: false,
             round_pressure: false,
             tile: None,
             samples: vec![RecordedSample {
@@ -3472,6 +3530,7 @@ fn test_v030_edge_hairline_smooth_height_and_set_tile() {
             auto_follow: false,
             knife_sweep: false,
             bristle_sweep: false,
+            filbert_sweep: false,
             round_pressure: false,
             tile: None,
             samples: vec![RecordedSample {

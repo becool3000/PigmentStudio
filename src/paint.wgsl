@@ -62,6 +62,17 @@ fn tip_delta(pixel: vec2<u32>) -> vec2<f32> {
     return delta;
 }
 
+fn filbert_contact(across: f32, along: f32, pressure: f32, tooth: f32) -> f32 {
+    let oval = vec2<f32>(across, along / 0.52);
+    let edge = 1.0 - smoothstep(0.22, 1.0, dot(oval, oval));
+    let rhythm = (across + 1.0) * 4.2 + 0.18 * sin(across * 8.0);
+    let groove = smoothstep(0.07, 0.29, abs(fract(rhythm) - 0.5));
+    let bristles = mix(mix(0.43, 0.76, pressure), 1.0, groove);
+    let light_contact = mix(0.28, 1.0, tooth);
+    let contact = mix(light_contact * 0.26, 1.0, smoothstep(0.06, 0.56, pressure));
+    return edge * bristles * contact;
+}
+
 fn tip(pixel: vec2<u32>) -> vec2<f32> {
     let p = tip_delta(pixel) / dab.brush.z;
     let profile = dab.mode.z;
@@ -75,7 +86,7 @@ fn tip(pixel: vec2<u32>) -> vec2<f32> {
     }
 
     let local = vec2<f32>(dot(p, dab.axis.xy), dot(p, vec2<f32>(-dab.axis.y, dab.axis.x)));
-    let width = mix(0.83, 1.0, dab.brush.w);
+    let width = mix(select(0.83, 0.70, profile == 2u && dab.axis.w > 0.0), 1.0, dab.brush.w);
     let across = local.x / width;
     let group = clamp(floor((across + 1.0) * 1.5), 0.0, 2.0);
     let furrow = smoothstep(0.08, 0.28, min(fract((across + 1.0) * 4.5), 1.0 - fract((across + 1.0) * 4.5)));
@@ -98,6 +109,9 @@ fn tip(pixel: vec2<u32>) -> vec2<f32> {
 
     if (profile == 2u) {
         // Filbert: almond/oval tip with soft tapered corners and bristle grooves
+        if (dab.axis.w > 0.0) {
+            return vec2<f32>(filbert_contact(across, local.y, dab.brush.w, smoothstep(0.3, 0.83, weave_tooth)), group);
+        }
         let edge = length(vec2<f32>(across, local.y / 0.52));
         let shape = 1.0 - smoothstep(0.55, 1.0, edge);
         let bristles = 0.58 + 0.42 * furrow;
@@ -141,19 +155,22 @@ fn moving_contact(delta: vec2<f32>, t: f32, tooth: f32) -> vec3<f32> {
     let p = (delta - (t - 0.5) * dab.sweep.xy) / mix(dab.brush.z, dab.sweep.z, t);
     let axis = normalize(mix(dab.axis.xy, dab.axis.zw, t));
     let pressure = mix(dab.brush.w, dab.sweep.w, t);
-    let across = dot(p, axis) / mix(0.83, 1.0, pressure);
+    let filbert = dab.mode.z == 2u;
+    let across = dot(p, axis) / mix(select(0.83, 0.70, filbert), 1.0, pressure);
     let along = dot(p, vec2<f32>(-axis.y, axis.x));
     let flat = dab.mode.z == 1u;
     var contact: f32;
     if (flat) {
         contact = hog_bristle_contact(across, along, pressure, tooth);
+    } else if (filbert) {
+        contact = filbert_contact(across, along, pressure, tooth);
     } else {
         let sides = 1.0 - smoothstep(0.86, 1.0, abs(across));
         let travel = 1.0 - smoothstep(0.18, 1.0, abs(along) / 0.22);
         let ridge = 0.85 + 0.15 * smoothstep(-0.22, 0.22, -along);
         contact = sides * travel * ridge;
     }
-    let blend = select(0.05, 0.10, flat);
+    let blend = select(0.05, 0.10, flat || filbert);
     let center = smoothstep(-0.33 - blend, -0.33 + blend, across);
     let far = smoothstep(0.33 - blend, 0.33 + blend, across);
     return vec3<f32>(1.0 - center, center - far, far) * contact;
@@ -162,7 +179,7 @@ fn moving_contact(delta: vec2<f32>, t: f32, tooth: f32) -> vec3<f32> {
 fn swept_exposure(pixel: vec2<u32>) -> vec3<f32> {
     let delta = tip_delta(pixel);
     var tooth = 1.0;
-    if (dab.mode.z == 1u) {
+    if (dab.mode.z == 1u || dab.mode.z == 2u) {
         let weave = (cos(f32(pixel.x) * 1.9635) - cos(f32(pixel.y) * 1.9635)) * 0.5 + 0.5;
         tooth = smoothstep(0.3, 0.83, weave);
     }

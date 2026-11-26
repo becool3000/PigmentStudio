@@ -129,3 +129,7 @@ For a three-color stroke, dip the opposite edge in Phthalo Blue (slot 4) and dip
 ### Round brush pressure
 
 Set `"round_pressure": true` on a Round stroke to use the desktop brush's refined pressure curve. Light pressure gives a smaller contact area and deposits less paint. A firm pass opens the tip, and easing pressure while moving tapers the mark. The `diameter` field still sets the brush size at full pressure. Include the last few positive-pressure samples before lifting to describe the taper.
+
+### Filbert rolls and tapers
+
+Set `"filbert_sweep": true` on a Filbert stroke to use the desktop brush's swept oval contact. Start with the long axis across the path for a broad mark. Turn the long axis toward the path with per-sample `angle_deg` to present the narrow edge, then ease `pressure` as you lift. Auto-follow holds the broad orientation through curves. The three paint lanes carry color through the turn.

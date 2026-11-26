@@ -207,7 +207,11 @@ impl Dab {
         let y = start_sin.abs().max(end_sin.abs());
         // Bound the rectangular blade between both endpoints. Sine and cosine
         // change by at most the angle to the nearer endpoint.
-        let depth = if brush == Brush::Flat { 0.36 } else { 0.22 };
+        let depth = match brush {
+            Brush::Flat => 0.36,
+            Brush::Filbert => 0.52,
+            _ => 0.22,
+        };
         let turn_margin = (1.0 + depth) * 0.5 * (end.angle - start.angle).abs();
         let footprint = egui::vec2(x + depth * y, y + depth * x);
         let pad = (footprint + egui::Vec2::splat(turn_margin)) * radius + 0.5 * delta.abs();

@@ -73,6 +73,8 @@ Status: v0.1 prototype is implemented and passes all automated tests and benchma
 - [ ] Validate flat-brush split loading, pressure, and lift with a physical tablet at 100% and 150% Windows DPI scaling.
 - [x] Give Round a finer light-pressure tip and continuous paint transfer through pressure ramps.
 - [ ] Validate Round touchdown, broad strokes, and lift with a physical tablet at 100% and 150% Windows DPI scaling.
+- [x] Sweep Filbert contact through turns, with soft oval edges and pressure-dependent bristle texture.
+- [ ] Validate Filbert rolls and lift with a physical tablet at 100% and 150% Windows DPI scaling.
 - [ ] Additional pigments / customizable palette slots (e.g. Raw Umber, Cadmium Red, Viridian).
 - [x] Project persistence / session save-and-load (saving canvas, palette state, and swatches to disk).
 
