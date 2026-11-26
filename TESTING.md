@@ -58,6 +58,7 @@ Run these hands-on checks with a pen tablet or mouse:
 7. **Undo:** Perform painting, swatching, and dabbing actions; press `Ctrl+Z` or click **Undo** up to 8 times to confirm step-by-step restoration.
 8. **Rapid pen input:** Start a stroke with very light pressure, then press harder without lifting. Lift while moving sideways and hover across the canvas. Confirm that paint stops at the last point of contact. Tap a color jar, make a short stroke immediately, then repeat with other jars and the Clean brush control. Confirm that each new stroke starts with the latest brush load.
 9. **Independent brush loads:** Dip the Flat and Knife in different jars. Switch between them, clean one, and verify that the other keeps its paint. Use a clean brush to lift wet palette paint, click **Clean brush** even if the meter says Empty, and try a stroke on bare canvas.
+10. **Window placement:** Move and resize Studio, close it, and relaunch. Verify that the normal bounds return after closing from a maximized window. Repeat after changing display scaling or disconnecting the monitor that hosted the window. Confirm the window fits within the remaining work area.
 
 ## Troubleshooting
 

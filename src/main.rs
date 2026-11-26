@@ -10,6 +10,7 @@ mod pigment;
 mod project;
 mod recording;
 mod stroke;
+mod window_placement;
 mod workbench;
 mod workbench_art;
 
@@ -27,6 +28,7 @@ use std::{
     time::{Duration, Instant},
 };
 use stroke::{Sample, Source, Stroke};
+use window_placement::WindowPlacement;
 use winit::{
     application::ApplicationHandler,
     dpi::{LogicalSize, PhysicalPosition},
@@ -260,6 +262,7 @@ struct App {
     benchmark: Option<benchmark::Benchmark>,
     reference: Option<PathBuf>,
     replay: Option<PathBuf>,
+    normal_placement: Option<WindowPlacement>,
 }
 
 impl ApplicationHandler for App {
@@ -269,21 +272,32 @@ impl ApplicationHandler for App {
         }
         let ref_path = self.reference.take();
         let rep_path = self.replay.take();
+        let placement = self.benchmark.is_none().then(WindowPlacement::load);
+        let mut attributes = Window::default_attributes()
+            .with_title("Pigment Studio")
+            .with_inner_size(LogicalSize::new(1160, 840))
+            .with_min_inner_size(window_placement::MIN_SIZE)
+            .with_visible(false);
+        if let Some(placement) = placement {
+            attributes = attributes
+                .with_inner_size(window_placement::MIN_SIZE)
+                .with_position(placement.initial_position());
+        }
         let result = event_loop
-            .create_window(
-                Window::default_attributes()
-                    .with_title("Pigment Studio")
-                    .with_inner_size(LogicalSize::new(1160, 840))
-                    .with_min_inner_size(LogicalSize::new(520, 400))
-                    .with_visible(false),
-            )
+            .create_window(attributes)
             .map_err(|e| e.to_string())
             .and_then(|window| {
+                if let Some(placement) = placement {
+                    placement.apply(&window);
+                }
                 pollster::block_on(Studio::new(Arc::new(window), ref_path, rep_path))
             });
         match result {
             Ok(studio) => {
                 studio.window.set_visible(true);
+                if placement.is_some() {
+                    self.normal_placement = WindowPlacement::capture(&studio.window);
+                }
                 studio.window.request_redraw();
                 self.studio = Some(studio);
             }
@@ -300,6 +314,17 @@ impl ApplicationHandler for App {
         };
         if studio.window.id() != id {
             return;
+        }
+        if self.benchmark.is_none()
+            && matches!(
+                &event,
+                WindowEvent::Moved(_)
+                    | WindowEvent::Resized(_)
+                    | WindowEvent::ScaleFactorChanged { .. }
+            )
+        {
+            self.normal_placement =
+                WindowPlacement::capture(&studio.window).or(self.normal_placement);
         }
         let mut redraw = studio.drain_pen();
         let response = studio.egui_state.on_window_event(&studio.window, &event);
@@ -322,6 +347,15 @@ impl ApplicationHandler for App {
         match event {
             WindowEvent::CloseRequested => {
                 if studio.exporting.is_none() && studio.export_path.is_none() {
+                    if self.benchmark.is_none() {
+                        if let Some(placement) =
+                            WindowPlacement::capture(&studio.window).or(self.normal_placement)
+                        {
+                            if let Err(error) = placement.save() {
+                                eprintln!("Could not save window placement: {error}");
+                            }
+                        }
+                    }
                     event_loop.exit();
                 }
             }

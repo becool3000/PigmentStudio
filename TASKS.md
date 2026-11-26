@@ -11,6 +11,7 @@ Status: v0.1 prototype is implemented and passes all automated tests and benchma
 - [x] Implement PNG export and synthetic 120 Hz benchmark.
 - [x] Run automated test suite (`cargo test --locked`) and verify clean clippy/build.
 - [x] Eliminate extra console window on startup with Windows GUI subsystem.
+- [x] Open Studio with the captured first-launch layout and restore the last normal window within the available Windows work area.
 - [x] Implement 4-dip (25% step) brush capacity with tip-inward reservoir fill.
 - [x] Add brush card mini progress bar, live percentage readout, and multi-lane paint hue rendering.
 - [x] Streamline brush maintenance: Wipe rag knocks off 10% per swipe; Clean brush clears to 0%; remove Rinse cup.
