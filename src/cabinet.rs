@@ -78,8 +78,8 @@ pub const PIGMENTS: &[PigmentDef] = &[
         rgb: [215, 38, 30],
         lore: "The undisputed heavyweight king of warm, fiery primary reds. Discovered in 1919, its dense mineral crystals yield blazing scarlet masstone and radiant peachy flesh tints.",
         recipe: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0],
-        absorption: [5.0, 4.8, 4.2, 3.8, 0.12, 0.015, 0.008],
-        scattering: [1.8, 1.9, 1.8, 1.6, 1.4, 1.2, 1.1],
+        absorption: [13.589, 31.068, 18.698, 14.0, 0.041, 0.006, 0.003],
+        scattering: [0.4, 0.901, 0.829, 1.62, 2.833, 3.24, 3.089],
     },
     PigmentDef {
         id: "quinacridone_magenta",

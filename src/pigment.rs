@@ -50,8 +50,8 @@ const ABSORPTION: [[f32; 7]; 8] = [
     [0.0327, 0.005, 0.002, 0.001, 0.001, 0.001, 0.0021], // 3: Titanium white (PW6 calibrated)
     [0.06, 0.09, 0.55, 2.4, 3.5, 1.6, 0.9],            // 4: Ultramarine blue
     [4.5, 4.2, 2.8, 1.6, 0.55, 0.21, 0.13],            // 5: Burnt sienna
-    [35.0, 32.0, 26.0, 14.0, 0.03, 0.005, 0.002], // 6: Genuine Vermilion / Cadmium Red (PR106/PR108)
-    [22.0, 22.0, 22.0, 22.0, 22.0, 21.5, 21.0],   // 7: Bone Black / Genuine Sepia (PBk9)
+    [13.589, 31.068, 18.698, 14.0, 0.041, 0.006, 0.003], // 6: Cadmium Red Medium (PR108 calibrated)
+    [22.0, 22.0, 22.0, 22.0, 22.0, 21.5, 21.0],        // 7: Bone Black / Genuine Sepia (PBk9)
 ];
 const SCATTERING: [[f32; 7]; 8] = [
     [0.466, 0.427, 0.64, 0.833, 0.639, 0.765, 0.71], // 0: Hansa yellow (PY3 calibrated)
@@ -60,7 +60,7 @@ const SCATTERING: [[f32; 7]; 8] = [
     [19.667, 24.758, 29.26, 28.0, 28.0, 24.074, 21.326], // 3: Titanium white (PW6 calibrated)
     [0.95, 1.1, 1.1, 0.91, 0.87, 0.91, 1.0],         // 4: Ultramarine blue
     [0.68, 0.75, 0.8, 0.82, 0.81, 0.75, 0.7],        // 5: Burnt sienna
-    [0.6, 0.7, 0.8, 1.2, 2.2, 2.4, 2.5],             // 6: Genuine Vermilion / Cadmium Red
+    [0.4, 0.901, 0.829, 1.62, 2.833, 3.24, 3.089],   // 6: Cadmium Red Medium (PR108 calibrated)
     [0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3],             // 7: Bone Black / Genuine Sepia
 ];
 

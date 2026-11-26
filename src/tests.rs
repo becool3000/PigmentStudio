@@ -2484,3 +2484,133 @@ fn test_phase_6_quinacridone_magenta_pr122_calibration_and_cpu_gpu_parity() {
         );
     }
 }
+
+#[test]
+fn test_phase_6_cadmium_red_pr108_calibration_and_cpu_gpu_parity() {
+    const {
+        assert!(crate::project::CURRENT_CALIBRATION_VERSION >= 6);
+    }
+
+    let mut rig = Rig::new();
+    rig.paint.lighting.enabled = false;
+
+    // 1. Thick PR108 masstone (opaque fiery red)
+    let mast_img = rig.canvas(&[
+        Command::Initialize,
+        Command::Service(Brush::Round, BrushService::Load(6)),
+        Command::Dab(Dab::new(
+            egui::pos2(160.0, 160.0),
+            56.0,
+            1.0,
+            Surface::Canvas,
+            Brush::Round,
+            0.0,
+        )),
+        Command::Dab(Dab::new(
+            egui::pos2(160.0, 160.0),
+            56.0,
+            1.0,
+            Surface::Canvas,
+            Brush::Round,
+            0.0,
+        )),
+        Command::Dab(Dab::new(
+            egui::pos2(160.0, 160.0),
+            56.0,
+            1.0,
+            Surface::Canvas,
+            Brush::Round,
+            0.0,
+        )),
+    ]);
+    let mast_diag = rig
+        .paint
+        .sample_diagnostics(&rig.device, &rig.queue, 160, 160);
+    let mast_hiding = mast_diag.optical.wet_layer_hiding_ratio_pct.unwrap();
+    assert!(
+        mast_hiding > 8.0,
+        "PR108 3-dab hiding ratio should exceed transparent glazes (>8%), got {mast_hiding:.2}%"
+    );
+    let mast_cpu = crate::pigment::rgb_composite(mast_diag.wet_channels, mast_diag.dry_channels);
+    let mast_gpu = pixel(&mast_img, 160, 160);
+    assert!(
+        mast_gpu[0] > 200 && mast_gpu[1] < 100 && mast_gpu[2] < 20,
+        "PR108 masstone should be saturated fiery red: {mast_gpu:?}"
+    );
+    for ch in 0..3 {
+        assert!(
+            mast_cpu[ch].abs_diff(mast_gpu[ch]) <= 2,
+            "PR108 masstone CPU/GPU mismatch ch {ch}: cpu={} gpu={}",
+            mast_cpu[ch],
+            mast_gpu[ch]
+        );
+    }
+
+    // 2. PR108 + PW6 warm peach tint
+    let peach_img = rig.canvas(&[
+        Command::Initialize,
+        Command::Service(Brush::Round, BrushService::Load(3)),
+        Command::Service(Brush::Round, BrushService::Load(3)),
+        Command::Service(Brush::Round, BrushService::Load(3)),
+        Command::Service(Brush::Round, BrushService::Load(6)),
+        Command::Dab(Dab::new(
+            egui::pos2(320.0, 160.0),
+            56.0,
+            1.0,
+            Surface::Canvas,
+            Brush::Round,
+            0.0,
+        )),
+    ]);
+    let peach_diag = rig
+        .paint
+        .sample_diagnostics(&rig.device, &rig.queue, 320, 160);
+    let peach_cpu = crate::pigment::rgb_composite(peach_diag.wet_channels, peach_diag.dry_channels);
+    let peach_gpu = pixel(&peach_img, 320, 160);
+    assert!(
+        peach_gpu[0] > peach_gpu[1] && peach_gpu[1] > peach_gpu[2],
+        "PR108 + PW6 tint should be warm peach (R > G > B): {peach_gpu:?}"
+    );
+    for ch in 0..3 {
+        assert!(
+            peach_cpu[ch].abs_diff(peach_gpu[ch]) <= 2,
+            "PR108 + PW6 tint CPU/GPU mismatch ch {ch}: cpu={} gpu={}",
+            peach_cpu[ch],
+            peach_gpu[ch]
+        );
+    }
+
+    // 3. PR108 + PY3 bright orange mix
+    let orange_img = rig.canvas(&[
+        Command::Initialize,
+        Command::Service(Brush::Round, BrushService::Load(0)),
+        Command::Service(Brush::Round, BrushService::Load(0)),
+        Command::Service(Brush::Round, BrushService::Load(6)),
+        Command::Dab(Dab::new(
+            egui::pos2(480.0, 160.0),
+            56.0,
+            1.0,
+            Surface::Canvas,
+            Brush::Round,
+            0.0,
+        )),
+    ]);
+    let orange_diag = rig
+        .paint
+        .sample_diagnostics(&rig.device, &rig.queue, 480, 160);
+    let orange_cpu =
+        crate::pigment::rgb_composite(orange_diag.wet_channels, orange_diag.dry_channels);
+    let orange_gpu = pixel(&orange_img, 480, 160);
+    assert!(
+        orange_gpu[0] > 210 && orange_gpu[1] > orange_gpu[2] && orange_gpu[2] < 40,
+        "PR108 + PY3 mix should be vivid orange-red: {orange_gpu:?}"
+    );
+    for ch in 0..3 {
+        assert!(
+            orange_cpu[ch].abs_diff(orange_gpu[ch]) <= 2,
+            "PR108 + PY3 orange CPU/GPU mismatch ch {ch}: cpu={} gpu={}",
+            orange_cpu[ch],
+            orange_gpu[ch]
+        );
+    }
+}

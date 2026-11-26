@@ -1,0 +1,78 @@
+{
+  "source": "Published PR108 (cadmium sulfoselenide) diffuse reflectance characteristics and Gamblin Artists' Oil Cadmium Red Medium masstone/opacity/tinting specifications (proxy for Phase 3 spectrophotometer dataset).",
+  "wavelengths_nm": [400, 450, 500, 550, 600, 650, 700],
+  "target_masstone_spectrum_7": [0.005, 0.006, 0.008, 0.021, 0.751, 0.945, 0.971],
+  "target_medium_over_black_7": [0.005, 0.006, 0.008, 0.021, 0.350, 0.389, 0.382],
+  "fit_cases": [
+    {
+      "name": "Thick masstone on white (8 wet dabs)",
+      "pr108": 2.0,
+      "pw6": 0.0,
+      "py3": 0.0,
+      "ground": 1.0,
+      "target_lab": [48.7, 74.8, 73.8]
+    },
+    {
+      "name": "Medium film over black (2 wet dabs)",
+      "pr108": 0.5,
+      "pw6": 0.0,
+      "py3": 0.0,
+      "ground": 0.0,
+      "target_lab": [36.5, 51.6, 52.8]
+    },
+    {
+      "name": "20% PR108 + 80% PW6 peach tint",
+      "pr108": 0.30,
+      "pw6": 1.20,
+      "py3": 0.0,
+      "ground": 1.0,
+      "target_lab": [77.2, 29.8, 28.8]
+    },
+    {
+      "name": "Orange mix (30% PR108 + 70% PY3)",
+      "pr108": 0.45,
+      "pw6": 0.0,
+      "py3": 1.05,
+      "ground": 1.0,
+      "target_lab": [53.5, 73.1, 75.7]
+    }
+  ],
+  "held_out_cases": [
+    {
+      "name": "Thin film over black (1 wet dab)",
+      "pr108": 0.25,
+      "pw6": 0.0,
+      "py3": 0.0,
+      "ground": 0.0,
+      "target_lab": [31.0, 40.2, 43.4]
+    },
+    {
+      "name": "5% PR108 + 95% PW6 tint",
+      "pr108": 0.075,
+      "pw6": 1.425,
+      "py3": 0.0,
+      "ground": 1.0,
+      "target_lab": [86.9, 15.9, 17.5]
+    },
+    {
+      "name": "40% PR108 + 60% PW6 tint",
+      "pr108": 0.60,
+      "pw6": 0.90,
+      "py3": 0.0,
+      "ground": 1.0,
+      "target_lab": [69.7, 41.2, 37.3]
+    },
+    {
+      "name": "Scarlet mix (50% PR108 + 50% PY3)",
+      "pr108": 0.75,
+      "pw6": 0.0,
+      "py3": 0.75,
+      "ground": 1.0,
+      "target_lab": [51.7, 75.0, 75.6]
+    }
+  ],
+  "hiding_power_check": {
+    "medium_film_mass": 0.50,
+    "target_min_hiding_ratio_pct": 45.0
+  }
+}
