@@ -134,8 +134,8 @@ pub enum RecordedEvent {
         diameter: f32,
         #[serde(default)]
         angle_deg: f32,
-        #[serde(default)]
-        tile: bool,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        tile: Option<bool>,
         samples: Vec<RecordedSample>,
     },
     Clear {
@@ -277,17 +277,23 @@ pub fn compile_events_in(
                     pressure: s.pressure,
                     timestamp_ms: s.timestamp_ms,
                 };
+                let stroke_tile = tile.unwrap_or(*tile_state);
                 let mut stroke = if *charcoal && *surface == SurfaceKind::Canvas {
                     Stroke::start_charcoal(
                         Source::Mouse,
                         to_sample(first),
                         *diameter,
                         *erase,
-                        *tile,
+                        stroke_tile,
                         &mut commands,
                     )
                 } else if *ink && *surface == SurfaceKind::Canvas {
-                    Stroke::start_ink_tiled(Source::Mouse, to_sample(first), *tile, &mut commands)
+                    Stroke::start_ink_tiled(
+                        Source::Mouse,
+                        to_sample(first),
+                        stroke_tile,
+                        &mut commands,
+                    )
                 } else {
                     Stroke::start_tiled(
                         Source::Mouse,
@@ -296,7 +302,7 @@ pub fn compile_events_in(
                         (*surface).into(),
                         (*brush).into(),
                         angle_deg.to_radians(),
-                        *tile,
+                        stroke_tile,
                         &mut commands,
                     )
                 };
@@ -350,11 +356,22 @@ pub fn equip_cabinet(commands: &mut Vec<Command>) {
     }
 }
 
+#[cfg(test)]
 pub fn render_headless(
     recording_path: &Path,
     out_path: &Path,
     mode: ExportKind,
     underlayer_override: Option<&Path>,
+) -> Result<usize, String> {
+    render_headless_with_options(recording_path, out_path, mode, underlayer_override, false)
+}
+
+pub fn render_headless_with_options(
+    recording_path: &Path,
+    out_path: &Path,
+    mode: ExportKind,
+    underlayer_override: Option<&Path>,
+    smooth_height: bool,
 ) -> Result<usize, String> {
     let text = std::fs::read_to_string(recording_path).map_err(|e| e.to_string())?;
     let recording: Recording = serde_json::from_str(&text).map_err(|e| e.to_string())?;
@@ -368,6 +385,7 @@ pub fn render_headless(
     });
     let (device, queue, _) = pollster::block_on(gpu::device(&inst, None))?;
     let mut paint = PaintGpu::new(&device);
+    paint.smooth_height = smooth_height;
     render_one(
         &device,
         &queue,
@@ -485,6 +503,8 @@ pub struct BatchJob {
     pub out: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mode: Option<String>,
+    #[serde(default)]
+    pub smooth_height: bool,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -554,6 +574,7 @@ pub fn render_batch(manifest_path: &Path) -> Result<Vec<BatchJobOutput>, String>
         }
         let mode_str = job.mode.as_deref().unwrap_or("color");
         let mode = parse_export_mode(mode_str)?;
+        paint.smooth_height = job.smooth_height;
 
         let events = render_one(
             &device,

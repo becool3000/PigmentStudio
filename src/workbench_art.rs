@@ -83,11 +83,11 @@ pub fn brush(painter: &Painter, origin: Pos2, brush: Brush, texture: TextureId, 
     painter.add(Shape::convex_polygon(
         handle,
         Color32::from_rgb(122, 78, 58),
-        Stroke::new(0.7, Color32::from_rgb(68, 43, 36)),
+        Stroke::new(0.7_f32, Color32::from_rgb(68, 43, 36)),
     ));
     painter.line_segment(
         [point(5., 13.), point(23., 12.7)],
-        Stroke::new(0.9, Color32::from_rgb(176, 119, 83)),
+        Stroke::new(0.9_f32, Color32::from_rgb(176, 119, 83)),
     );
 
     let (outline, material): (&[(f32, f32)], Color32) = match brush {
@@ -178,21 +178,21 @@ pub fn brush(painter: &Painter, origin: Pos2, brush: Brush, texture: TextureId, 
     painter.add(Shape::convex_polygon(
         tip.clone(),
         material,
-        Stroke::new(0.8, Color32::from_gray(46)),
+        Stroke::new(0.8_f32, Color32::from_gray(46)),
     ));
 
     if brush == Brush::PaletteKnife {
         painter.line_segment(
             [point(37., 13.), point(55., 8.9)],
-            Stroke::new(0.9, Color32::from_gray(218)),
+            Stroke::new(0.9_f32, Color32::from_gray(218)),
         );
         painter.line_segment(
             [point(27., 15.), point(36.5, 17.5)],
-            Stroke::new(3., Color32::from_rgb(106, 120, 126)),
+            Stroke::new(3.0_f32, Color32::from_rgb(106, 120, 126)),
         );
         painter.line_segment(
             [point(27., 14.6), point(36.5, 16.9)],
-            Stroke::new(0.9, Color32::from_gray(199)),
+            Stroke::new(0.9_f32, Color32::from_gray(199)),
         );
     } else {
         let base_y = outline[0].1;
@@ -209,7 +209,7 @@ pub fn brush(painter: &Painter, origin: Pos2, brush: Brush, texture: TextureId, 
                     point(34., 15. + branch * 2.),
                     point(tip_end - 6., 15. + branch * spread),
                 ],
-                Stroke::new(0.8, Color32::from_black_alpha(70)),
+                Stroke::new(0.8_f32, Color32::from_black_alpha(70)),
             );
         }
         let ferrule = Rect::from_min_max(point(24., base_y - 0.6), point(34., 30.6 - base_y));
@@ -217,7 +217,7 @@ pub fn brush(painter: &Painter, origin: Pos2, brush: Brush, texture: TextureId, 
         painter.hline(
             (ferrule.left() + 1.)..=(ferrule.right() - 1.),
             ferrule.top() + 1.8,
-            Stroke::new(1., Color32::from_rgb(185, 192, 185)),
+            Stroke::new(1.0_f32, Color32::from_rgb(185, 192, 185)),
         );
     }
 

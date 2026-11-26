@@ -120,6 +120,7 @@ fn main() -> std::process::ExitCode {
             .position(|a| a == "--underlayer")
             .and_then(|i| args.get(i + 1))
             .map(PathBuf::from);
+        let smooth_height = args.iter().any(|a| a == "--smooth-height");
         let mode = match recording::parse_export_mode(mode_str) {
             Ok(m) => m,
             Err(err) => {
@@ -127,7 +128,13 @@ fn main() -> std::process::ExitCode {
                 return std::process::ExitCode::FAILURE;
             }
         };
-        match recording::render_headless(&rec_path, &out_path, mode, underlayer_path.as_deref()) {
+        match recording::render_headless_with_options(
+            &rec_path,
+            &out_path,
+            mode,
+            underlayer_path.as_deref(),
+            smooth_height,
+        ) {
             Ok(events) => {
                 println!(
                     "{}",
@@ -1197,7 +1204,7 @@ impl Studio {
                         self.workbench.sizes[self.brush.index()]
                     },
                     angle_deg: self.workbench.angle,
-                    tile: self.paint.tile && surface == Surface::Canvas,
+                    tile: Some(self.paint.tile && surface == Surface::Canvas),
                     samples,
                 });
             }
@@ -2228,7 +2235,7 @@ impl Studio {
             Color32::WHITE,
         );
         let edge_y = palette.top() + palette.height() * 0.25;
-        let line = egui::Stroke::new(1., Color32::from_gray(215));
+        let line = egui::Stroke::new(1.0_f32, Color32::from_gray(215));
         ui.painter().hline(palette.x_range(), edge_y, line);
         for slot in 1..8 {
             let x = palette.left() + palette.width() * slot as f32 / 8.;
@@ -2722,7 +2729,7 @@ impl Studio {
             ui.style().interact(&response).weak_bg_fill
         };
         let border = if selected {
-            egui::Stroke::new(1., Color32::from_rgb(102, 159, 149))
+            egui::Stroke::new(1.0_f32, Color32::from_rgb(102, 159, 149))
         } else {
             ui.style().interact(&response).bg_stroke
         };
@@ -2815,14 +2822,14 @@ impl Studio {
                 painter.circle_stroke(
                     screen_pos,
                     14.0,
-                    egui::Stroke::new(2.5, Color32::from_rgb(100, 210, 255)),
+                    egui::Stroke::new(2.5_f32, Color32::from_rgb(100, 210, 255)),
                 );
             }
             painter.circle_filled(screen_pos, 10.0, fill);
             painter.circle_stroke(
                 screen_pos,
                 10.0,
-                egui::Stroke::new(1.5, Color32::from_black_alpha(200)),
+                egui::Stroke::new(1.5_f32, Color32::from_black_alpha(200)),
             );
             let label = if note.done {
                 "✓".to_string()

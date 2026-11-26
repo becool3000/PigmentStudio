@@ -1491,7 +1491,7 @@ fn test_phase_c_recording_headless_and_deep_undo() {
                 erase: false,
                 diameter: 48.0,
                 angle_deg: 0.0,
-                tile: false,
+                tile: Some(false),
                 samples: vec![
                     RecordedSample {
                         x: 400.0,
@@ -1551,7 +1551,7 @@ fn test_phase_c_recording_headless_and_deep_undo() {
             erase: false,
             diameter: 32.0,
             angle_deg: 0.0,
-            tile: false,
+            tile: Some(false),
             samples: vec![RecordedSample {
                 x,
                 y: 500.0,
@@ -1869,7 +1869,7 @@ fn test_phase_e_underlayer_and_batch_rendering() {
                 erase: false,
                 diameter: 40.0,
                 angle_deg: 0.0,
-                tile: false,
+                tile: Some(false),
                 samples: vec![RecordedSample {
                     x: 500.0,
                     y: 500.0,
@@ -1906,12 +1906,14 @@ fn test_phase_e_underlayer_and_batch_rendering() {
                 underlayer: Some("ul_blue.png".into()),
                 out: "out_a.png".into(),
                 mode: Some("color".into()),
+                smooth_height: false,
             },
             BatchJob {
                 recording: None,
                 underlayer: Some("ul_green.png".into()),
                 out: "out_b.png".into(),
                 mode: Some("color".into()),
+                smooth_height: false,
             },
         ],
     };
@@ -3013,4 +3015,123 @@ fn test_mixing_matrix_demo_project_loads_on_dx12() {
         green_px[1] > green_px[0] && green_px[1] > green_px[2],
         "demo (1,4) should be Hansa Yellow + Phthalo Blue green: {green_px:?}"
     );
+}
+
+#[test]
+fn test_v030_edge_hairline_smooth_height_and_set_tile() {
+    use crate::recording::{compile_events, RecordedEvent, RecordedSample, ServiceAction};
+
+    // 1. #11: SetTile toggles per-stroke tiling when stroke omits `tile`
+    let mut tile_state = false;
+    let events = vec![
+        RecordedEvent::SetTile { enabled: true },
+        RecordedEvent::Stroke {
+            surface: crate::recording::SurfaceKind::Canvas,
+            brush: crate::recording::BrushKind::Round,
+            ink: false,
+            charcoal: false,
+            erase: false,
+            diameter: 48.0,
+            angle_deg: 0.0,
+            tile: None,
+            samples: vec![RecordedSample {
+                x: 4.0,
+                y: 500.0,
+                pressure: 1.0,
+                timestamp_ms: 0,
+            }],
+        },
+        RecordedEvent::SetTile { enabled: false },
+        RecordedEvent::Stroke {
+            surface: crate::recording::SurfaceKind::Canvas,
+            brush: crate::recording::BrushKind::Round,
+            ink: false,
+            charcoal: false,
+            erase: false,
+            diameter: 48.0,
+            angle_deg: 0.0,
+            tile: None,
+            samples: vec![RecordedSample {
+                x: 4.0,
+                y: 700.0,
+                pressure: 1.0,
+                timestamp_ms: 16,
+            }],
+        },
+    ];
+    let cmds = compile_events(&events, &mut tile_state);
+    assert!(!tile_state);
+    let mut rig = Rig::new();
+    let mut full_cmds = vec![
+        Command::Initialize,
+        Command::Service(Brush::Round, BrushService::Load(1)),
+    ];
+    full_cmds.extend(cmds);
+    let img = rig.canvas(&full_cmds);
+    // First stroke (y=500, tile=true via SetTile) wraps onto x=1020; second stroke (y=700, tile=false) does not
+    assert!(pixel(&img, 1020, 500)[2] > pixel(&img, 1020, 500)[0]);
+    assert_eq!(pixel(&img, 1020, 700), [255, 255, 255, 255]);
+
+    // 2. #8: smooth_height removes the ~3.2px deposit grid in height export
+    let _ = rig.canvas(&[
+        Command::Initialize,
+        Command::Service(Brush::Round, BrushService::Load(3)),
+        Command::Dab(Dab::new(
+            egui::pos2(500.0, 500.0),
+            80.0,
+            1.0,
+            Surface::Canvas,
+            Brush::Round,
+            0.0,
+        )),
+    ]);
+    rig.paint.smooth_height = false;
+    let raw_h = rig.export(crate::gpu::ExportKind::Height);
+    rig.paint.smooth_height = true;
+    let smooth_h = rig.export(crate::gpu::ExportKind::Height);
+    let mut raw_diff = 0i32;
+    let mut smooth_diff = 0i32;
+    for y in 490..510 {
+        for x in 490..510 {
+            raw_diff += (pixel(&raw_h, x, y)[0] as i32 - pixel(&raw_h, x + 1, y)[0] as i32).abs();
+            smooth_diff +=
+                (pixel(&smooth_h, x, y)[0] as i32 - pixel(&smooth_h, x + 1, y)[0] as i32).abs();
+        }
+    }
+    assert!(
+        smooth_diff < raw_diff,
+        "smoothed height export should reduce high-frequency grid ripple: smooth={smooth_diff} raw={raw_diff}"
+    );
+
+    // 3. #10: Transparent export low-alpha edge pixels stay dark (no warm spike) on Bone Black stroke
+    let mut edge_rig = Rig::new();
+    let _ = edge_rig.canvas(&[
+        Command::Initialize,
+        Command::Service(Brush::Round, BrushService::Load(7)),
+        Command::Service(Brush::Round, BrushService::Wipe(0.20)),
+        Command::Dab(Dab::new(
+            egui::pos2(500.0, 500.0),
+            64.0,
+            1.0,
+            Surface::Canvas,
+            Brush::Round,
+            0.0,
+        )),
+    ]);
+    let transp = edge_rig.export(crate::gpu::ExportKind::Transparent);
+    let mut checked_edge = 0usize;
+    for y in 460..540 {
+        for x in 460..540 {
+            let p = pixel(&transp, x, y);
+            if (1..=12).contains(&p[3]) {
+                checked_edge += 1;
+                assert!(
+                    p[0] <= 45 && p[1] <= 70 && p[2] <= 90,
+                    "low-alpha black edge pixel ({x},{y}) lifted too bright: {p:?}"
+                );
+            }
+        }
+    }
+    assert!(checked_edge > 0, "expected low-alpha edge pixels to test");
+    let _ = ServiceAction::Wipe { fraction: 0.0 };
 }

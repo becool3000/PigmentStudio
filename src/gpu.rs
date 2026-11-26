@@ -389,6 +389,7 @@ pub struct PaintGpu {
     pub lighting: Lighting,
     pub layers: Layers,
     pub tile: bool,
+    pub smooth_height: bool,
 }
 
 impl PaintGpu {
@@ -598,6 +599,7 @@ impl PaintGpu {
             },
             layers: Layers::default(),
             tile: false,
+            smooth_height: false,
         }
     }
 
@@ -1155,7 +1157,9 @@ impl PaintGpu {
         let light_dir = self.lighting.light_direction();
         dab.mode[1] = u32::from(self.lighting.enabled);
         dab.mode[2] = export_mode;
-        dab.mode[3] = u32::from(self.tile) | (u32::from(!self.layers.paint_visible) << 1);
+        dab.mode[3] = u32::from(self.tile)
+            | (u32::from(!self.layers.paint_visible) << 1)
+            | (u32::from(export_mode != 0 && self.smooth_height) << 2);
         let sketch_alpha = if self.layers.sketch_visible {
             self.layers.sketch_opacity
         } else {

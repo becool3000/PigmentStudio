@@ -511,7 +511,33 @@ fn surface_height(pos: vec2<u32>, impasto_scale: f32, weave_scale: f32) -> f32 {
     return h_weave + h_paint;
 }
 
-fn compute_surface_normal(pixel: vec2<u32>, impasto_scale: f32, weave_scale: f32, wrap: bool) -> vec3<f32> {
+fn wrap_coord(v: i32, wrap: bool) -> u32 {
+    if (wrap) {
+        return u32(((v % 1024) + 1024) % 1024);
+    }
+    return u32(clamp(v, 0, 1023));
+}
+
+fn smoothed_surface_height(pixel: vec2<u32>, impasto_scale: f32, wrap: bool) -> f32 {
+    var acc = 0.0;
+    for (var dy: i32 = -2; dy <= 2; dy = dy + 1) {
+        let sy = wrap_coord(i32(pixel.y) + dy, wrap);
+        for (var dx: i32 = -2; dx <= 2; dx = dx + 1) {
+            let sx = wrap_coord(i32(pixel.x) + dx, wrap);
+            acc = acc + surface_height(vec2<u32>(sx, sy), impasto_scale, 0.0);
+        }
+    }
+    return acc / 25.0;
+}
+
+fn sample_export_height(pixel: vec2<u32>, impasto_scale: f32, weave_scale: f32, wrap: bool, smooth_h: bool) -> f32 {
+    if (smooth_h) {
+        return smoothed_surface_height(pixel, impasto_scale, wrap);
+    }
+    return surface_height(pixel, impasto_scale, weave_scale);
+}
+
+fn compute_surface_normal(pixel: vec2<u32>, impasto_scale: f32, weave_scale: f32, wrap: bool, smooth_h: bool) -> vec3<f32> {
     let px = pixel.x;
     let py = pixel.y;
     let left_x = select(select(px - 1u, 0u, px == 0u), (px + 1023u) % 1024u, wrap);
@@ -519,10 +545,10 @@ fn compute_surface_normal(pixel: vec2<u32>, impasto_scale: f32, weave_scale: f32
     let up_y = select(select(py - 1u, 0u, py == 0u), (py + 1023u) % 1024u, wrap);
     let down_y = select(select(py + 1u, 1023u, py >= 1023u), (py + 1u) % 1024u, wrap);
 
-    let h_L = surface_height(vec2<u32>(left_x, py), impasto_scale, weave_scale);
-    let h_R = surface_height(vec2<u32>(right_x, py), impasto_scale, weave_scale);
-    let h_U = surface_height(vec2<u32>(px, up_y), impasto_scale, weave_scale);
-    let h_D = surface_height(vec2<u32>(px, down_y), impasto_scale, weave_scale);
+    let h_L = sample_export_height(vec2<u32>(left_x, py), impasto_scale, weave_scale, wrap, smooth_h);
+    let h_R = sample_export_height(vec2<u32>(right_x, py), impasto_scale, weave_scale, wrap, smooth_h);
+    let h_U = sample_export_height(vec2<u32>(px, up_y), impasto_scale, weave_scale, wrap, smooth_h);
+    let h_D = sample_export_height(vec2<u32>(px, down_y), impasto_scale, weave_scale, wrap, smooth_h);
 
     let dh_dx = (h_R - h_L) * 3.5;
     let dh_dy = (h_D - h_U) * 3.5;
@@ -538,15 +564,17 @@ fn display(@builtin(global_invocation_id) id: vec3<u32>) {
     let wet_paint = canvas[at];
     let is_canvas = pixel.y < 1024u;
     let export_mode = select(0u, dab.mode.z, is_canvas);
+    let wrap = (dab.mode.w & 1u) != 0u;
+    let smooth_h = (dab.mode.w & 4u) != 0u;
 
     if (export_mode == 2u) {
-        let h = surface_height(pixel, dab.brush.x, dab.brush.y);
+        let h = sample_export_height(pixel, dab.brush.x, dab.brush.y, wrap, smooth_h);
         let h_norm = clamp((h + 0.15) / 1.15, 0.0, 1.0);
         textureStore(output, vec2<i32>(pixel), vec4<f32>(vec3<f32>(h_norm), 1.0));
         return;
     }
     if (export_mode == 3u) {
-        let N = compute_surface_normal(pixel, dab.brush.x, dab.brush.y, (dab.mode.w & 1u) != 0u);
+        let N = compute_surface_normal(pixel, dab.brush.x, dab.brush.y, wrap, smooth_h);
         textureStore(output, vec2<i32>(pixel), vec4<f32>(N * 0.5 + vec3<f32>(0.5), 1.0));
         return;
     }
@@ -566,7 +594,7 @@ fn display(@builtin(global_invocation_id) id: vec3<u32>) {
             let sheen_scale = dab.brush.z;
             let L = normalize(dab.axis.xyz);
             let V = vec3<f32>(0.0, 0.0, 1.0);
-            let N = compute_surface_normal(pixel, impasto_scale, weave_scale, (dab.mode.w & 1u) != 0u);
+            let N = compute_surface_normal(pixel, impasto_scale, weave_scale, (dab.mode.w & 1u) != 0u, false);
 
             // Diffuse illumination under raking light
             let NdotL = dot(N, L);
@@ -628,10 +656,14 @@ fn display(@builtin(global_invocation_id) id: vec3<u32>) {
                 if (export_mode == 1u) {
                     // Preserve the white-backed appearance. A single PNG alpha
                     // cannot transmit each channel independently or subtract light.
+                    // At very low alpha (<0.05), stabilize un-premultiply so edge
+                    // pixels don't lift warm/bright over dark backgrounds.
                     let white_headroom = min(color.r, min(color.g, color.b));
                     let transmission = min(dot(response, vec3<f32>(1.0 / 3.0)), white_headroom);
                     let alpha = 1.0 - transmission;
-                    let foreground = (color - transmission) / max(alpha, 0.0001);
+                    let fg_unpremul = clamp((color - transmission) / max(alpha, 0.04), vec3<f32>(0.0), vec3<f32>(1.0));
+                    let edge_t = smoothstep(0.02, 0.12, alpha);
+                    let foreground = mix(over_black, fg_unpremul, edge_t);
                     textureStore(output, vec2<i32>(pixel), vec4<f32>(srgb(foreground), alpha));
                     return;
                 }
