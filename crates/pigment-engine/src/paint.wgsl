@@ -608,6 +608,12 @@ fn apply(@builtin(global_invocation_id) id: vec3<u32>) {
     }
 }
 
+fn gravity_micro_noise(pos: vec2<i32>) -> f32 {
+    let n = u32(pos.x) * 374761393u + u32(pos.y) * 668265263u;
+    let h = (n ^ (n >> 13u)) * 1274126177u;
+    return f32((h ^ (h >> 16u)) & 1023u) / 1023.0;
+}
+
 fn paint_outflow_frac(pos: vec2<i32>, strength: f32, viscosity: f32) -> f32 {
     if (pos.x < 0 || pos.x >= 1024 || pos.y < 0 || pos.y >= 1024) {
         return 0.0;
@@ -617,19 +623,18 @@ fn paint_outflow_frac(pos: vec2<i32>, strength: f32, viscosity: f32) -> f32 {
     if (mass <= 1e-6) {
         return 0.0;
     }
-    // Bingham-plastic yield stress: cubic curve so fluid enamel drips freely while thick oil stays put.
+    // Self-arresting Bingham-plastic yield stress:
+    // Viscosity = 1.0 (Heavy Oil) holds normal strokes (~0.55); lower values drip and arrest as they thin.
     let v = clamp(viscosity, 0.0, 1.0);
-    let yield_thresh = 0.0005 + 0.35 * v * v * v;
+    let yield_thresh = 0.002 + 0.55 * v * v;
     let excess = max(mass - yield_thresh, 0.0);
     if (excess <= 0.0) {
         return 0.0;
     }
-    // Linen weave & dry-ridge channeling creates organic rivulets instead of flat sheets.
-    let fx = f32(pos.x);
-    let fy = f32(pos.y);
-    let weave = 0.85 + 0.30 * sin(fx * 0.45 + fy * 0.17) * cos(fx * 0.19 - fy * 0.31);
-    let flow_rate = clamp(strength * (1.0 - viscosity * 0.82) * weave, 0.0, 0.85);
-    return clamp((excess / mass) * flow_rate, 0.0, 0.72);
+    // Subtle non-periodic grain (±3%) prevents robotic symmetry without periodic waffle ripples.
+    let micro = 0.97 + 0.06 * gravity_micro_noise(pos);
+    let flow_rate = clamp(strength * (1.0 - v * 0.85) * 0.48 * micro, 0.0, 0.65);
+    return clamp((excess / mass) * flow_rate, 0.0, 0.55);
 }
 
 @compute @workgroup_size(8, 8)

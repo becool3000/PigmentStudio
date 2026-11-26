@@ -737,8 +737,8 @@ impl Default for GravitySettings {
     fn default() -> Self {
         Self {
             enabled: false,
-            strength: 0.45,
-            viscosity: 0.30,
+            strength: 1.0,
+            viscosity: 1.0,
             angle_deg: 90.0,
         }
     }
@@ -2934,16 +2934,31 @@ impl Studio {
         ui.collapsing("🌊 Gravity & Viscosity", |ui| {
             ui.checkbox(&mut self.gravity.enabled, "Enable Gravity")
                 .on_hover_text("Simulate real-time gravity drip and flow on wet canvas paint (conserves all 8 pigment channels)");
+            ui.horizontal_wrapped(|ui| {
+                for (label, visc) in [
+                    ("Heavy Oil", 1.0_f32),
+                    ("Soft Body Honey", 0.72),
+                    ("Fluid Enamel", 0.45),
+                    ("Polished", 0.30),
+                    ("Watery", 0.16),
+                    ("Ink-like", 0.06),
+                ] {
+                    let selected = (self.gravity.viscosity - visc).abs() < 0.02;
+                    if ui.selectable_label(selected, label).clicked() {
+                        self.gravity.viscosity = visc;
+                    }
+                }
+            });
             ui.add(
-                egui::Slider::new(&mut self.gravity.strength, 0.05..=1.0)
+                egui::Slider::new(&mut self.gravity.strength, 0.0..=1.0)
                     .text("Gravity"),
             )
-            .on_hover_text("Flow speed of wet paint under gravity");
+            .on_hover_text("Flow speed of wet paint under gravity (1.0 = full 1G)");
             ui.add(
                 egui::Slider::new(&mut self.gravity.viscosity, 0.0..=1.0)
                     .text("Viscosity"),
             )
-            .on_hover_text("Low = fluid enamel drips, High = thick oil impasto that resists sagging");
+            .on_hover_text("1.0 = thick oil that holds its shape; lower values drip and self-arrest as the film thins");
             ui.add(
                 egui::Slider::new(&mut self.gravity.angle_deg, 0.0..=360.0)
                     .text("Tilt Angle")
@@ -2952,12 +2967,12 @@ impl Studio {
             .on_hover_text("Direction of gravity on the canvas (90° = straight down)");
             if ui
                 .button("↓ Reset Down (90°)")
-                .on_hover_text("Reset gravity to straight down (90°) and default viscosity")
+                .on_hover_text("Reset gravity to straight down (90°), 1.0 Gravity, and 1.0 Heavy Oil viscosity")
                 .clicked()
             {
                 self.gravity.angle_deg = 90.0;
-                self.gravity.strength = 0.45;
-                self.gravity.viscosity = 0.30;
+                self.gravity.strength = 1.0;
+                self.gravity.viscosity = 1.0;
             }
         });
 

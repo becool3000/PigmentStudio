@@ -4057,11 +4057,30 @@ fn test_slice1_gravity_conservation_and_downward_flow() {
         "no paint should be below y=326 initially"
     );
 
-    // Step 120 ticks (2s at 60 Hz) of low-viscosity gravity straight down (90 deg)
+    // Step 40 ticks of Heavy Oil (viscosity = 1.0) — normal strokes should stay put
+    let heavy_cmds: Vec<_> = (0..40)
+        .map(|_| Command::AdvanceGravity {
+            strength: 1.0,
+            viscosity: 1.0,
+            angle_deg: 90.0,
+        })
+        .collect();
+    let (heavy_bytes, _) = rig.state(&heavy_cmds);
+    let heavy_px: &[[f32; 8]] = bytemuck::cast_slice(&heavy_bytes);
+    let heavy_below: f64 = (327..SIDE as usize)
+        .flat_map(|y| (0..SIDE as usize).map(move |x| heavy_px[y * SIDE as usize + x]))
+        .flat_map(|p| p.into_iter().map(f64::from))
+        .sum();
+    assert!(
+        heavy_below < 1e-4,
+        "Heavy Oil (viscosity 1.0) should not drip below y=326, got {heavy_below}"
+    );
+
+    // Step 120 ticks (2s at 60 Hz) of Ink-like gravity straight down (90 deg)
     let gravity_cmds: Vec<_> = (0..120)
         .map(|_| Command::AdvanceGravity {
-            strength: 0.75,
-            viscosity: 0.12,
+            strength: 1.0,
+            viscosity: 0.06,
             angle_deg: 90.0,
         })
         .collect();
