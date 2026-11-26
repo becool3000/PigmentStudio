@@ -2977,3 +2977,16 @@ fn test_phase_6_bone_black_pbk9_calibration_and_cpu_gpu_parity() {
         );
     }
 }
+
+#[test]
+fn test_jar_swatch_colors_match_kubelka_munk_recipes() {
+    for p in cabinet::PIGMENTS {
+        let jar_rgb = pigment::rgb(p.recipe);
+        let canvas_rgb = pigment::rgb_composite(p.recipe, [0.0; 8]);
+        assert_eq!(
+            jar_rgb, canvas_rgb,
+            "jar swatch for {} must match Kubelka-Munk composite of its recipe",
+            p.name
+        );
+    }
+}

@@ -2299,7 +2299,7 @@ impl Studio {
             egui::pos2(tile.left() + padding, tile.center().y - jar_size.y * 0.5),
             jar_size,
         );
-        let [r, g, b] = pigment.rgb;
+        let [r, g, b] = pigment::rgb(pigment.recipe);
         workbench_art::jar(
             ui.painter(),
             jar,
