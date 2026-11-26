@@ -97,7 +97,7 @@ Status: v0.1 prototype is implemented and passes all automated tests and benchma
 - [x] Deeper undo: expand beyond 8 steps via compressed/CPU-offloaded snapshots or checkpoints + JSON stroke replay.
 
 ### Phase D — Standalone Pigment Engine Crate
-- [ ] Extract core Kubelka-Munk spectral math and WGSL mixing shaders into a standalone workspace crate under `MIT`, keeping the desktop app `GPL-3.0-only`.
+- [x] Extract core Kubelka-Munk spectral math and WGSL mixing shaders into a standalone workspace crate under `MIT`, keeping the desktop app `GPL-3.0-only`.
 
 ### Phase E — Reachable Underlayer, Batch Animation & Agent Docs
 - [x] Reachable underlayer import: expose `ImportUnderlayer` in `File → Import Dried Underlayer…`, support `underlayer_path` in `pigment-studio-recording-v1` JSON, and add `--underlayer <img.png>` to the `--render` CLI (keeping `ImportUnderlayer` active in non-test builds) for headless glazing over 3D renders.

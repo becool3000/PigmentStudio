@@ -1,3 +1,6 @@
+[workspace]
+members = [".", "crates/pigment-engine"]
+
 [package]
 name = "pigment-prototype"
 version = "0.3.1"
@@ -11,6 +14,7 @@ name = "pigment-studio-ink"
 path = "src/main.rs"
 
 [dependencies]
+pigment-engine = { path = "crates/pigment-engine" }
 bytemuck = { version = "1", features = ["derive"] }
 egui = "0.31"
 egui-wgpu = "0.31"

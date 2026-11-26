@@ -673,7 +673,10 @@ impl PaintGpu {
                 },
             ],
         });
-        let shader = device.create_shader_module(wgpu::include_wgsl!("paint.wgsl"));
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("paint.wgsl"),
+            source: wgpu::ShaderSource::Wgsl(pigment_engine::PAINT_WGSL.into()),
+        });
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Pigment compute layout"),
             bind_group_layouts: &[&layout],

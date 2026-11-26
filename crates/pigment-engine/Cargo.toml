@@ -1,0 +1,7 @@
+[package]
+name = "pigment-engine"
+version = "0.3.1"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/becool3000/PigmentStudio"
+description = "Kubelka-Munk 31-band spectral mixing and WGSL shader library for oil paint simulation"
