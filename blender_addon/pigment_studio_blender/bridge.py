@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Iterable, Optional, Tuple
 
 import bpy
+import numpy as np
 
 SIDE = 1024
 PIXEL_COUNT = SIDE * SIDE
@@ -34,7 +35,6 @@ TUBE_NAMES = (
 
 _F32_ARRAY_8 = ctypes.c_float * 8
 _U8_ARRAY_3 = ctypes.c_uint8 * 3
-_RGBA_BUFFER = ctypes.c_float * RGBA_F32_COUNT
 
 
 def _find_library() -> Path:
@@ -133,9 +133,12 @@ class PigmentBridge:
         self._handle = self._lib.pigment_session_create()
         if not self._handle:
             raise RuntimeError("Failed to initialize native GPU PigmentSession (wgpu)")
-        self._color_buf = _RGBA_BUFFER()
-        self._normal_buf = _RGBA_BUFFER()
-        self._height_buf = _RGBA_BUFFER()
+        self._color_buf = np.empty(RGBA_F32_COUNT, dtype=np.float32)
+        self._normal_buf = np.empty(RGBA_F32_COUNT, dtype=np.float32)
+        self._height_buf = np.empty(RGBA_F32_COUNT, dtype=np.float32)
+        self._color_ptr = self._color_buf.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
+        self._normal_ptr = self._normal_buf.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
+        self._height_ptr = self._height_buf.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
 
     def close(self) -> None:
         if getattr(self, "_handle", None):
@@ -193,9 +196,9 @@ class PigmentBridge:
     def sync_pbr_images(self, gl_normals: bool = True, smooth_height: bool = True) -> None:
         ok = self._lib.pigment_session_readback_pbr(
             self._handle,
-            self._color_buf,
-            self._normal_buf,
-            self._height_buf,
+            self._color_ptr,
+            self._normal_ptr,
+            self._height_ptr,
             bool(gl_normals),
             bool(smooth_height),
         )
