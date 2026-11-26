@@ -2,7 +2,7 @@
 
 All notable changes to Pigment Studio are documented in this file.
 
-## [Unreleased]
+## [0.2.0] - 2026-11-25
 
 ### Added
 - **Game-Asset Exports:**
