@@ -1,0 +1,86 @@
+{
+  "source": "Published PB29 (synthetic sodium aluminosilicate polysulfide) diffuse reflectance characteristics and Gamblin Artists' Oil Ultramarine Blue masstone/transparency/tinting specifications (proxy for Phase 3 spectrophotometer dataset).",
+  "wavelengths_nm": [400, 450, 500, 550, 600, 650, 700],
+  "target_masstone_spectrum_7": [0.670, 0.570, 0.176, 0.049, 0.029, 0.082, 0.187],
+  "target_thin_glaze_white_7": [0.941, 0.908, 0.531, 0.135, 0.061, 0.278, 0.564],
+  "fit_cases": [
+    {
+      "name": "Thick masstone on white (8 wet dabs)",
+      "pb29": 2.0,
+      "pw6": 0.0,
+      "pr122": 0.0,
+      "pbr7": 0.0,
+      "ground": 1.0,
+      "target_lab": [32.5, 43.2, -68.9]
+    },
+    {
+      "name": "Thin glaze on white (1 wet dab)",
+      "pb29": 0.25,
+      "pw6": 0.0,
+      "pr122": 0.0,
+      "pbr7": 0.0,
+      "ground": 1.0,
+      "target_lab": [51.6, 26.1, -69.5]
+    },
+    {
+      "name": "20% PB29 + 80% PW6 periwinkle tint",
+      "pb29": 0.30,
+      "pw6": 1.20,
+      "pr122": 0.0,
+      "pbr7": 0.0,
+      "ground": 1.0,
+      "target_lab": [83.8, 2.2, -18.5]
+    },
+    {
+      "name": "Chromatic gray (60% PB29 + 40% PBr7)",
+      "pb29": 0.90,
+      "pw6": 0.0,
+      "pr122": 0.0,
+      "pbr7": 0.60,
+      "ground": 1.0,
+      "target_lab": [30.1, 0.6, -7.0]
+    }
+  ],
+  "held_out_cases": [
+    {
+      "name": "Thin film on black (1 wet dab)",
+      "pb29": 0.25,
+      "pw6": 0.0,
+      "pr122": 0.0,
+      "pbr7": 0.0,
+      "ground": 0.0,
+      "target_lab": [25.3, 1.1, -17.3]
+    },
+    {
+      "name": "5% PB29 + 95% PW6 sky tint",
+      "pb29": 0.075,
+      "pw6": 1.425,
+      "pr122": 0.0,
+      "pbr7": 0.0,
+      "ground": 1.0,
+      "target_lab": [91.6, 0.3, -9.2]
+    },
+    {
+      "name": "40% PB29 + 60% PW6 tint",
+      "pb29": 0.60,
+      "pw6": 0.90,
+      "pr122": 0.0,
+      "pbr7": 0.0,
+      "ground": 1.0,
+      "target_lab": [76.5, 4.6, -26.6]
+    },
+    {
+      "name": "Clean violet (50% PB29 + 50% PR122)",
+      "pb29": 0.75,
+      "pw6": 0.0,
+      "pr122": 0.75,
+      "pbr7": 0.0,
+      "ground": 1.0,
+      "target_lab": [14.3, 42.9, -36.1]
+    }
+  ],
+  "hiding_power_check": {
+    "thin_glaze_mass": 0.25,
+    "target_max_hiding_ratio_pct": 25.0
+  }
+}

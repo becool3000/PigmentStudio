@@ -2614,3 +2614,128 @@ fn test_phase_6_cadmium_red_pr108_calibration_and_cpu_gpu_parity() {
         );
     }
 }
+
+#[test]
+fn test_phase_6_ultramarine_blue_pb29_calibration_and_cpu_gpu_parity() {
+    const {
+        assert!(crate::project::CURRENT_CALIBRATION_VERSION >= 7);
+    }
+
+    let mut rig = Rig::new();
+    rig.paint.lighting.enabled = false;
+
+    // 1. Thick PB29 masstone (warm red-shade ultramarine)
+    let mast_img = rig.canvas(&[
+        Command::Initialize,
+        Command::Service(Brush::Round, BrushService::Load(4)),
+        Command::Dab(Dab::new(
+            egui::pos2(160.0, 160.0),
+            56.0,
+            1.0,
+            Surface::Canvas,
+            Brush::Round,
+            0.0,
+        )),
+        Command::Dab(Dab::new(
+            egui::pos2(160.0, 160.0),
+            56.0,
+            1.0,
+            Surface::Canvas,
+            Brush::Round,
+            0.0,
+        )),
+        Command::Dab(Dab::new(
+            egui::pos2(160.0, 160.0),
+            56.0,
+            1.0,
+            Surface::Canvas,
+            Brush::Round,
+            0.0,
+        )),
+    ]);
+    let mast_diag = rig
+        .paint
+        .sample_diagnostics(&rig.device, &rig.queue, 160, 160);
+    let mast_cpu = crate::pigment::rgb_composite(mast_diag.wet_channels, mast_diag.dry_channels);
+    let mast_gpu = pixel(&mast_img, 160, 160);
+    assert!(
+        mast_gpu[2] > mast_gpu[1] && mast_gpu[2] > mast_gpu[0],
+        "PB29 masstone should be deep blue: {mast_gpu:?}"
+    );
+    for ch in 0..3 {
+        assert!(
+            mast_cpu[ch].abs_diff(mast_gpu[ch]) <= 2,
+            "PB29 masstone CPU/GPU mismatch ch {ch}: cpu={} gpu={}",
+            mast_cpu[ch],
+            mast_gpu[ch]
+        );
+    }
+
+    // 2. PB29 + PW6 airy periwinkle-sky tint
+    let sky_img = rig.canvas(&[
+        Command::Initialize,
+        Command::Service(Brush::Round, BrushService::Load(3)),
+        Command::Service(Brush::Round, BrushService::Load(3)),
+        Command::Service(Brush::Round, BrushService::Load(3)),
+        Command::Service(Brush::Round, BrushService::Load(4)),
+        Command::Dab(Dab::new(
+            egui::pos2(320.0, 160.0),
+            56.0,
+            1.0,
+            Surface::Canvas,
+            Brush::Round,
+            0.0,
+        )),
+    ]);
+    let sky_diag = rig
+        .paint
+        .sample_diagnostics(&rig.device, &rig.queue, 320, 160);
+    let sky_cpu = crate::pigment::rgb_composite(sky_diag.wet_channels, sky_diag.dry_channels);
+    let sky_gpu = pixel(&sky_img, 320, 160);
+    assert!(
+        sky_gpu[2] > sky_gpu[1] && sky_gpu[1] > sky_gpu[0],
+        "PB29 + PW6 tint should be sky blue (B > G > R): {sky_gpu:?}"
+    );
+    for ch in 0..3 {
+        assert!(
+            sky_cpu[ch].abs_diff(sky_gpu[ch]) <= 2,
+            "PB29 + PW6 sky tint CPU/GPU mismatch ch {ch}: cpu={} gpu={}",
+            sky_cpu[ch],
+            sky_gpu[ch]
+        );
+    }
+
+    // 3. PB29 + PR122 clean violet mix
+    let violet_img = rig.canvas(&[
+        Command::Initialize,
+        Command::Service(Brush::Round, BrushService::Load(4)),
+        Command::Service(Brush::Round, BrushService::Load(4)),
+        Command::Service(Brush::Round, BrushService::Load(2)),
+        Command::Dab(Dab::new(
+            egui::pos2(480.0, 160.0),
+            56.0,
+            1.0,
+            Surface::Canvas,
+            Brush::Round,
+            0.0,
+        )),
+    ]);
+    let violet_diag = rig
+        .paint
+        .sample_diagnostics(&rig.device, &rig.queue, 480, 160);
+    let violet_cpu =
+        crate::pigment::rgb_composite(violet_diag.wet_channels, violet_diag.dry_channels);
+    let violet_gpu = pixel(&violet_img, 480, 160);
+    assert!(
+        violet_gpu[2] > violet_gpu[1] && violet_gpu[0] > violet_gpu[1],
+        "PB29 + PR122 mix should be clean violet (R,B > G): {violet_gpu:?}"
+    );
+    for ch in 0..3 {
+        assert!(
+            violet_cpu[ch].abs_diff(violet_gpu[ch]) <= 2,
+            "PB29 + PR122 violet CPU/GPU mismatch ch {ch}: cpu={} gpu={}",
+            violet_cpu[ch],
+            violet_gpu[ch]
+        );
+    }
+}

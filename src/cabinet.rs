@@ -120,8 +120,8 @@ pub const PIGMENTS: &[PigmentDef] = &[
         rgb: [32, 60, 172],
         lore: "French chemist Guimet won a 6,000-franc prize in 1828 for synthesizing French Ultramarine, liberating painters from the astronomical cost of natural lapis lazuli.",
         recipe: [0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
-        absorption: [0.06, 0.09, 0.55, 2.4, 3.5, 1.6, 0.9],
-        scattering: [0.95, 1.1, 1.1, 0.91, 0.87, 0.91, 1.0],
+        absorption: [0.051, 0.081, 0.611, 2.832, 4.587, 1.51, 0.556],
+        scattering: [0.962, 1.037, 0.943, 0.848, 0.725, 0.823, 0.954],
     },
     PigmentDef {
         id: "burnt_sienna",

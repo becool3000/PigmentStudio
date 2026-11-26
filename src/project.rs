@@ -70,7 +70,7 @@ impl From<LayersMeta> for Layers {
     }
 }
 
-pub const CURRENT_CALIBRATION_VERSION: u32 = 6;
+pub const CURRENT_CALIBRATION_VERSION: u32 = 7;
 
 fn default_calibration_version() -> u32 {
     1

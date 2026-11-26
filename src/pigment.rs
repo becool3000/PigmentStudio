@@ -48,7 +48,7 @@ const ABSORPTION: [[f32; 7]; 8] = [
     [1.802, 0.648, 1.053, 4.175, 22.372, 39.472, 40.064], // 1: Phthalo blue (PB15:2 calibrated)
     [2.188, 1.097, 10.781, 31.101, 0.96, 0.22, 0.152], // 2: Quinacridone magenta (PR122 calibrated)
     [0.0327, 0.005, 0.002, 0.001, 0.001, 0.001, 0.0021], // 3: Titanium white (PW6 calibrated)
-    [0.06, 0.09, 0.55, 2.4, 3.5, 1.6, 0.9],            // 4: Ultramarine blue
+    [0.051, 0.081, 0.611, 2.832, 4.587, 1.51, 0.556],  // 4: Ultramarine blue (PB29 calibrated)
     [4.5, 4.2, 2.8, 1.6, 0.55, 0.21, 0.13],            // 5: Burnt sienna
     [13.589, 31.068, 18.698, 14.0, 0.041, 0.006, 0.003], // 6: Cadmium Red Medium (PR108 calibrated)
     [22.0, 22.0, 22.0, 22.0, 22.0, 21.5, 21.0],        // 7: Bone Black / Genuine Sepia (PBk9)
@@ -58,7 +58,7 @@ const SCATTERING: [[f32; 7]; 8] = [
     [0.122, 0.106, 0.093, 0.076, 0.055, 0.143, 0.16], // 1: Phthalo blue (PB15:2 calibrated)
     [0.159, 0.145, 0.115, 0.133, 0.135, 0.152, 0.203], // 2: Quinacridone magenta (PR122 calibrated)
     [19.667, 24.758, 29.26, 28.0, 28.0, 24.074, 21.326], // 3: Titanium white (PW6 calibrated)
-    [0.95, 1.1, 1.1, 0.91, 0.87, 0.91, 1.0],         // 4: Ultramarine blue
+    [0.962, 1.037, 0.943, 0.848, 0.725, 0.823, 0.954], // 4: Ultramarine blue (PB29 calibrated)
     [0.68, 0.75, 0.8, 0.82, 0.81, 0.75, 0.7],        // 5: Burnt sienna
     [0.4, 0.901, 0.829, 1.62, 2.833, 3.24, 3.089],   // 6: Cadmium Red Medium (PR108 calibrated)
     [0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3],             // 7: Bone Black / Genuine Sepia
