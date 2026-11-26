@@ -35,6 +35,13 @@ Model physical paint thickness and volume on the canvas. Add surface normal mapp
 - **Palette export:** Export custom jar recipes and swatches for reuse across projects.
 - **JSON stroke recording, replay & headless rendering:** Record and replay strokes deterministically for agent automation, deep undo, and high-res re-rendering.
 - **Batch animation & overpaint pipeline:** Single-process deterministic batch rendering across frame sequences or per-frame 3D underlayers (`--underlayer`, `--batch`), backed by a documented JSON Schema and pigment/rack index table.
+- **Agent Stroke Editing (Tier A, CLAD-style) & CLI Upgrades:**
+  - Add stroke `id` / `group` metadata and non-destructive recording edits (`move_stroke`, `edit_stroke`, `delete_stroke`, `reorder_stroke`) with checkpointed GPU replay.
+  - Add persistent `--serve` mode (JSON-RPC over stdin/stdout) keeping `PaintGpu` and checkpoints warm in memory for sub-50 ms agent iteration.
+  - Add spatial & optical inspection (`strokes_at`, `inspect_region`, `brush_state`).
+  - Add ergonomic agent painting events (`dip_rack { slot, clean: true }`, `set_mix { brush, recipe, load }`).
+  - Add multi-mode `--render` (`--mode color,height,normal,transparent` with `{mode}` output pattern), `--normal-convention gl|dx`, and CLI palette export (`--export-palette`).
+- **Interactive UI Stroke Selection & Editing (Tier B, Deferred):** Hit-testing, transform gizmos, and incremental GPU re-replay in the desktop app, deferred until after Tier A and CLI upgrades.
 - **Permissive pigment engine crate:** Extract the core Kubelka-Munk mixing model and shaders into a standalone crate for runtime use in games and tools.
 
 ## Immersive 3D Atelier Studio (Long-Term Vision)
