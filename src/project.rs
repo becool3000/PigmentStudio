@@ -70,8 +70,16 @@ impl From<LayersMeta> for Layers {
     }
 }
 
+pub const CURRENT_CALIBRATION_VERSION: u32 = 2;
+
+fn default_calibration_version() -> u32 {
+    1
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ProjectMeta {
+    #[serde(default = "default_calibration_version")]
+    pub calibration_version: u32,
     pub loads: [f32; 2],
     pub jars: Vec<bool>,
     pub sizes: [f32; 2],

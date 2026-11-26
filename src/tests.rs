@@ -1703,6 +1703,7 @@ fn test_project_save_and_load_pigment_file() {
     let mut jars = vec![false; crate::workbench::CUSTOM_JAR_COUNT];
     jars[0] = true;
     let meta = crate::project::ProjectMeta {
+        calibration_version: crate::project::CURRENT_CALIBRATION_VERSION,
         loads: [0.5, 0.0],
         jars,
         sizes: [48.0, 64.0],
@@ -1939,4 +1940,180 @@ fn test_phase_e_underlayer_and_batch_rendering() {
     assert!(read_px(&out_b, 100, 100)[1] > 160);
     // Single render and batch out_a must be bit-for-bit identical (determinism)
     assert_eq!(read_px(&out_single, 500, 500), read_px(&out_a, 500, 500));
+}
+
+#[test]
+fn test_phase_4_pb15_2_calibration_and_cpu_gpu_parity() {
+    assert_eq!(crate::project::CURRENT_CALIBRATION_VERSION, 2);
+
+    let mut rig = Rig::new();
+    rig.paint.lighting.enabled = false;
+
+    // 1. Thin glaze on white ground
+    let thin_img = rig.canvas(&[
+        Command::Initialize,
+        Command::Service(Brush::Round, BrushService::Load(1)),
+        Command::Service(Brush::Round, BrushService::Wipe(0.20)),
+        Command::Dab(Dab::new(
+            egui::pos2(160.0, 160.0),
+            56.0,
+            1.0,
+            Surface::Canvas,
+            Brush::Round,
+            0.0,
+        )),
+    ]);
+    let thin_diag = rig
+        .paint
+        .sample_diagnostics(&rig.device, &rig.queue, 160, 160);
+    let thin_hiding = thin_diag.optical.wet_layer_hiding_ratio_pct.unwrap();
+    assert!(
+        thin_hiding < 12.0,
+        "PB15:2 thin glaze hiding ratio should be low (<12%), got {thin_hiding:.2}%"
+    );
+    let thin_cpu = crate::pigment::rgb_composite(thin_diag.wet_channels, thin_diag.dry_channels);
+    let thin_gpu = pixel(&thin_img, 160, 160);
+    for ch in 0..3 {
+        assert!(
+            thin_cpu[ch].abs_diff(thin_gpu[ch]) <= 2,
+            "thin glaze CPU/GPU mismatch ch {ch}: cpu={} gpu={}",
+            thin_cpu[ch],
+            thin_gpu[ch]
+        );
+    }
+
+    // 2. Thick masstone
+    let mast_img = rig.canvas(&[
+        Command::Initialize,
+        Command::Service(Brush::Round, BrushService::Load(1)),
+        Command::Dab(Dab::new(
+            egui::pos2(320.0, 160.0),
+            56.0,
+            1.0,
+            Surface::Canvas,
+            Brush::Round,
+            0.0,
+        )),
+        Command::Dab(Dab::new(
+            egui::pos2(320.0, 160.0),
+            56.0,
+            1.0,
+            Surface::Canvas,
+            Brush::Round,
+            0.0,
+        )),
+        Command::Dab(Dab::new(
+            egui::pos2(320.0, 160.0),
+            56.0,
+            1.0,
+            Surface::Canvas,
+            Brush::Round,
+            0.0,
+        )),
+        Command::Dab(Dab::new(
+            egui::pos2(320.0, 160.0),
+            56.0,
+            1.0,
+            Surface::Canvas,
+            Brush::Round,
+            0.0,
+        )),
+        Command::Dab(Dab::new(
+            egui::pos2(320.0, 160.0),
+            56.0,
+            1.0,
+            Surface::Canvas,
+            Brush::Round,
+            0.0,
+        )),
+        Command::Dab(Dab::new(
+            egui::pos2(320.0, 160.0),
+            56.0,
+            1.0,
+            Surface::Canvas,
+            Brush::Round,
+            0.0,
+        )),
+    ]);
+    let mast_diag = rig
+        .paint
+        .sample_diagnostics(&rig.device, &rig.queue, 320, 160);
+    let mast_cpu = crate::pigment::rgb_composite(mast_diag.wet_channels, mast_diag.dry_channels);
+    let mast_gpu = pixel(&mast_img, 320, 160);
+    for ch in 0..3 {
+        assert!(
+            mast_cpu[ch].abs_diff(mast_gpu[ch]) <= 2,
+            "masstone CPU/GPU mismatch ch {ch}: cpu={} gpu={}",
+            mast_cpu[ch],
+            mast_gpu[ch]
+        );
+    }
+
+    // 3. Titanium White tint (clean blue: B > G > R)
+    let tint_img = rig.canvas(&[
+        Command::Initialize,
+        Command::Service(Brush::Round, BrushService::Load(3)),
+        Command::Service(Brush::Round, BrushService::Load(3)),
+        Command::Service(Brush::Round, BrushService::Load(3)),
+        Command::Service(Brush::Round, BrushService::Load(1)),
+        Command::Dab(Dab::new(
+            egui::pos2(480.0, 160.0),
+            56.0,
+            1.0,
+            Surface::Canvas,
+            Brush::Round,
+            0.0,
+        )),
+    ]);
+    let tint_diag = rig
+        .paint
+        .sample_diagnostics(&rig.device, &rig.queue, 480, 160);
+    let tint_cpu = crate::pigment::rgb_composite(tint_diag.wet_channels, tint_diag.dry_channels);
+    let tint_gpu = pixel(&tint_img, 480, 160);
+    assert!(
+        tint_gpu[2] > tint_gpu[1] && tint_gpu[1] > tint_gpu[0],
+        "tint should be blue: {tint_gpu:?}"
+    );
+    for ch in 0..3 {
+        assert!(
+            tint_cpu[ch].abs_diff(tint_gpu[ch]) <= 2,
+            "white tint CPU/GPU mismatch ch {ch}: cpu={} gpu={}",
+            tint_cpu[ch],
+            tint_gpu[ch]
+        );
+    }
+
+    // 4. Hansa Yellow Light mix (vivid green: G > R and G > B)
+    let green_img = rig.canvas(&[
+        Command::Initialize,
+        Command::Service(Brush::Round, BrushService::Load(0)),
+        Command::Service(Brush::Round, BrushService::Load(0)),
+        Command::Service(Brush::Round, BrushService::Load(0)),
+        Command::Service(Brush::Round, BrushService::Load(1)),
+        Command::Dab(Dab::new(
+            egui::pos2(640.0, 160.0),
+            56.0,
+            1.0,
+            Surface::Canvas,
+            Brush::Round,
+            0.0,
+        )),
+    ]);
+    let green_diag = rig
+        .paint
+        .sample_diagnostics(&rig.device, &rig.queue, 640, 160);
+    let green_cpu = crate::pigment::rgb_composite(green_diag.wet_channels, green_diag.dry_channels);
+    let green_gpu = pixel(&green_img, 640, 160);
+    assert!(
+        green_gpu[1] > green_gpu[0] && green_gpu[1] > green_gpu[2],
+        "Hansa Yellow + PB15:2 mix should be green: {green_gpu:?}"
+    );
+    for ch in 0..3 {
+        assert!(
+            green_cpu[ch].abs_diff(green_gpu[ch]) <= 2,
+            "green mix CPU/GPU mismatch ch {ch}: cpu={} gpu={}",
+            green_cpu[ch],
+            green_gpu[ch]
+        );
+    }
 }

@@ -1437,6 +1437,7 @@ impl Studio {
         };
         if let Some(p) = target {
             let meta = project::ProjectMeta {
+                calibration_version: project::CURRENT_CALIBRATION_VERSION,
                 loads: self.workbench.session.loads,
                 jars: self.workbench.session.jars.to_vec(),
                 sizes: self.workbench.sizes,

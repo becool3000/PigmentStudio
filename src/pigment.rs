@@ -45,7 +45,7 @@ const OBSERVER: [[f32; 4]; 31] = [
 // Hand-authored K and S anchors at 50 nm intervals, interpolated to the observer grid.
 const ABSORPTION: [[f32; 7]; 8] = [
     [4., 3., 0.9, 0.006, 0.002, 0.002, 0.003], // 0: Hansa yellow
-    [1.5, 0.8, 1.0, 3.2, 18.0, 38.0, 30.0],    // 1: Phthalo blue (PB15)
+    [1.802, 0.648, 1.053, 4.175, 22.372, 39.472, 40.064], // 1: Phthalo blue (PB15:2 calibrated)
     [1.8, 1.2, 8.5, 28.0, 1.2, 0.35, 0.25],    // 2: Quinacridone magenta (PR122)
     [0.008, 0.004, 0.002, 0.001, 0.001, 0.001, 0.002], // 3: Titanium white
     [0.06, 0.09, 0.55, 2.4, 3.5, 1.6, 0.9],    // 4: Ultramarine blue
@@ -55,7 +55,7 @@ const ABSORPTION: [[f32; 7]; 8] = [
 ];
 const SCATTERING: [[f32; 7]; 8] = [
     [0.42, 0.45, 0.65, 0.75, 0.67, 0.55, 0.5], // 0: Hansa yellow
-    [0.25, 0.22, 0.20, 0.18, 0.15, 0.12, 0.10], // 1: Phthalo blue (PB15)
+    [0.122, 0.106, 0.093, 0.076, 0.055, 0.143, 0.16], // 1: Phthalo blue (PB15:2 calibrated)
     [0.45, 0.42, 0.38, 0.35, 0.40, 0.45, 0.45], // 2: Quinacridone magenta (PR122)
     [18.0, 22.0, 26.0, 28.0, 28.0, 26.0, 24.0], // 3: Titanium white
     [0.95, 1.1, 1.1, 0.91, 0.87, 0.91, 1.0],   // 4: Ultramarine blue
