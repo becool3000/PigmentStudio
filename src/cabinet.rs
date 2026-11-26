@@ -1,4 +1,4 @@
-//! Catalog of the built-in pigments available in the Atelier Rack.
+//! Catalog of built-in pigments, including slots reserved for recording replay.
 //! Includes physical Kubelka-Munk absorption/scattering curves, real-world valuation, and lore.
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -9,7 +9,7 @@ pub enum PigmentGroup {
 }
 
 impl PigmentGroup {
-    pub const ALL: [Self; 3] = [Self::Essentials, Self::Historic, Self::Precious];
+    pub const VISIBLE_IN_STUDIO: [Self; 1] = [Self::Essentials];
 
     pub fn title(self) -> &'static str {
         match self {

@@ -38,7 +38,8 @@ pub struct GpuDiagnostics {
 pub struct OpticalDiagnostics {
     pub r_sub_mean: f32,
     pub r_int_mean: f32,
-    pub top_layer_opacity_pct: f32,
+    #[serde(default)]
+    pub wet_layer_hiding_ratio_pct: Option<f32>,
     pub intimate_blend_srgb: [u8; 3],
 }
 
@@ -148,7 +149,6 @@ pub fn compute_optical_diagnostics(
     substrate_bands: [f32; 31],
 ) -> OpticalDiagnostics {
     let wet_total: f32 = wet.iter().sum();
-    let _dry_total: f32 = dry.iter().sum();
 
     let intimate_blend_srgb = {
         let mut combined = [0.0; 8];
@@ -161,6 +161,9 @@ pub fn compute_optical_diagnostics(
     let spectrum = crate::pigment::spectrum();
     let mut r_sub_sum = 0.0;
     let mut r_int_sum = 0.0;
+    let mut y_black = 0.0;
+    let mut y_white = 0.0;
+    let diffuse = |r: f32| 0.4 * r / (1.0 - 0.60 * r).max(0.00001);
 
     for (band_idx, band) in spectrum.iter().enumerate() {
         let k0 = band[0];
@@ -184,6 +187,12 @@ pub fn compute_optical_diagnostics(
             let u = (k_wet * (k_wet + 2.0 * s_wet)).sqrt();
             let e2 = (-2.0 * u).exp();
 
+            // The same wet film over ideal black and white, weighted by CIE Y.
+            let black = r_inf * (1.0 - e2) / (1.0 - e2 * r_inf * r_inf).max(0.00001);
+            let white = (r_inf + e2) / (1.0 + e2 * r_inf);
+            y_black += diffuse(black) * band[4][1];
+            y_white += diffuse(white) * band[4][1];
+
             let denom = (1.0 - r_sub * r_inf).max(0.00001);
             let d_val = (r_inf - r_sub) / denom;
             let d_denom = (1.0 - e2 * r_inf * d_val).max(0.00001);
@@ -195,41 +204,13 @@ pub fn compute_optical_diagnostics(
     let r_sub_mean = r_sub_sum / 31.0;
     let r_int_mean = r_int_sum / 31.0;
 
-    let top_layer_opacity_pct = if wet_total <= 0.00001 {
-        0.0
-    } else {
-        // Physical hiding power / contrast ratio (R_0 over black vs R_inf infinite thickness)
-        // using exact Kubelka-Munk scattering and absorption of the wet layer:
-        let mut r_0_sum = 0.0;
-        let mut r_inf_sum = 0.0;
-        for band in spectrum.iter() {
-            let k0 = band[0];
-            let k1 = band[1];
-            let s0 = band[2];
-            let s1 = band[3];
-            let k_wet: f32 = (0..8).map(|i| wet[i] * [k0, k1][i / 4][i % 4]).sum();
-            let s_wet: f32 = (0..8).map(|i| wet[i] * [s0, s1][i / 4][i % 4]).sum();
-            let s_safe = s_wet.max(0.000001);
-            let r = k_wet / s_safe;
-            let a = 1.0 + r;
-            let b = (r * (r + 2.0)).sqrt();
-            let r_inf = 1.0 / (a + b);
-            let u = (k_wet * (k_wet + 2.0 * s_wet)).sqrt();
-            let e2 = (-2.0 * u).exp();
-            let denom = (1.0 - e2 * r_inf * r_inf).max(0.00001);
-            let r_0 = ((r_inf * (1.0 - e2)) / denom).clamp(0.0, 1.0);
-            r_0_sum += r_0;
-            r_inf_sum += r_inf;
-        }
-        let r_0_mean = r_0_sum / 31.0;
-        let r_inf_mean = (r_inf_sum / 31.0).max(0.0001);
-        ((r_0_mean / r_inf_mean) * 100.0).clamp(0.0, 100.0)
-    };
+    let wet_layer_hiding_ratio_pct =
+        (y_white > 0.000001).then(|| (100.0 * y_black / y_white).clamp(0.0, 100.0));
 
     OpticalDiagnostics {
         r_sub_mean,
         r_int_mean,
-        top_layer_opacity_pct,
+        wet_layer_hiding_ratio_pct,
         intimate_blend_srgb,
     }
 }

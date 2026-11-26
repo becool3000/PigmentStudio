@@ -1,0 +1,234 @@
+{
+  "source_commit": "226912ce1a4fe5cdb9a5c7602b8380bb14c6b5aa",
+  "source_state": "Working tree includes desktop workbench changes beyond the commit.",
+  "source_sha256": {
+    "src/pigment.rs": "d9dfa87e8d6ded13c8e728a82c32d46a16bb722d7e60b07ac8ab089ef0e334e7",
+    "src/paint.wgsl": "9a7e61ae024d60fc8903672f35746ff641b26ee302efbca09e586cceab7d4788",
+    "src/stroke.rs": "1a3362a257efd0adb98f456155e1a2217dbc21cbdb0adfcc72c0840951b26195",
+    "src/recording.rs": "c926c02b368eff366c7b0685215155db6c00fd110b557e80f7749c17b0ec9a76",
+    "src/gpu.rs": "1873d1445e0525682a76f0d85e12bf964a210ecf64fd71007166a1725197bdbb"
+  },
+  "observer": "CIE 1931 2 degree",
+  "illuminant": "D65",
+  "simulation_band_nm": [
+    400,
+    410,
+    420,
+    430,
+    440,
+    450,
+    460,
+    470,
+    480,
+    490,
+    500,
+    510,
+    520,
+    530,
+    540,
+    550,
+    560,
+    570,
+    580,
+    590,
+    600,
+    610,
+    620,
+    630,
+    640,
+    650,
+    660,
+    670,
+    680,
+    690,
+    700
+  ],
+  "anchors_nm": [
+    400,
+    450,
+    500,
+    550,
+    600,
+    650,
+    700
+  ],
+  "saunderson_k2": 0.6,
+  "curves": [
+    {
+      "channel": 1,
+      "name": "Phthalo Blue PB15",
+      "absorption": [
+        1.5,
+        0.8,
+        1.0,
+        3.2,
+        18.0,
+        38.0,
+        30.0
+      ],
+      "scattering": [
+        0.25,
+        0.22,
+        0.2,
+        0.18,
+        0.15,
+        0.12,
+        0.1
+      ]
+    },
+    {
+      "channel": 3,
+      "name": "Titanium White",
+      "absorption": [
+        0.008,
+        0.004,
+        0.002,
+        0.001,
+        0.001,
+        0.001,
+        0.002
+      ],
+      "scattering": [
+        18.0,
+        22.0,
+        26.0,
+        28.0,
+        28.0,
+        26.0,
+        24.0
+      ]
+    },
+    {
+      "channel": 0,
+      "name": "Hansa Yellow",
+      "absorption": [
+        4.0,
+        3.0,
+        0.9,
+        0.006,
+        0.002,
+        0.002,
+        0.003
+      ],
+      "scattering": [
+        0.42,
+        0.45,
+        0.65,
+        0.75,
+        0.67,
+        0.55,
+        0.5
+      ]
+    }
+  ],
+  "swatches": [
+    {
+      "group": "Wet thickness",
+      "label": "1 wet dab",
+      "x": 112,
+      "y": 128
+    },
+    {
+      "group": "Wet thickness",
+      "label": "2 wet dabs",
+      "x": 312,
+      "y": 128
+    },
+    {
+      "group": "Wet thickness",
+      "label": "4 wet dabs",
+      "x": 512,
+      "y": 128
+    },
+    {
+      "group": "Wet thickness",
+      "label": "8 wet dabs",
+      "x": 712,
+      "y": 128
+    },
+    {
+      "group": "Wet thickness",
+      "label": "16 wet dabs",
+      "x": 912,
+      "y": 128
+    },
+    {
+      "group": "Dried coats",
+      "label": "1 dried coat",
+      "x": 112,
+      "y": 384
+    },
+    {
+      "group": "Dried coats",
+      "label": "2 dried coats",
+      "x": 312,
+      "y": 384
+    },
+    {
+      "group": "Dried coats",
+      "label": "3 dried coats",
+      "x": 512,
+      "y": 384
+    },
+    {
+      "group": "Titanium White",
+      "label": "0% Phthalo Blue",
+      "x": 112,
+      "y": 640
+    },
+    {
+      "group": "Titanium White",
+      "label": "1% Phthalo Blue",
+      "x": 312,
+      "y": 640
+    },
+    {
+      "group": "Titanium White",
+      "label": "5% Phthalo Blue",
+      "x": 512,
+      "y": 640
+    },
+    {
+      "group": "Titanium White",
+      "label": "20% Phthalo Blue",
+      "x": 712,
+      "y": 640
+    },
+    {
+      "group": "Titanium White",
+      "label": "100% Phthalo Blue",
+      "x": 912,
+      "y": 640
+    },
+    {
+      "group": "Hansa Yellow Light",
+      "label": "0% Phthalo Blue",
+      "x": 112,
+      "y": 896
+    },
+    {
+      "group": "Hansa Yellow Light",
+      "label": "1% Phthalo Blue",
+      "x": 312,
+      "y": 896
+    },
+    {
+      "group": "Hansa Yellow Light",
+      "label": "5% Phthalo Blue",
+      "x": 512,
+      "y": 896
+    },
+    {
+      "group": "Hansa Yellow Light",
+      "label": "20% Phthalo Blue",
+      "x": 712,
+      "y": 896
+    },
+    {
+      "group": "Hansa Yellow Light",
+      "label": "100% Phthalo Blue",
+      "x": 912,
+      "y": 896
+    }
+  ]
+}

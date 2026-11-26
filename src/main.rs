@@ -11,6 +11,7 @@ mod project;
 mod recording;
 mod stroke;
 mod workbench;
+mod workbench_art;
 
 #[cfg(test)]
 mod tests;
@@ -672,10 +673,13 @@ impl Studio {
         }
         device.push_error_scope(wgpu::ErrorFilter::Validation);
         surface.configure(&device, &surface_config);
-        let paint = PaintGpu::new(&device);
+        let mut paint = PaintGpu::new(&device);
         let mut renderer = egui_wgpu::Renderer::new(&device, surface_config.format, None, 1, false);
-        let texture_id =
-            renderer.register_native_texture(&device, &paint.view(), wgpu::FilterMode::Linear);
+        let texture_id = renderer.register_native_texture(
+            &device,
+            &paint.display_view(),
+            wgpu::FilterMode::Linear,
+        );
         if let Some(error) = device.pop_error_scope().await {
             return Err(format!("The GPU could not initialize the paint shaders. Update your graphics driver and restart.\n{error}"));
         }
@@ -697,7 +701,6 @@ impl Studio {
         for (slot, p) in cabinet::PIGMENTS.iter().enumerate() {
             commands.push(Command::EquipRack(slot, p.recipe));
         }
-        let mut paint = paint;
         let mut workbench = workbench::Workbench::default();
         paint.lighting = workbench.lighting;
 
@@ -1682,7 +1685,11 @@ impl Studio {
                                 self.export_png_dialog(gpu::ExportKind::Color, "painting.png");
                                 ui.close_menu();
                             }
-                            if ui.button("Transparent PNG (Paint Only)…").clicked() {
+                            if ui
+                                .button("Transparent PNG (Paint Only)…")
+                                .on_hover_text("PNG alpha is fitted over white. Colored glazes may look different over other backgrounds.")
+                                .clicked()
+                            {
                                 self.export_png_dialog(
                                     gpu::ExportKind::Transparent,
                                     "painting-transparent.png",
@@ -2228,16 +2235,16 @@ impl Studio {
     }
 
     fn atelier_rack_ui(&mut self, ui: &mut egui::Ui) {
-        let gap = 6.;
+        let gap = 8.;
         let width = ui.available_width();
         let columns = if width >= 366. { 2 } else { 1 };
         let tile_width = (width - gap * (columns - 1) as f32) / columns as f32;
-        for group in cabinet::PigmentGroup::ALL {
-            ui.add_space(4.);
+        for group in cabinet::PigmentGroup::VISIBLE_IN_STUDIO {
+            ui.add_space(6.);
             ui.strong(egui::RichText::new(group.title()).size(15.));
             egui::Grid::new(group.title())
                 .num_columns(columns)
-                .spacing([gap, 2.])
+                .spacing([gap, 4.])
                 .show(ui, |ui| {
                     for (row_index, (slot, pigment)) in cabinet::PIGMENTS
                         .iter()
@@ -2268,10 +2275,11 @@ impl Studio {
         let padding = 5.;
         let name_x = jar_size.x + 2. * padding;
         let name_width = (width - info_width - name_x - padding).max(1.);
+        let name_color = Color32::from_rgb(229, 229, 225);
         let name = ui.painter().layout(
             pigment.name.to_owned(),
-            egui::FontId::proportional(16.),
-            ui.visuals().text_color(),
+            egui::FontId::proportional(15.),
+            name_color,
             name_width,
         );
         let height = (name.size().y + 6.).max(46.);
@@ -2280,27 +2288,24 @@ impl Studio {
         let dip = ui.interact(dip_rect, ui.id().with("dip"), egui::Sense::click());
         dip.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, pigment.name));
         let visuals = ui.style().interact(&dip);
-        ui.painter()
-            .rect_filled(dip_rect.shrink(1.), 4., visuals.bg_fill);
+        let card = dip_rect.shrink(1.);
+        ui.painter().rect_filled(card, 5., visuals.weak_bg_fill);
+        if dip.hovered() || dip.has_focus() {
+            ui.painter()
+                .rect_stroke(card, 5., visuals.bg_stroke, egui::StrokeKind::Inside);
+        }
         let jar = Rect::from_min_size(
             egui::pos2(tile.left() + padding, tile.center().y - jar_size.y * 0.5),
             jar_size,
         );
-        let lid = Rect::from_min_size(jar.min + egui::vec2(6., 2.), egui::vec2(28., 8.));
-        let body = Rect::from_min_max(jar.min + egui::vec2(2., 10.), jar.max - egui::vec2(2., 2.));
         let [r, g, b] = pigment.rgb;
-        ui.painter().rect_filled(lid, 2., Color32::from_gray(140));
-        ui.painter()
-            .rect_filled(body, 4., Color32::from_rgb(r, g, b));
-        ui.painter().rect_stroke(
-            body,
-            4.,
-            egui::Stroke::new(1., Color32::from_gray(60)),
-            egui::StrokeKind::Inside,
+        workbench_art::jar(
+            ui.painter(),
+            jar,
+            workbench_art::JarSwatch::Pigment(Color32::from_rgb(r, g, b)),
         );
         let name_pos = egui::pos2(tile.left() + name_x, tile.center().y - name.size().y * 0.5);
-        ui.painter()
-            .galley(name_pos, name, ui.visuals().text_color());
+        ui.painter().galley(name_pos, name, name_color);
         if dip.on_hover_text("Dip brush (+25% load)").clicked() {
             self.dip_from_jar(BrushService::DipRack(slot));
         }
@@ -2316,6 +2321,7 @@ impl Studio {
             .add(
                 egui::Button::new("Info")
                     .small()
+                    .frame(false)
                     .wrap_mode(egui::TextWrapMode::Extend),
             )
             .on_hover_text(format!("About {}", pigment.name))
@@ -2345,19 +2351,14 @@ impl Studio {
                 }
                 ui.horizontal(|ui| {
                     let (jar, icon) =
-                        ui.allocate_exact_size(egui::vec2(20., 18.), egui::Sense::click());
-                    let lid =
-                        Rect::from_min_size(jar.min + egui::vec2(3., 1.), egui::vec2(14., 4.));
-                    let body = Rect::from_min_max(
-                        jar.min + egui::vec2(1., 5.),
-                        jar.max - egui::vec2(1., 1.),
-                    );
-                    ui.painter().rect_filled(lid, 1., Color32::from_gray(140));
-                    ui.painter().image(
-                        self.texture_id,
-                        body,
-                        gpu::atlas_uv(gpu::swatch_bounds(slot)),
-                        Color32::WHITE,
+                        ui.allocate_exact_size(egui::vec2(27., 24.), egui::Sense::click());
+                    workbench_art::jar(
+                        ui.painter(),
+                        jar,
+                        workbench_art::JarSwatch::Mixture {
+                            texture: self.texture_id,
+                            uv: gpu::atlas_uv(gpu::swatch_bounds(slot)),
+                        },
                     );
                     let name = format!("Jar {}", slot + 1);
                     let dip = ui
@@ -2389,18 +2390,18 @@ impl Studio {
     fn brush_controls_ui(&mut self, ui: &mut egui::Ui) {
         ui.separator();
         ui.strong("Brush rack");
-        ui.horizontal(|ui| {
-            self.brush_card(ui, Brush::Round, "Round");
-            self.brush_card(ui, Brush::Flat, "Flat");
-        });
-        ui.horizontal(|ui| {
-            self.brush_card(ui, Brush::Filbert, "Filbert");
-            self.brush_card(ui, Brush::Fan, "Fan");
-        });
-        ui.horizontal(|ui| {
-            self.brush_card(ui, Brush::PaletteKnife, "Knife");
-            self.brush_card(ui, Brush::SoftMop, "Soft Mop");
-        });
+        let card_width = ((ui.available_width() - ui.spacing().item_spacing.x) * 0.5).floor();
+        for row in [
+            [(Brush::Round, "Round"), (Brush::Flat, "Flat")],
+            [(Brush::Filbert, "Filbert"), (Brush::Fan, "Fan")],
+            [(Brush::PaletteKnife, "Knife"), (Brush::SoftMop, "Soft Mop")],
+        ] {
+            ui.horizontal(|ui| {
+                for (brush, name) in row {
+                    self.brush_card(ui, card_width, brush, name);
+                }
+            });
+        }
         ui.horizontal(|ui| {
             let ink_on = self.paint.layers.active == gpu::ActiveLayer::Paint && self.ink_selected;
             if ui
@@ -2501,13 +2502,18 @@ impl Studio {
                     self.clean_brush();
                 }
             });
-            ui.label("Swipe rag to wipe off 10% load.");
+            ui.label(egui::RichText::new("Swipe rag to wipe off 10% load.").weak());
         }
     }
 
     fn layers_ui(&mut self, ui: &mut egui::Ui) {
         ui.separator();
-        ui.collapsing("🗂 Layers (Paint / Sketch / Reference)", |ui| {
+        let active = match self.paint.layers.active {
+            gpu::ActiveLayer::Paint => "Paint",
+            gpu::ActiveLayer::Sketch => "Sketch",
+        };
+        let header = egui::CollapsingHeader::new(format!("Layers · {active}")).id_salt("layers");
+        header.show(ui, |ui| {
             let mut refresh = false;
 
             ui.horizontal(|ui| {
@@ -2663,82 +2669,53 @@ impl Studio {
         }
     }
 
-    fn brush_card(&mut self, ui: &mut egui::Ui, brush: Brush, name: &str) {
-        let (rect, response) = ui.allocate_exact_size(egui::vec2(104., 42.), egui::Sense::click());
-        let color = if self.paint.layers.active == gpu::ActiveLayer::Paint
+    fn brush_card(&mut self, ui: &mut egui::Ui, width: f32, brush: Brush, name: &str) {
+        let (rect, response) = ui.allocate_exact_size(egui::vec2(width, 46.), egui::Sense::click());
+        let selected = self.paint.layers.active == gpu::ActiveLayer::Paint
             && !self.ink_selected
-            && self.brush == brush
-        {
-            Color32::from_rgb(49, 73, 70)
+            && self.brush == brush;
+        response.widget_info(|| {
+            egui::WidgetInfo::selected(egui::WidgetType::SelectableLabel, true, selected, name)
+        });
+        let painter = ui.painter();
+        let fill = if selected {
+            Color32::from_rgb(41, 64, 62)
         } else {
-            Color32::from_gray(43)
+            ui.style().interact(&response).weak_bg_fill
         };
-        ui.painter().rect_filled(rect, 5., color);
-        let index = brush.index();
-        let load = self.workbench.session.loads[index];
+        let border = if selected {
+            egui::Stroke::new(1., Color32::from_rgb(102, 159, 149))
+        } else {
+            ui.style().interact(&response).bg_stroke
+        };
+        painter.rect(rect, 6., fill, border, egui::StrokeKind::Inside);
 
-        let y = rect.center().y;
-        let x = rect.left() + 6.;
-        let handle = Rect::from_min_size(egui::pos2(x, y - 2.5), egui::vec2(13., 5.));
-        ui.painter()
-            .rect_filled(handle, 2., Color32::from_rgb(163, 110, 72));
-        let ferrule = Rect::from_min_size(egui::pos2(x + 11., y - 4.), egui::vec2(6., 8.));
-        ui.painter()
-            .rect_filled(ferrule, 1., Color32::from_gray(158));
-        let tip_height = if brush == Brush::Round { 10. } else { 16. };
-        let tip = Rect::from_min_size(
-            egui::pos2(x + 17., y - tip_height / 2.),
-            egui::vec2(15., tip_height),
+        let load = self.workbench.session.loads[brush.index()].clamp(0., 1.);
+        workbench_art::brush(
+            painter,
+            rect.min + egui::vec2(8., 8.),
+            brush,
+            self.texture_id,
+            load,
         );
-        // Base dry bristle background
-        ui.painter().rect_filled(
-            tip,
-            if index == 0 { 4. } else { 1. },
-            Color32::from_rgb(125, 105, 90),
-        );
-
-        // Paint reservoir on bristles (fills from tip inward: right to left)
-        if load > 0.005 {
-            let painted_width = ((tip.width() - 1.) * load.clamp(0.0, 1.0)).max(1.5);
-            let painted_left = tip.right() - 0.5 - painted_width;
-            let count = if index == 0 { 1 } else { 3 };
-            for group in 0..count {
-                let lane = if index == 0 { 0 } else { 1 + group };
-                let height = tip.height() / count as f32;
-                let area = Rect::from_min_max(
-                    egui::pos2(painted_left, tip.top() + group as f32 * height + 0.5),
-                    egui::pos2(
-                        tip.right() - 0.5,
-                        tip.top() + (group + 1) as f32 * height - 0.5,
-                    ),
-                );
-                ui.painter().image(
-                    self.texture_id,
-                    area,
-                    gpu::atlas_uv([512 + lane, SIDE, 1, 1]),
-                    Color32::WHITE,
-                );
-            }
-        }
-
-        // Right side: Name, mini progress bar, and load percentage text
-        let content_x = rect.left() + 40.;
-        ui.painter().text(
-            egui::pos2(content_x, rect.top() + 4.),
+        let content_x = rect.left() + 76.;
+        painter.text(
+            egui::pos2(content_x, rect.top() + 7.),
             egui::Align2::LEFT_TOP,
             name,
-            egui::FontId::proportional(12.),
-            Color32::WHITE,
+            egui::FontId::proportional(14.),
+            Color32::from_rgb(237, 237, 231),
         );
-
-        let track =
-            Rect::from_min_size(egui::pos2(content_x, rect.top() + 19.), egui::vec2(54., 4.));
-        ui.painter().rect_filled(track, 2., Color32::from_gray(28));
+        let track = Rect::from_min_max(
+            egui::pos2(content_x, rect.top() + 31.),
+            egui::pos2(rect.right() - 44., rect.top() + 36.),
+        );
+        painter.rect_filled(track, 2., Color32::from_gray(22));
         if load > 0.005 {
-            let fill_width = (track.width() * load.clamp(0.0, 1.0)).max(2.0);
+            let fill_width = (track.width() * load).max(2.);
             let fill_rect = Rect::from_min_size(track.min, egui::vec2(fill_width, track.height()));
-            let lane = if index == 0 { 0 } else { 2 };
-            ui.painter().image(
+            let lane = if brush.is_directional() { 2 } else { 0 };
+            painter.image(
                 self.texture_id,
                 fill_rect,
                 gpu::atlas_uv([512 + lane, SIDE, 1, 1]),
@@ -2747,27 +2724,21 @@ impl Studio {
         }
 
         let load_pct = (load * 100.0).round() as u32;
-        let status_text = if load < 0.005 {
-            "Empty".to_string()
+        let status = if load_pct == 0 {
+            "Empty".to_owned()
         } else {
             format!("{load_pct}%")
         };
-        ui.painter().text(
-            egui::pos2(content_x, rect.top() + 26.),
-            egui::Align2::LEFT_TOP,
-            status_text,
-            egui::FontId::proportional(10.),
-            if load < 0.005 {
-                Color32::from_gray(140)
-            } else {
-                Color32::from_gray(210)
-            },
+        painter.text(
+            egui::pos2(rect.right() - 9., track.center().y),
+            egui::Align2::RIGHT_CENTER,
+            status,
+            egui::FontId::proportional(11.),
+            Color32::from_gray(190),
         );
 
         if response
-            .on_hover_text(format!(
-                "{name} brush: {load_pct}% loaded. Bristle tip fills from edge inward."
-            ))
+            .on_hover_text(format!("{name} · {load_pct}% loaded"))
             .clicked()
         {
             self.end_stroke();
@@ -3025,10 +2996,10 @@ impl Studio {
                                 "Intimate blend sRGB: RGB{:?}",
                                 diag.optical.intimate_blend_srgb
                             ));
-                            ui.label(format!(
-                                "Top layer estimated hiding: {:.1}%",
-                                diag.optical.top_layer_opacity_pct
-                            ));
+                            if let Some(ratio) = diag.optical.wet_layer_hiding_ratio_pct {
+                                ui.label(format!("Wet layer hiding (black / white Y)  {ratio:.1}%"))
+                                    .on_hover_text("Simulated luminance ratio for the same film over ideal black and white grounds. PNG alpha is a separate compositing value.");
+                            }
                             ui.label(format!(
                                 "R_sub mean: {:.3} | R_int mean: {:.3}",
                                 diag.optical.r_sub_mean, diag.optical.r_int_mean

@@ -385,6 +385,7 @@ pub struct PaintGpu {
     service: wgpu::ComputePipeline,
     preview: wgpu::ComputePipeline,
     output: wgpu::Texture,
+    display_atlas: Option<wgpu::Texture>,
     pub lighting: Lighting,
     pub layers: Layers,
     pub tile: bool,
@@ -449,9 +450,7 @@ impl PaintGpu {
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Rgba8Unorm,
-            usage: TextureUsage::STORAGE_BINDING
-                | TextureUsage::TEXTURE_BINDING
-                | TextureUsage::COPY_SRC,
+            usage: TextureUsage::STORAGE_BINDING | TextureUsage::COPY_SRC,
             view_formats: &[],
         });
         let buffer_layout =
@@ -592,6 +591,7 @@ impl PaintGpu {
             service: pipeline("service"),
             preview: pipeline("preview"),
             output,
+            display_atlas: None,
             lighting: Lighting {
                 enabled: false,
                 ..Default::default()
@@ -601,8 +601,51 @@ impl PaintGpu {
         }
     }
 
-    pub fn view(&self) -> wgpu::TextureView {
-        self.output.create_view(&Default::default())
+    pub fn display_view(&mut self) -> wgpu::TextureView {
+        // An sRGB sampling texture decodes the stored bytes for egui. Some DX12
+        // drivers reject reinterpreting the UAV as sRGB, so keep the UAV and SRV separate.
+        self.display_atlas
+            .get_or_insert_with(|| {
+                self.device.create_texture(&wgpu::TextureDescriptor {
+                    label: Some("Paint atlas display"),
+                    size: self.output.size(),
+                    mip_level_count: 1,
+                    sample_count: 1,
+                    dimension: wgpu::TextureDimension::D2,
+                    format: wgpu::TextureFormat::Rgba8UnormSrgb,
+                    usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+                    view_formats: &[],
+                })
+            })
+            .create_view(&Default::default())
+    }
+
+    fn update_display_atlas(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        updates: impl IntoIterator<Item = [u32; 4]>,
+    ) {
+        let Some(display_atlas) = &self.display_atlas else {
+            return;
+        };
+        for [x, y, width, height] in updates {
+            let origin = wgpu::Origin3d { x, y, z: 0 };
+            encoder.copy_texture_to_texture(
+                wgpu::TexelCopyTextureInfo {
+                    origin,
+                    ..self.output.as_image_copy()
+                },
+                wgpu::TexelCopyTextureInfo {
+                    origin,
+                    ..display_atlas.as_image_copy()
+                },
+                wgpu::Extent3d {
+                    width,
+                    height,
+                    depth_or_array_layers: 1,
+                },
+            );
+        }
     }
 
     pub fn can_undo(&self) -> bool {
@@ -984,7 +1027,7 @@ impl PaintGpu {
                 }
             }
         }
-        for bounds in dirty.into_iter().flatten() {
+        for bounds in dirty.iter_mut().flatten() {
             let is_canvas = bounds[1] < SIDE;
             let display_bounds = if is_canvas {
                 let x0 = bounds[0].saturating_sub(1);
@@ -993,8 +1036,9 @@ impl PaintGpu {
                 let y1 = (bounds[1] + bounds[3] + 1).min(SIDE);
                 [x0, y0, x1 - x0, y1 - y0]
             } else {
-                bounds
+                *bounds
             };
+            *bounds = display_bounds;
             let mut dab = Dab::operation(display_bounds, 1);
             self.configure_display_dab(&mut dab, is_canvas, 0);
             let offset = self.upload(&mut upload, &dab);
@@ -1010,6 +1054,13 @@ impl PaintGpu {
             let offset = self.upload(&mut upload, &dab);
             self.dispatch(encoder, &self.preview, offset, [1, 1]);
         }
+        self.update_display_atlas(
+            encoder,
+            dirty
+                .into_iter()
+                .flatten()
+                .chain((preview_needed || placement).then_some([512, SIDE, 4, 1])),
+        );
         if !upload.is_empty() {
             queue.write_buffer(&self.uniforms, 0, &upload);
         }
@@ -1240,13 +1291,16 @@ impl PaintGpu {
 
     #[cfg(test)]
     pub fn refresh(&self, queue: &wgpu::Queue, encoder: &mut wgpu::CommandEncoder) {
-        let mut dab = Dab::operation(Surface::Canvas.bounds(), 1);
+        let bounds = Surface::Canvas.bounds();
+        let mut dab = Dab::operation(bounds, 1);
         self.configure_display_dab(&mut dab, true, 0);
         queue.write_buffer(&self.uniforms, 0, bytemuck::bytes_of(&dab));
         let mut pass = encoder.begin_compute_pass(&Default::default());
         pass.set_pipeline(&self.display);
         pass.set_bind_group(0, &self.bindings, &[0]);
         pass.dispatch_workgroups(SIDE / 8, SIDE / 8, 1);
+        drop(pass);
+        self.update_display_atlas(encoder, [bounds]);
     }
 
     pub fn sample_diagnostics(

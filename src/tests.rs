@@ -63,6 +63,15 @@ impl Rig {
         pixels(&buffer, &self.device)
     }
 
+    fn export(&self, kind: gpu::ExportKind) -> Vec<u8> {
+        let mut encoder = self.device.create_command_encoder(&Default::default());
+        let buffer = self
+            .paint
+            .readback_kind(&self.device, &self.queue, &mut encoder, kind);
+        self.queue.submit([encoder.finish()]);
+        pixels(&buffer, &self.device)
+    }
+
     fn state(&mut self, commands: &[Command]) -> (Vec<u8>, Vec<u8>) {
         let mut encoder = self.device.create_command_encoder(&Default::default());
         self.paint
@@ -133,6 +142,102 @@ fn pixel(bytes: &[u8], x: usize, y: usize) -> [u8; 4] {
     bytes[offset..offset + 4].try_into().unwrap()
 }
 
+fn linear_rgb([r, g, b, _]: [u8; 4]) -> [f32; 3] {
+    let [r, g, b, _] = egui::Rgba::from(Color32::from_rgb(r, g, b)).to_array();
+    [r, g, b]
+}
+
+#[test]
+fn dx12_thin_phthalo_lighting_hiding_and_transparent_export() {
+    let mut rig = Rig::new();
+    let x = 128;
+    let y = 128;
+    let unlit = rig.canvas(&[
+        Command::Initialize,
+        Command::Service(Brush::Round, BrushService::Load(1)),
+        Command::Service(Brush::Round, BrushService::Wipe(0.20)),
+        Command::Dab(Dab::new(
+            egui::pos2(x as f32, y as f32),
+            58.,
+            1.,
+            Surface::Canvas,
+            Brush::Round,
+            0.,
+        )),
+    ]);
+    let white = linear_rgb(pixel(&unlit, x, y));
+    let transparent = pixel(&rig.export(gpu::ExportKind::Transparent), x, y);
+    let foreground = linear_rgb(transparent);
+    let alpha = transparent[3] as f32 / 255.;
+    assert!(
+        (0.05..0.95).contains(&alpha),
+        "thin glaze had alpha {alpha}"
+    );
+    let diag = rig
+        .paint
+        .sample_diagnostics(&rig.device, &rig.queue, x as u32, y as u32);
+    let hiding = diag.optical.wet_layer_hiding_ratio_pct.unwrap() / 100.;
+
+    rig.paint.lighting.enabled = true;
+    rig.paint.lighting.impasto_depth = 0.;
+    rig.paint.lighting.canvas_weave = 0.;
+    rig.paint.lighting.specular_sheen = 0.;
+    let diffuse = 0.65 + 0.45 * rig.paint.lighting.light_direction()[2];
+    let refresh = || Command::Dab(Dab::operation(Surface::Canvas.bounds(), 1));
+    let lit = linear_rgb(pixel(&rig.canvas(&[refresh()]), x, y));
+    for (actual, channel) in lit.into_iter().zip(white) {
+        assert!(
+            (actual - channel * diffuse).abs() < 0.008,
+            "diffuse shading must be linear"
+        );
+    }
+
+    rig.paint.lighting.enabled = false;
+    rig.paint.layers.reference_opacity = 1.;
+    let mut black = [0.; 3];
+    let luminance = |[r, g, b]: [f32; 3]| 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    for (index, background) in [
+        [0, 0, 0, 255],
+        [255; 4],
+        [128, 128, 128, 255],
+        [222, 151, 75, 255],
+        [46, 104, 212, 255],
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let words = Arc::new(vec![u32::from_le_bytes(background); (SIDE * SIDE) as usize]);
+        let result = rig.canvas(&[Command::ImportReference(words)]);
+        let canvas = linear_rgb(pixel(&result, x, y));
+        let ground = linear_rgb(background);
+        let png: [f32; 3] =
+            std::array::from_fn(|ch| foreground[ch] * alpha + ground[ch] * (1. - alpha));
+        eprintln!(
+            "Ground {background:?}, canvas linear {canvas:?}, PNG over ground linear {png:?}"
+        );
+        if index == 0 {
+            black = canvas;
+            assert!((luminance(black) / luminance(white) - hiding).abs() < 0.015);
+        }
+        for channel in 0..3 {
+            let expected = black[channel] + (white[channel] - black[channel]) * ground[channel];
+            assert!((canvas[channel] - expected).abs() < 0.008);
+            if index == 1 {
+                assert!((png[channel] - white[channel]).abs() < 0.012);
+            }
+        }
+    }
+    assert!(
+        white[2] - black[2] > 0.3,
+        "thin Phthalo must transmit blue from its ground"
+    );
+    let blue_on_black = foreground[2] * alpha;
+    assert!(
+        white[2] - blue_on_black > 0.05,
+        "the thin PNG glaze must show some ground response"
+    );
+}
+
 fn paint_at(bytes: &[u8], x: usize, y: usize) -> [f32; 8] {
     values(&bytes[(y * SIDE as usize + x) * 32..])
         .next()
@@ -160,6 +265,7 @@ fn dx12_oil_workbench() {
         [0., 0.08, 0., 0.92, 0., 0., 0., 0.],
         [0., 0., 0., 0.92, 0.08, 0., 0., 0.],
     ]);
+    let display_atlas = rig.paint.display_view();
     rig.paint.reference_swatches(&rig.queue, &reference);
     let mut encoder = rig.device.create_command_encoder(&Default::default());
     rig.paint.refresh(&rig.queue, &mut encoder);
@@ -178,6 +284,7 @@ fn dx12_oil_workbench() {
         );
         assert_eq!(actual[3], 255);
     }
+    assert_display_matches_export(&rig, &display_atlas, pixel(&colors, 5, 0));
     assert!(green(pixel(&colors, 6, 0)));
     let luminance =
         |[r, g, b, _]: [u8; 4]| 0.2126 * r as f32 + 0.7152 * g as f32 + 0.0722 * b as f32;
@@ -457,6 +564,77 @@ fn dx12_oil_workbench() {
     assert_eq!(pixel(&dry, 140, 216), [255; 4]);
     assert_eq!(rig.canvas(&[Command::Undo]), light);
     assert_eq!(rig.canvas(&[Command::Undo]), blank);
+}
+
+fn assert_display_matches_export(rig: &Rig, atlas: &wgpu::TextureView, expected: [u8; 4]) {
+    // Render the same atlas texel with the desktop renderer and compare it with the export bytes.
+    let size = wgpu::Extent3d {
+        width: 1,
+        height: 1,
+        depth_or_array_layers: 1,
+    };
+    let format = wgpu::TextureFormat::Rgba8Unorm;
+    let target = rig.device.create_texture(&wgpu::TextureDescriptor {
+        label: None,
+        size,
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format,
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+        view_formats: &[],
+    });
+    let mut renderer = egui_wgpu::Renderer::new(&rig.device, format, None, 1, false);
+    let texture = renderer.register_native_texture(&rig.device, atlas, wgpu::FilterMode::Linear);
+    let clip_rect = Rect::from_min_max(Pos2::ZERO, egui::pos2(1., 1.));
+    let mut mesh = egui::Mesh::with_texture(texture);
+    mesh.add_rect_with_uv(clip_rect, gpu::atlas_uv([5, 0, 1, 1]), Color32::WHITE);
+    let jobs = [egui::ClippedPrimitive {
+        clip_rect,
+        primitive: egui::epaint::Primitive::Mesh(mesh),
+    }];
+    let screen = egui_wgpu::ScreenDescriptor {
+        size_in_pixels: [1, 1],
+        pixels_per_point: 1.,
+    };
+    let mut encoder = rig.device.create_command_encoder(&Default::default());
+    let extra = renderer.update_buffers(&rig.device, &rig.queue, &mut encoder, &jobs, &screen);
+    {
+        let pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &target.create_view(&Default::default()),
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            ..Default::default()
+        });
+        renderer.render(&mut pass.forget_lifetime(), &jobs, &screen);
+    }
+    let readback = rig.device.create_buffer(&wgpu::BufferDescriptor {
+        label: None,
+        size: 4,
+        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+        mapped_at_creation: false,
+    });
+    encoder.copy_texture_to_buffer(
+        target.as_image_copy(),
+        wgpu::TexelCopyBufferInfo {
+            buffer: &readback,
+            layout: Default::default(),
+        },
+        size,
+    );
+    rig.queue
+        .submit(extra.into_iter().chain([encoder.finish()]));
+
+    let actual = pixels(&readback, &rig.device);
+    assert!(
+        actual.iter().zip(expected).all(|(a, b)| a.abs_diff(b) <= 2),
+        "display {actual:?}, export {expected:?}"
+    );
 }
 
 #[test]
@@ -1052,25 +1230,8 @@ fn test_phase_a_exports_transparent_height_normal_and_palette() {
         Command::SaveSwatch(0, Surface::Canvas, [500, 500]),
     ]);
 
-    let read_kind = |rig: &Rig, kind: crate::gpu::ExportKind| -> Vec<u8> {
-        let mut encoder = rig.device.create_command_encoder(&Default::default());
-        let buffer = rig
-            .paint
-            .readback_kind(&rig.device, &rig.queue, &mut encoder, kind);
-        rig.queue.submit([encoder.finish()]);
-        let (done, rx) = std::sync::mpsc::channel();
-        buffer.slice(..).map_async(wgpu::MapMode::Read, move |r| {
-            let _ = done.send(r);
-        });
-        let _ = rig.device.poll(wgpu::Maintain::Wait);
-        rx.recv().unwrap().unwrap();
-        let data = buffer.slice(..).get_mapped_range().to_vec();
-        buffer.unmap();
-        data
-    };
-
     // 1. Transparent PNG export: bare pixel has alpha 0, painted center has high alpha
-    let transparent = read_kind(&rig, crate::gpu::ExportKind::Transparent);
+    let transparent = rig.export(gpu::ExportKind::Transparent);
     let bare_t = pixel(&transparent, 10, 10);
     let center_t = pixel(&transparent, 500, 500);
     assert_eq!(bare_t[3], 0, "bare canvas must be transparent: {bare_t:?}");
@@ -1101,28 +1262,23 @@ fn test_phase_a_exports_transparent_height_normal_and_palette() {
                 0.,
             )),
         ]);
-        let col = read_kind(&color_rig, crate::gpu::ExportKind::Color);
-        let trn = read_kind(&color_rig, crate::gpu::ExportKind::Transparent);
+        let col = color_rig.export(gpu::ExportKind::Color);
+        let trn = color_rig.export(gpu::ExportKind::Transparent);
         let c_px = pixel(&col, 500, 500);
         let t_px = pixel(&trn, 500, 500);
         eprintln!("{name}: Color={c_px:?}, Transparent={t_px:?}");
         let a = t_px[3] as f32 / 255.0;
-        for ch in 0..3 {
-            let over_white = (t_px[ch] as f32 * a + 255.0 * (1.0 - a)).round() as i32;
-            let diff = (c_px[ch] as i32 - over_white).abs();
+        for (expected, foreground) in linear_rgb(c_px).into_iter().zip(linear_rgb(t_px)) {
+            let over_white = foreground * a + 1.0 - a;
             assert!(
-                diff <= 20,
-                "{name} channel {ch} over-white drifted: Color={c_px:?}, Transparent={t_px:?}, OverWhite={over_white}"
+                (expected - over_white).abs() < 0.012,
+                "{name} over-white drifted: Color={c_px:?}, Transparent={t_px:?}"
             );
         }
-        assert!(
-            t_px[3] >= 200,
-            "{name} dab center should have strong opacity: {t_px:?}"
-        );
     }
 
     // 2. Height map export: painted center is higher than bare canvas and grayscale
-    let height = read_kind(&rig, crate::gpu::ExportKind::Height);
+    let height = rig.export(gpu::ExportKind::Height);
     let bare_h = pixel(&height, 10, 10);
     let center_h = pixel(&height, 500, 500);
     assert_eq!(bare_h[0], bare_h[1]);
@@ -1133,7 +1289,7 @@ fn test_phase_a_exports_transparent_height_normal_and_palette() {
     );
 
     // 3. Normal map export: slopes tilt outward around (500, 500)
-    let normal = read_kind(&rig, crate::gpu::ExportKind::Normal);
+    let normal = rig.export(gpu::ExportKind::Normal);
     let left_n = pixel(&normal, 482, 500);
     let right_n = pixel(&normal, 518, 500);
     assert!(
@@ -1142,7 +1298,7 @@ fn test_phase_a_exports_transparent_height_normal_and_palette() {
     );
 
     // 4. Verify display was restored to opaque white on bare canvas after export
-    let restored = read_kind(&rig, crate::gpu::ExportKind::Color);
+    let restored = rig.export(gpu::ExportKind::Color);
     assert_eq!(pixel(&restored, 10, 10), [255, 255, 255, 255]);
 
     // 5. Palette export (JSON and GPL)

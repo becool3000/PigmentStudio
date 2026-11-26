@@ -1,0 +1,12 @@
+Phthalo Blue simulation baseline
+
+Backend: Direct3D 12
+Adapter: AMD Radeon RX 5700 XT
+Release executable SHA-256: 4D999D923AA4A1242A31CD9ECC88B41249A64DDF1EE23EF7590F0D046F817602
+
+cargo test --locked -- --test-threads=1
+21 passed; 0 failed; 0 ignored.
+
+cargo run --release --locked -- --benchmark
+Presented 1068 paint frames from 1200 samples: p95 1.92 ms total.
+Stage p95 (ms): acquire 0.02, encode 1.13, GPU and submit 0.67, present 0.17.

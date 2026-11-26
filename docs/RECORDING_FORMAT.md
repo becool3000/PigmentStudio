@@ -49,6 +49,8 @@ Each job may specify its own `"recording"`, or inherit `"shared_recording"`. Pat
 
 ## Atelier Rack Slots (`dip_rack` `slot: 0..19`)
 
+The workbench shows Studio Essentials (slots 0–7). Slots 8–19 are reserved for existing recordings and future calibration.
+
 | `slot` | Name | Code | Opacity |
 | --- | --- | --- | --- |
 | `0` | Titanium White | PW6 | Opaque (High hiding) |

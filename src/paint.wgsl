@@ -212,16 +212,27 @@ fn srgb_to_linear(c: vec3<f32>) -> vec3<f32> {
                   c / 12.92, c <= vec3<f32>(0.04045));
 }
 
-fn paint_contrast_alpha(wet: Pigments, dry: Pigments) -> f32 {
-    let combined = add(wet, dry);
-    if (amount(combined) <= 0.00001) { return 0.0; }
-    let k2 = 0.60;
-    var y_w = 0.0;
-    var y_b = 0.0;
+fn diffuse_reflectance(r: f32) -> f32 {
+    return 0.4 * r / max(1.0 - 0.60 * r, 0.00001);
+}
+
+fn xyz_to_linear_rgb(xyz: vec3<f32>) -> vec3<f32> {
+    return clamp(vec3<f32>(
+        dot(xyz, vec3<f32>(3.2404542, -1.5371385, -0.4985314)),
+        dot(xyz, vec3<f32>(-0.969266, 1.8760108, 0.041556)),
+        dot(xyz, vec3<f32>(0.0556434, -0.2040259, 1.0572252))
+    ), vec3<f32>(0.0), vec3<f32>(1.0));
+}
+
+// The wet film follows K-M over black. For a stack with dried paint, use the
+// combined pigment as an estimate because the dry substrate stores one backing.
+fn paint_over_black(paint: Pigments) -> vec3<f32> {
+    if (amount(paint) <= 0.00001) { return vec3<f32>(0.0); }
+    var xyz = vec3<f32>(0.0);
     for (var i = 0u; i < 31u; i++) {
         let band = bands[i];
-        let k_tot = dot(combined.lo, band.k0) + dot(combined.hi, band.k1);
-        let s_tot = dot(combined.lo, band.s0) + dot(combined.hi, band.s1);
+        let k_tot = dot(paint.lo, band.k0) + dot(paint.hi, band.k1);
+        let s_tot = dot(paint.lo, band.s0) + dot(paint.hi, band.s1);
         let s_safe = max(s_tot, 0.000001);
         let r = k_tot / s_safe;
         let a = 1.0 + r;
@@ -230,21 +241,15 @@ fn paint_contrast_alpha(wet: Pigments, dry: Pigments) -> f32 {
         let u = sqrt(k_tot * (k_tot + 2.0 * s_tot));
         let e2 = exp(-2.0 * u);
 
-        let r_int_w = clamp((r_inf + e2) / max(1.0 + e2 * r_inf, 0.00001), 0.0, 1.0);
         let r_int_b = clamp((r_inf * (1.0 - e2)) / max(1.0 - e2 * r_inf * r_inf, 0.00001), 0.0, 1.0);
-
-        let rw_corr = (r_int_w * (1.0 - k2)) / max(1.0 - k2 * r_int_w, 0.00001);
-        let rb_corr = (r_int_b * (1.0 - k2)) / max(1.0 - k2 * r_int_b, 0.00001);
-
-        y_w += rw_corr * band.xyz.y;
-        y_b += rb_corr * band.xyz.y;
+        xyz += diffuse_reflectance(r_int_b) * band.xyz.xyz;
     }
-    return clamp(1.0 - (y_w - y_b), 0.0, 1.0);
+    return xyz_to_linear_rgb(xyz);
 }
 
-fn composite_display_color(wet: Pigments, at: u32, is_canvas: bool) -> vec4<f32> {
+fn composite_linear_color(wet: Pigments, at: u32, is_canvas: bool) -> vec3<f32> {
     let wet_total = amount(wet);
-    if (!is_canvas && wet_total <= 0.00001) { return vec4<f32>(1.0); }
+    if (!is_canvas && wet_total <= 0.00001) { return vec3<f32>(1.0); }
 
     var sub: DrySubstrate;
     var words: array<u32, 16>;
@@ -255,7 +260,7 @@ fn composite_display_color(wet: Pigments, at: u32, is_canvas: bool) -> vec4<f32>
             && all(sub.r1 == vec4<u32>(0xFFFFFFFFu))
             && all(sub.r2 == vec4<u32>(0xFFFFFFFFu))
             && all(sub.r3 == vec4<u32>(0xFFFFFFFFu))) {
-            return vec4<f32>(1.0);
+            return vec3<f32>(1.0);
         }
         words = array<u32, 16>(
             sub.r0.x, sub.r0.y, sub.r0.z, sub.r0.w,
@@ -265,7 +270,6 @@ fn composite_display_color(wet: Pigments, at: u32, is_canvas: bool) -> vec4<f32>
         );
     }
 
-    let k2 = 0.60;
     var xyz = vec3<f32>(0.0);
     for (var w = 0u; w < 16u; w++) {
         var r_sub2 = vec2<f32>(1.0);
@@ -296,17 +300,10 @@ fn composite_display_color(wet: Pigments, at: u32, is_canvas: bool) -> vec4<f32>
             }
 
             // Saunderson surface boundary correction (SPEX diffuse body reflectance)
-            let r_corrected = (r_int * (1.0 - k2)) / max(1.0 - k2 * r_int, 0.00001);
-
-            xyz += r_corrected * band.xyz.xyz;
+            xyz += diffuse_reflectance(r_int) * band.xyz.xyz;
         }
     }
-    let linear = clamp(vec3<f32>(
-        dot(xyz, vec3<f32>(3.2404542, -1.5371385, -0.4985314)),
-        dot(xyz, vec3<f32>(-0.969266, 1.8760108, 0.041556)),
-        dot(xyz, vec3<f32>(0.0556434, -0.2040259, 1.0572252))
-    ), vec3<f32>(0.0), vec3<f32>(1.0));
-    return vec4<f32>(srgb(linear), 1.0);
+    return xyz_to_linear_rgb(xyz);
 }
 
 @compute @workgroup_size(8, 8)
@@ -554,12 +551,13 @@ fn display(@builtin(global_invocation_id) id: vec3<u32>) {
         return;
     }
 
-    let base = composite_display_color(wet_paint, at, is_canvas);
-    var color = base.rgb;
+    var color = composite_linear_color(wet_paint, at, is_canvas);
     if (is_canvas) {
         let ink_data = ink_canvas[at];
         let ink = 1.0 - exp(-(ink_data.x + ink_data.y) * 3.8);
-        color = mix(base.rgb, vec3<f32>(0.024, 0.031, 0.048), ink);
+        let ink_color = srgb_to_linear(vec3<f32>(0.024, 0.031, 0.048));
+        var diffuse_factor = 1.0;
+        var sheen = vec3<f32>(0.0);
 
         // 3D Impasto Relief & Studio Raking Light
         if (dab.mode.y != 0u) {
@@ -574,7 +572,7 @@ fn display(@builtin(global_invocation_id) id: vec3<u32>) {
             let NdotL = dot(N, L);
             let ambient = 0.65;
             let direct = 0.45;
-            let diffuse_factor = ambient + direct * clamp(NdotL, -0.2, 1.0);
+            diffuse_factor = ambient + direct * clamp(NdotL, -0.2, 1.0);
 
             // Specular bristle sheen (Fresnel Blinn-Phong)
             let H = normalize(L + V);
@@ -599,27 +597,10 @@ fn display(@builtin(global_invocation_id) id: vec3<u32>) {
             let spec_term = pow(NdotH, shininess) * fresnel * gloss * sheen_scale;
             let light_color = vec3<f32>(1.0, 0.98, 0.95);
 
-            color = clamp(color * diffuse_factor + spec_term * light_color, vec3<f32>(0.0), vec3<f32>(1.0));
+            sheen = spec_term * light_color;
         }
-
-        if (export_mode == 1u) {
-            let dry_paint = dry_canvas[at];
-            let total_mass = amount(wet_paint) + amount(dry_paint);
-            let contrast_alpha = paint_contrast_alpha(wet_paint, dry_paint);
-            let mass_alpha = 1.0 - exp(-total_mass * 16.0);
-            let paint_alpha = max(contrast_alpha, mass_alpha);
-            let alpha = clamp(1.0 - (1.0 - paint_alpha) * (1.0 - ink), 0.0, 1.0);
-            if (alpha <= 0.0001) {
-                textureStore(output, vec2<i32>(pixel), vec4<f32>(0.0));
-                return;
-            }
-            let linear_w = srgb_to_linear(color);
-            let min_c = min(linear_w.r, min(linear_w.g, linear_w.b));
-            let white_lift = min(1.0 - alpha, min_c);
-            let linear_fg = clamp((linear_w - vec3<f32>(white_lift)) / alpha, vec3<f32>(0.0), vec3<f32>(1.0));
-            textureStore(output, vec2<i32>(pixel), vec4<f32>(srgb(linear_fg), alpha));
-            return;
-        }
+        let over_white = mix(color, ink_color, ink);
+        color = clamp(over_white * diffuse_factor + sheen, vec3<f32>(0.0), vec3<f32>(1.0));
 
         // Composite 3-layer stack: Reference -> Sketch -> Paint
         let sketch_opacity = dab.brush.w;
@@ -628,36 +609,38 @@ fn display(@builtin(global_invocation_id) id: vec3<u32>) {
         let sketch_val = select(0.0, clamp(sketch_canvas[at] * sketch_opacity, 0.0, 1.0), sketch_opacity > 0.001);
         let ref_rgba = select(vec4<f32>(0.0), unpack4x8unorm(reference_layer[at]), ref_opacity > 0.001);
         let ref_val = ref_rgba.a * ref_opacity;
-        if (ref_val > 0.001 || sketch_val > 0.001 || hide_paint) {
-            var bg = vec3<f32>(1.0);
-            if (ref_val > 0.001) {
-                bg = mix(bg, ref_rgba.rgb, ref_val);
+        if (export_mode == 1u || ref_val > 0.001 || sketch_val > 0.001 || hide_paint) {
+            let combined = add(wet_paint, dry_canvas[at]);
+            let has_paint = amount(combined) > 0.00001 || ink > 0.0001;
+            if (export_mode == 1u && !has_paint) {
+                textureStore(output, vec2<i32>(pixel), vec4<f32>(0.0));
+                return;
             }
-            if (sketch_val > 0.001) {
-                bg = mix(bg, vec3<f32>(0.11, 0.105, 0.10), sketch_val);
-            }
-            if (hide_paint) {
+            // Keep the existing reference and charcoal opacity response. Once
+            // composed, their backdrop enters the paint optics in linear RGB.
+            let reference = mix(vec3<f32>(1.0), ref_rgba.rgb, ref_val);
+            let bg = srgb_to_linear(mix(reference, vec3<f32>(0.11, 0.105, 0.10), sketch_val));
+            if (export_mode != 1u && (hide_paint || !has_paint)) {
                 color = bg;
             } else {
-                let dry_paint = dry_canvas[at];
-                let total_mass = amount(wet_paint) + amount(dry_paint);
-                let contrast_alpha = paint_contrast_alpha(wet_paint, dry_paint);
-                let mass_alpha = 1.0 - exp(-total_mass * 16.0);
-                let paint_alpha = max(contrast_alpha, mass_alpha);
-                let alpha = clamp(1.0 - (1.0 - paint_alpha) * (1.0 - ink), 0.0, 1.0);
-                if (alpha <= 0.0001) {
-                    color = bg;
-                } else {
-                    let linear_w = srgb_to_linear(color);
-                    let min_c = min(linear_w.r, min(linear_w.g, linear_w.b));
-                    let white_lift = min(1.0 - alpha, min_c);
-                    let linear_fg = clamp((linear_w - vec3<f32>(white_lift)) / alpha, vec3<f32>(0.0), vec3<f32>(1.0));
-                    color = mix(bg, srgb(linear_fg), alpha);
+                let over_black = min(mix(paint_over_black(combined), ink_color, ink), over_white);
+                let response = over_white - over_black;
+                if (export_mode == 1u) {
+                    // Preserve the white-backed appearance. A single PNG alpha
+                    // cannot transmit each channel independently or subtract light.
+                    let white_headroom = min(color.r, min(color.g, color.b));
+                    let transmission = min(dot(response, vec3<f32>(1.0 / 3.0)), white_headroom);
+                    let alpha = 1.0 - transmission;
+                    let foreground = (color - transmission) / max(alpha, 0.0001);
+                    textureStore(output, vec2<i32>(pixel), vec4<f32>(srgb(foreground), alpha));
+                    return;
                 }
+                let backed = over_black + response * bg;
+                color = clamp(backed * diffuse_factor + sheen, vec3<f32>(0.0), vec3<f32>(1.0));
             }
         }
     }
-    textureStore(output, vec2<i32>(pixel), vec4<f32>(color, 1.0));
+    textureStore(output, vec2<i32>(pixel), vec4<f32>(srgb(color), 1.0));
 }
 
 @compute @workgroup_size(4)
@@ -705,10 +688,13 @@ fn service(@builtin(local_invocation_index) lane: u32) {
 @compute @workgroup_size(4)
 fn preview(@builtin(local_invocation_index) lane: u32) {
     let paint = state.loads[lane];
-    let capacity = select(61333.3, 184000.0, lane == 0u);
-    let fill = clamp(amount(paint) / capacity, 0.0, 1.0);
-    let color = composite_display_color(scale(paint, 2.0 / max(amount(paint), 0.00001)), 0u, false);
-    textureStore(output, vec2<i32>(512 + i32(lane), 1024), vec4<f32>(color.rgb, fill));
+    let mass = amount(paint);
+    var swatch = vec4<f32>(0.0);
+    if (mass > 0.00001) {
+        // The UI shows load by the size of the painted area. Its colour sample is opaque.
+        swatch = vec4<f32>(srgb(composite_linear_color(scale(paint, 2.0 / mass), 0u, false)), 1.0);
+    }
+    textureStore(output, vec2<i32>(512 + i32(lane), 1024), swatch);
     if (lane == 0u && dab.mode.x == 2u) {
         textureStore(output, vec2<i32>(528, 1024), vec4<f32>(f32(state.placement_ok), 0.0, 0.0, 1.0));
     }

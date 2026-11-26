@@ -23,6 +23,8 @@ Status: v0.1 prototype is implemented and passes all automated tests and benchma
 - [x] Added Curator's Dossiers showing real-world valuations, pigment codes, opacities, and historical/scientific lore.
 - [x] Replaced the Paint Cabinet and equip slots with one scrollable, 20-pigment Atelier Rack. Removed Dab buttons from built-in and custom jar rows so artists place paint on the palette with the loaded brush.
 - [x] Enlarged Atelier Rack jars, names, and tap targets in a two-column layout that adapts to narrow windows.
+- [x] Redraw all six brush profiles and the built-in and custom jars. Show the active tool and layer at a glance and keep brush paint colour paired with a separate load meter.
+- [x] Correct the extra sRGB conversion in the desktop canvas and atlas previews so the displayed paint and PNG export use the same colour values.
 - [x] Integrated asynchronous procedural Win32 audio feedback (drawer slides, jar seating clacks, brass latch toggles).
 - [x] Implemented 8-channel physical Kubelka-Munk spectral curves for Genuine Vermilion / Cadmium Red (PR106/PR108) and Bone Black / Genuine Sepia (PBk9/Melanin).
 - [x] Eliminated rack jar pale pastel wash by rendering authentic crisp pigment silhouettes with glass borders.
@@ -56,6 +58,9 @@ Status: v0.1 prototype is implemented and passes all automated tests and benchma
 
 ## Upcoming feature preparation (ready for implementation)
 
+- [x] Phthalo Blue calibration phase 1. Capture and reproduce the [Studio Essentials PB15 baseline](calibration/phthalo-blue/README.md) with lit and unlit swatches, center sRGB samples, spectral anchors, and a 120 Hz benchmark.
+- [x] Phthalo Blue calibration phase 2. Apply studio lighting in linear RGB, report same-film black/white luminance hiding, and check the canvas and white-matched PNG alpha over multiple grounds.
+- [x] Limit the built-in workbench rack to Studio Essentials during calibration and retain legacy pigment slots for replay.
 - [x] Palette knife tool for crisp scraping, blending, and applying thick opaque patches.
 - [x] Robust oil brush pack (Hog-Bristle Flat, Filbert, Fan, Palette Knife, Soft Mop, Dry-brush skip, and Auto-follow stroke rotation).
 - [ ] Additional pigments / customizable palette slots (e.g. Raw Umber, Cadmium Red, Viridian).
