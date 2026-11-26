@@ -610,7 +610,7 @@ fn render_one(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn render_modes_on_gpu(
+pub(crate) fn render_modes_on_gpu(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     paint: &mut PaintGpu,
@@ -786,6 +786,195 @@ pub fn format_mode_out_path(out_path: &Path, mode_name: &str, multi: bool) -> st
     match out_path.parent() {
         Some(p) if !p.as_os_str().is_empty() => p.join(file_name),
         _ => std::path::PathBuf::from(file_name),
+    }
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct StrokeEdit {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub diameter: Option<f32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub angle_deg: Option<f32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pressure_scale: Option<f32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub brush: Option<BrushKind>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub group: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct StrokeHit {
+    pub index: usize,
+    pub id: Option<String>,
+    pub group: Option<String>,
+    pub brush: BrushKind,
+    pub bounds: [f32; 4],
+    pub sample_count: usize,
+}
+
+impl Recording {
+    pub fn ensure_stroke_ids(&mut self) -> Vec<String> {
+        let mut assigned = Vec::new();
+        let mut next_num = self.events.len();
+        let mut used: std::collections::HashSet<String> = self
+            .events
+            .iter()
+            .filter_map(|e| match e {
+                RecordedEvent::Stroke { id: Some(id), .. } => Some(id.clone()),
+                _ => None,
+            })
+            .collect();
+        for (idx, ev) in self.events.iter_mut().enumerate() {
+            if let RecordedEvent::Stroke { id, .. } = ev {
+                if id.is_none() {
+                    let mut cand = format!("s{idx}");
+                    while used.contains(&cand) {
+                        next_num += 1;
+                        cand = format!("s{next_num}");
+                    }
+                    used.insert(cand.clone());
+                    *id = Some(cand.clone());
+                    assigned.push(cand);
+                }
+            }
+        }
+        assigned
+    }
+
+    pub fn stroke_bounds(event: &RecordedEvent) -> Option<[f32; 4]> {
+        let RecordedEvent::Stroke {
+            diameter, samples, ..
+        } = event
+        else {
+            return None;
+        };
+        let r = diameter * 0.5;
+        let mut min_x = f32::INFINITY;
+        let mut min_y = f32::INFINITY;
+        let mut max_x = f32::NEG_INFINITY;
+        let mut max_y = f32::NEG_INFINITY;
+        for s in samples {
+            min_x = min_x.min(s.x - r);
+            min_y = min_y.min(s.y - r);
+            max_x = max_x.max(s.x + r);
+            max_y = max_y.max(s.y + r);
+        }
+        if !min_x.is_finite() {
+            return None;
+        }
+        Some([min_x, min_y, max_x, max_y])
+    }
+
+    pub fn strokes_at(&self, x: f32, y: f32, radius: f32) -> Vec<StrokeHit> {
+        let mut hits = Vec::new();
+        for (index, ev) in self.events.iter().enumerate() {
+            let RecordedEvent::Stroke {
+                id,
+                group,
+                brush,
+                diameter,
+                samples,
+                ..
+            } = ev
+            else {
+                continue;
+            };
+            let Some(bounds) = Self::stroke_bounds(ev) else {
+                continue;
+            };
+            let reach = diameter * 0.5 + radius;
+            let reach2 = reach * reach;
+            let touched = samples.iter().any(|s| {
+                let dx = s.x - x;
+                let dy = s.y - y;
+                dx * dx + dy * dy <= reach2
+            });
+            if touched {
+                hits.push(StrokeHit {
+                    index,
+                    id: id.clone(),
+                    group: group.clone(),
+                    brush: *brush,
+                    bounds,
+                    sample_count: samples.len(),
+                });
+            }
+        }
+        hits
+    }
+
+    fn find_stroke_index(&self, target_id: &str) -> Result<usize, String> {
+        self.events
+            .iter()
+            .position(
+                |ev| matches!(ev, RecordedEvent::Stroke { id: Some(id), .. } if id == target_id),
+            )
+            .ok_or_else(|| format!("Stroke id '{target_id}' not found."))
+    }
+
+    pub fn move_stroke(&mut self, target_id: &str, dx: f32, dy: f32) -> Result<usize, String> {
+        let idx = self.find_stroke_index(target_id)?;
+        if let RecordedEvent::Stroke { samples, .. } = &mut self.events[idx] {
+            for s in samples {
+                s.x += dx;
+                s.y += dy;
+            }
+        }
+        Ok(idx)
+    }
+
+    pub fn edit_stroke(&mut self, target_id: &str, edit: &StrokeEdit) -> Result<usize, String> {
+        let idx = self.find_stroke_index(target_id)?;
+        if let RecordedEvent::Stroke {
+            diameter,
+            angle_deg,
+            brush,
+            group,
+            samples,
+            ..
+        } = &mut self.events[idx]
+        {
+            if let Some(d) = edit.diameter {
+                *diameter = d.max(1.0);
+            }
+            if let Some(a) = edit.angle_deg {
+                *angle_deg = a;
+            }
+            if let Some(b) = edit.brush {
+                *brush = b;
+            }
+            if let Some(ref g) = edit.group {
+                *group = Some(g.clone());
+            }
+            if let Some(ps) = edit.pressure_scale {
+                for s in samples {
+                    s.pressure = (s.pressure * ps).clamp(0.0, 1.0);
+                }
+            }
+        }
+        Ok(idx)
+    }
+
+    pub fn delete_stroke(&mut self, target_id: &str) -> Result<usize, String> {
+        let idx = self.find_stroke_index(target_id)?;
+        self.events.remove(idx);
+        Ok(idx)
+    }
+
+    pub fn reorder_stroke(
+        &mut self,
+        target_id: &str,
+        before_id: Option<&str>,
+    ) -> Result<usize, String> {
+        let old_idx = self.find_stroke_index(target_id)?;
+        let ev = self.events.remove(old_idx);
+        let new_idx = match before_id {
+            Some(bid) => self.find_stroke_index(bid).unwrap_or(self.events.len()),
+            None => self.events.len(),
+        };
+        self.events.insert(new_idx, ev);
+        Ok(old_idx.min(new_idx))
     }
 }
 

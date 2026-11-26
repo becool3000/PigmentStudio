@@ -3881,3 +3881,133 @@ fn test_slice1_ergonomic_recording_multimode_normal_gl_and_palette() {
         .unwrap()
         .starts_with("GIMP Palette"));
 }
+
+#[test]
+fn test_slice2_serve_tier_a_editing_checkpoints_and_inspection() {
+    use crate::recording::{BrushKind, RecordedEvent, RecordedSample, ServiceAction, SurfaceKind};
+    use crate::serve::{ServeRequest, ServeSession};
+
+    let mut session = ServeSession::new().unwrap();
+    let ping = session.handle_request(ServeRequest::Ping);
+    assert!(ping.ok);
+
+    // 1. Apply initial events (assigns stroke IDs and paints red at (300, 500))
+    let apply_resp = session.handle_request(ServeRequest::Apply {
+        events: vec![
+            RecordedEvent::Service {
+                brush: BrushKind::Round,
+                action: ServiceAction::DipRack {
+                    slot: 2,
+                    lane: None,
+                    clean: true,
+                },
+                legacy_reservoir: false,
+            },
+            RecordedEvent::Stroke {
+                id: Some("red_dab".into()),
+                group: Some("base".into()),
+                legacy_reservoir: false,
+                surface: SurfaceKind::Canvas,
+                brush: BrushKind::Round,
+                ink: false,
+                charcoal: false,
+                erase: false,
+                diameter: 64.0,
+                angle_deg: 0.0,
+                auto_follow: false,
+                knife_sweep: false,
+                bristle_sweep: false,
+                filbert_sweep: false,
+                fan_sweep: false,
+                round_pressure: false,
+                tile: Some(false),
+                samples: vec![RecordedSample {
+                    x: 300.0,
+                    y: 500.0,
+                    pressure: 1.0,
+                    timestamp_ms: 0,
+                    angle_deg: None,
+                }],
+            },
+        ],
+    });
+    assert!(apply_resp.ok, "{:?}", apply_resp.error);
+
+    // 2. Spatial query & inspection
+    let hits = session.handle_request(ServeRequest::StrokesAt {
+        x: 300.0,
+        y: 500.0,
+        radius: 10.0,
+    });
+    assert_eq!(hits.data.unwrap()["hits"].as_array().unwrap().len(), 1);
+
+    let px_red = session.handle_request(ServeRequest::InspectPixel { x: 300, y: 500 });
+    let srgb = px_red.data.unwrap()["srgb"].as_array().unwrap().clone();
+    assert!(srgb[0].as_u64().unwrap() > 200 && srgb[2].as_u64().unwrap() < 40);
+
+    let brush_st = session.handle_request(ServeRequest::BrushState {
+        brush: Some(BrushKind::Round),
+    });
+    assert!(
+        brush_st.data.unwrap()["brushes"][0]["load"]
+            .as_f64()
+            .unwrap()
+            > 0.0
+    );
+
+    // 3. Move stroke from (300, 500) -> (600, 500) via checkpointed replay
+    let mv = session.handle_request(ServeRequest::MoveStroke {
+        id: "red_dab".into(),
+        dx: 300.0,
+        dy: 0.0,
+    });
+    assert!(mv.ok, "{:?}", mv.error);
+
+    let px_old = session.handle_request(ServeRequest::InspectPixel { x: 300, y: 500 });
+    assert_eq!(
+        px_old.data.unwrap()["srgb"].as_array().unwrap()[0]
+            .as_u64()
+            .unwrap(),
+        255
+    );
+    let px_new = session.handle_request(ServeRequest::InspectPixel { x: 600, y: 500 });
+    let new_srgb = px_new.data.unwrap()["srgb"].as_array().unwrap().clone();
+    assert!(new_srgb[0].as_u64().unwrap() > 200 && new_srgb[2].as_u64().unwrap() < 40);
+
+    // 4. Inspect region & multi-mode render from live ServeSession
+    let reg = session.handle_request(ServeRequest::InspectRegion {
+        x: 560,
+        y: 460,
+        w: 80,
+        h: 80,
+    });
+    assert!(
+        reg.data.unwrap()["coverage_pct"].as_f64().unwrap() > 20.0,
+        "moved stroke region should have paint coverage"
+    );
+
+    let dir = tempfile::tempdir().unwrap();
+    let out_tmpl = dir.path().join("serve_{mode}.png");
+    let rnd = session.handle_request(ServeRequest::Render {
+        out: out_tmpl.display().to_string(),
+        mode: Some("color,normal".into()),
+        smooth_height: true,
+        normal_convention: Some("gl".into()),
+    });
+    assert!(rnd.ok, "{:?}", rnd.error);
+    assert!(dir.path().join("serve_color.png").exists());
+    assert!(dir.path().join("serve_normal.png").exists());
+
+    // 5. Delete stroke -> canvas returns to white
+    let del = session.handle_request(ServeRequest::DeleteStroke {
+        id: "red_dab".into(),
+    });
+    assert!(del.ok);
+    let px_cleared = session.handle_request(ServeRequest::InspectPixel { x: 600, y: 500 });
+    assert_eq!(
+        px_cleared.data.unwrap()["srgb"].as_array().unwrap()[2]
+            .as_u64()
+            .unwrap(),
+        255
+    );
+}

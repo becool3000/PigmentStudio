@@ -9,6 +9,7 @@ mod pen;
 mod pigment;
 mod project;
 mod recording;
+mod serve;
 mod stroke;
 mod window_placement;
 mod workbench;
@@ -67,6 +68,7 @@ fn main() -> std::process::ExitCode {
             || arg == "--render"
             || arg == "--batch"
             || arg == "--export-palette"
+            || arg == "--serve"
     });
     #[cfg(windows)]
     if is_cli {
@@ -214,6 +216,14 @@ fn main() -> std::process::ExitCode {
                 return std::process::ExitCode::FAILURE;
             }
         }
+    }
+
+    if args.iter().any(|arg| arg == "--serve") {
+        if let Err(err) = serve::run_stdio() {
+            eprintln!("Serve failed: {err}");
+            return std::process::ExitCode::FAILURE;
+        }
+        return std::process::ExitCode::SUCCESS;
     }
 
     if let Some(pos) = args.iter().position(|arg| arg == "--batch") {

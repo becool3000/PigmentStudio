@@ -19,6 +19,24 @@ pigment-studio-ink.exe --export-palette palette.json
 pigment-studio-ink.exe --export-palette palette.gpl
 ```
 
+### Persistent Agent Daemon (`--serve`, JSON-RPC over stdin/stdout)
+Keeps one Direct3D 12 `PaintGpu` instance and GPU checkpoints warm in memory for sub-50 ms iterative editing and inspection:
+```powershell
+pigment-studio-ink.exe --serve
+```
+Send one JSON object per line on `stdin` and read one JSON response per line on `stdout`:
+* `{"op": "ping"}`
+* `{"op": "load_recording", "path": "strokes.json"}` (or `"recording": { ... }`)
+* `{"op": "save_recording", "path": "strokes.json"}`
+* `{"op": "apply", "events": [ ... ]}` (appends events incrementally and assigns missing stroke `id`s)
+* `{"op": "move_stroke", "id": "s1", "dx": 40.0, "dy": -20.0}`
+* `{"op": "edit_stroke", "id": "s1", "diameter": 64.0, "angle_deg": 45.0, "pressure_scale": 0.8}`
+* `{"op": "delete_stroke", "id": "s1"}` / `{"op": "reorder_stroke", "id": "s1", "before_id": "s0"}`
+* `{"op": "strokes_at", "x": 500.0, "y": 500.0, "radius": 24.0}`
+* `{"op": "inspect_pixel", "x": 500, "y": 500}` / `{"op": "inspect_region", "x": 400, "y": 400, "w": 128, "h": 128}`
+* `{"op": "brush_state", "brush": "round"}`
+* `{"op": "render", "out": "out_{mode}.png", "mode": "color,normal", "normal_convention": "gl", "smooth_height": true}`
+
 ### Ergonomic Agent Events (`v2`)
 * `dip_rack` accepts `"clean": true` to wipe the brush clean before dipping.
 * `set_mix` loads a custom 8-channel recipe onto a brush in one event:

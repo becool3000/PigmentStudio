@@ -1386,6 +1386,58 @@ impl PaintGpu {
         buffer
     }
 
+    pub fn readback_project_bytes(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+    ) -> Result<Vec<u8>, String> {
+        let mut encoder = device.create_command_encoder(&Default::default());
+        let buffer = self.readback_project(device, &mut encoder);
+        queue.submit([encoder.finish()]);
+        let (tx, rx) = mpsc::channel();
+        buffer.slice(..).map_async(wgpu::MapMode::Read, move |r| {
+            let _ = tx.send(r);
+        });
+        let _ = device.poll(wgpu::Maintain::Wait);
+        rx.recv()
+            .map_err(|e| e.to_string())?
+            .map_err(|e| format!("Could not read project checkpoint: {e}"))?;
+        let out = buffer.slice(..).get_mapped_range().to_vec();
+        buffer.unmap();
+        Ok(out)
+    }
+
+    pub fn readback_rgba_bytes(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        kind: ExportKind,
+    ) -> Result<Vec<u8>, String> {
+        let mut encoder = device.create_command_encoder(&Default::default());
+        let buffer = self.readback_kind(device, queue, &mut encoder, kind);
+        queue.submit([encoder.finish()]);
+        let (tx, rx) = mpsc::channel();
+        buffer.slice(..).map_async(wgpu::MapMode::Read, move |r| {
+            let _ = tx.send(r);
+        });
+        let _ = device.poll(wgpu::Maintain::Wait);
+        rx.recv()
+            .map_err(|e| e.to_string())?
+            .map_err(|e| format!("Could not read image buffer: {e}"))?;
+        let data = buffer.slice(..).get_mapped_range();
+        let row_bytes = SIDE as usize * 4;
+        let align = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT as usize;
+        let padded = row_bytes.div_ceil(align) * align;
+        let mut out = vec![0u8; row_bytes * SIDE as usize];
+        for y in 0..SIDE as usize {
+            out[y * row_bytes..(y + 1) * row_bytes]
+                .copy_from_slice(&data[y * padded..y * padded + row_bytes]);
+        }
+        drop(data);
+        buffer.unmap();
+        Ok(out)
+    }
+
     #[cfg(test)]
     pub fn inspect(
         &self,
