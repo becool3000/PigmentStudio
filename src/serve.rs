@@ -8,12 +8,13 @@ use std::io::{BufRead, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-const CHECKPOINT_STRIDE: usize = 32;
+const CHECKPOINT_STRIDE: usize = 64;
+const MAX_CHECKPOINTS: usize = 8;
 
 struct Checkpoint {
     event_index: usize,
     tile_state: bool,
-    bytes: Arc<Vec<u8>>,
+    compressed: Vec<u8>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -196,10 +197,15 @@ impl ServeSession {
         let bytes = self
             .paint
             .readback_project_bytes(&self.device, &self.queue)?;
+        let compressed = crate::project::rle_encode_u32(&bytes);
+        if self.checkpoints.len() >= MAX_CHECKPOINTS && self.checkpoints.len() > 2 {
+            // Keep index 0 (initial state) and drop the oldest middle checkpoint.
+            self.checkpoints.remove(1);
+        }
         self.checkpoints.push(Checkpoint {
             event_index,
             tile_state: self.tile_state,
-            bytes: Arc::new(bytes),
+            compressed,
         });
         Ok(())
     }
@@ -212,9 +218,12 @@ impl ServeSession {
         if let Some(pos) = ckpt_pos {
             let ckpt_idx = self.checkpoints[pos].event_index;
             let tile = self.checkpoints[pos].tile_state;
-            let bytes = self.checkpoints[pos].bytes.clone();
+            let raw = crate::project::rle_decode_u32(
+                &self.checkpoints[pos].compressed,
+                crate::gpu::PROJECT_BYTES as usize,
+            )?;
             self.checkpoints.truncate(pos + 1);
-            self.submit_commands(&[Command::LoadProject(bytes)]);
+            self.submit_commands(&[Command::LoadProject(Arc::new(raw))]);
             self.tile_state = tile;
             self.paint.tile = tile;
             self.applied_len = ckpt_idx;

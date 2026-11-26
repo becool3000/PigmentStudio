@@ -144,7 +144,7 @@ fn reservoir_loads(gpu_bytes: &[u8]) -> [f32; BRUSH_COUNT] {
 /// PackBits-style RLE over 32-bit words:
 /// `header > 0`: repeat next `u32` `header` times.
 /// `header < 0`: copy next `-header` literal `u32` words.
-fn rle_encode_u32(bytes: &[u8]) -> Vec<u8> {
+pub(crate) fn rle_encode_u32(bytes: &[u8]) -> Vec<u8> {
     assert_eq!(bytes.len() % 4, 0);
     let words: Vec<u32> = bytes
         .chunks_exact(4)
@@ -180,7 +180,7 @@ fn rle_encode_u32(bytes: &[u8]) -> Vec<u8> {
     out
 }
 
-fn rle_decode_u32(encoded: &[u8], expected_bytes: usize) -> Result<Vec<u8>, String> {
+pub(crate) fn rle_decode_u32(encoded: &[u8], expected_bytes: usize) -> Result<Vec<u8>, String> {
     if !expected_bytes.is_multiple_of(4) {
         return Err("Invalid expected project size.".into());
     }
