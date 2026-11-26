@@ -148,8 +148,8 @@ pub const PIGMENTS: &[PigmentDef] = &[
         rgb: [30, 32, 36],
         lore: "The classic oil painter's black since prehistory. Produced by charring animal bones in oxygen-deprived retorts. Characterized by a soft, velvety cool blue undertone.",
         recipe: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
-        absorption: [4.0, 4.2, 4.4, 4.5, 4.8, 5.0, 5.2],
-        scattering: [0.32, 0.32, 0.30, 0.30, 0.30, 0.28, 0.28],
+        absorption: [7.56, 7.5, 8.0, 8.5, 9.0, 9.785, 10.485],
+        scattering: [0.224, 0.22, 0.194, 0.2, 0.196, 0.131, 0.193],
     },
 
     // ─── NATURAL & HISTORIC ─────────────────────────────────

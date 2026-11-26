@@ -51,7 +51,7 @@ const ABSORPTION: [[f32; 7]; 8] = [
     [0.051, 0.081, 0.611, 2.832, 4.587, 1.51, 0.556],  // 4: Ultramarine blue (PB29 calibrated)
     [4.872, 5.67, 3.055, 1.6, 0.445, 0.187, 0.126],    // 5: Burnt sienna (PBr7 calibrated)
     [13.589, 31.068, 18.698, 14.0, 0.041, 0.006, 0.003], // 6: Cadmium Red Medium (PR108 calibrated)
-    [22.0, 22.0, 22.0, 22.0, 22.0, 21.5, 21.0],        // 7: Bone Black / Genuine Sepia (PBk9)
+    [7.56, 7.5, 8.0, 8.5, 9.0, 9.785, 10.485],         // 7: Bone Black (PBk9 calibrated)
 ];
 const SCATTERING: [[f32; 7]; 8] = [
     [0.466, 0.427, 0.64, 0.833, 0.639, 0.765, 0.71], // 0: Hansa yellow (PY3 calibrated)
@@ -61,7 +61,7 @@ const SCATTERING: [[f32; 7]; 8] = [
     [0.962, 1.037, 0.943, 0.848, 0.725, 0.823, 0.954], // 4: Ultramarine blue (PB29 calibrated)
     [0.433, 0.758, 0.653, 0.796, 0.682, 0.741, 1.066], // 5: Burnt sienna (PBr7 calibrated)
     [0.4, 0.901, 0.829, 1.62, 2.833, 3.24, 3.089],   // 6: Cadmium Red Medium (PR108 calibrated)
-    [0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3],             // 7: Bone Black / Genuine Sepia
+    [0.224, 0.22, 0.194, 0.2, 0.196, 0.131, 0.193],  // 7: Bone Black (PBk9 calibrated)
 ];
 
 pub fn spectrum() -> [[[f32; 4]; 5]; 31] {

@@ -2864,3 +2864,116 @@ fn test_phase_6_burnt_sienna_pbr7_calibration_and_cpu_gpu_parity() {
         );
     }
 }
+
+#[test]
+fn test_phase_6_bone_black_pbk9_calibration_and_cpu_gpu_parity() {
+    const {
+        assert!(crate::project::CURRENT_CALIBRATION_VERSION >= 9);
+    }
+
+    let mut rig = Rig::new();
+    rig.paint.lighting.enabled = false;
+
+    // 1. Thick PBk9 masstone (velvety cool charcoal-black)
+    let mut mast_cmds = vec![Command::Initialize];
+    for _ in 0..4 {
+        mast_cmds.push(Command::Service(Brush::Round, BrushService::Load(7)));
+        for _ in 0..3 {
+            mast_cmds.push(Command::Dab(Dab::new(
+                egui::pos2(160.0, 160.0),
+                56.0,
+                1.0,
+                Surface::Canvas,
+                Brush::Round,
+                0.0,
+            )));
+        }
+    }
+    let mast_img = rig.canvas(&mast_cmds);
+    let mast_diag = rig
+        .paint
+        .sample_diagnostics(&rig.device, &rig.queue, 160, 160);
+    let mast_cpu = crate::pigment::rgb_composite(mast_diag.wet_channels, mast_diag.dry_channels);
+    let mast_gpu = pixel(&mast_img, 160, 160);
+    assert!(
+        mast_gpu[0] < 60 && mast_gpu[1] < 65 && mast_gpu[2] < 70 && mast_gpu[2] >= mast_gpu[0],
+        "PBk9 masstone should be dark cool black: {mast_gpu:?}"
+    );
+    for ch in 0..3 {
+        assert!(
+            mast_cpu[ch].abs_diff(mast_gpu[ch]) <= 2,
+            "PBk9 masstone CPU/GPU mismatch ch {ch}: cpu={} gpu={}",
+            mast_cpu[ch],
+            mast_gpu[ch]
+        );
+    }
+
+    // 2. PBk9 + PW6 cool neutral gray tint
+    let gray_img = rig.canvas(&[
+        Command::Initialize,
+        Command::Service(Brush::Round, BrushService::Load(3)),
+        Command::Service(Brush::Round, BrushService::Load(3)),
+        Command::Service(Brush::Round, BrushService::Load(3)),
+        Command::Service(Brush::Round, BrushService::Load(7)),
+        Command::Dab(Dab::new(
+            egui::pos2(320.0, 160.0),
+            56.0,
+            1.0,
+            Surface::Canvas,
+            Brush::Round,
+            0.0,
+        )),
+    ]);
+    let gray_diag = rig
+        .paint
+        .sample_diagnostics(&rig.device, &rig.queue, 320, 160);
+    let gray_cpu = crate::pigment::rgb_composite(gray_diag.wet_channels, gray_diag.dry_channels);
+    let gray_gpu = pixel(&gray_img, 320, 160);
+    let spread = gray_gpu[0].max(gray_gpu[1]).max(gray_gpu[2])
+        - gray_gpu[0].min(gray_gpu[1]).min(gray_gpu[2]);
+    assert!(
+        spread <= 15 && gray_gpu[0] > 140,
+        "PBk9 + PW6 tint should be neutral mid-light gray (spread={spread}): {gray_gpu:?}"
+    );
+    for ch in 0..3 {
+        assert!(
+            gray_cpu[ch].abs_diff(gray_gpu[ch]) <= 2,
+            "PBk9 + PW6 gray CPU/GPU mismatch ch {ch}: cpu={} gpu={}",
+            gray_cpu[ch],
+            gray_gpu[ch]
+        );
+    }
+
+    // 3. PBk9 + PY3 muted olive green mix
+    let olive_img = rig.canvas(&[
+        Command::Initialize,
+        Command::Service(Brush::Round, BrushService::Load(0)),
+        Command::Service(Brush::Round, BrushService::Load(0)),
+        Command::Service(Brush::Round, BrushService::Load(7)),
+        Command::Dab(Dab::new(
+            egui::pos2(480.0, 160.0),
+            56.0,
+            1.0,
+            Surface::Canvas,
+            Brush::Round,
+            0.0,
+        )),
+    ]);
+    let olive_diag = rig
+        .paint
+        .sample_diagnostics(&rig.device, &rig.queue, 480, 160);
+    let olive_cpu = crate::pigment::rgb_composite(olive_diag.wet_channels, olive_diag.dry_channels);
+    let olive_gpu = pixel(&olive_img, 480, 160);
+    assert!(
+        olive_gpu[1] >= olive_gpu[0] && olive_gpu[1] > olive_gpu[2],
+        "PBk9 + PY3 mix should be olive green (G >= R, G > B): {olive_gpu:?}"
+    );
+    for ch in 0..3 {
+        assert!(
+            olive_cpu[ch].abs_diff(olive_gpu[ch]) <= 2,
+            "PBk9 + PY3 olive CPU/GPU mismatch ch {ch}: cpu={} gpu={}",
+            olive_cpu[ch],
+            olive_gpu[ch]
+        );
+    }
+}

@@ -1,0 +1,78 @@
+{
+  "source": "Published PBk9 (charred animal bone carbon / calcium phosphate) diffuse reflectance characteristics and Gamblin Artists' Oil Bone Black masstone/undertone/tinting specifications (proxy for Phase 3 spectrophotometer dataset).",
+  "wavelengths_nm": [400, 450, 500, 550, 600, 650, 700],
+  "target_masstone_spectrum_7": [0.006, 0.0057, 0.0052, 0.0046, 0.0041, 0.0037, 0.0034],
+  "target_thin_glaze_white_7": [0.0161, 0.0139, 0.0119, 0.0099, 0.0078, 0.0068, 0.0062],
+  "fit_cases": [
+    {
+      "name": "Thick masstone on white (8 wet dabs)",
+      "pbk9": 2.0,
+      "pw6": 0.0,
+      "py3": 0.0,
+      "ground": 1.0,
+      "target_lab": [4.1, -0.4, -1.6]
+    },
+    {
+      "name": "Thin glaze on white (1 wet dab)",
+      "pbk9": 0.25,
+      "pw6": 0.0,
+      "py3": 0.0,
+      "ground": 1.0,
+      "target_lab": [8.7, -1.2, -5.3]
+    },
+    {
+      "name": "20% PBk9 + 80% PW6 cool gray tint",
+      "pbk9": 0.30,
+      "pw6": 1.20,
+      "py3": 0.0,
+      "ground": 1.0,
+      "target_lab": [73.3, -2.6, -0.2]
+    },
+    {
+      "name": "Olive green mix (20% PBk9 + 80% PY3)",
+      "pbk9": 0.30,
+      "pw6": 0.0,
+      "py3": 1.20,
+      "ground": 1.0,
+      "target_lab": [28.3, -9.2, 25.2]
+    }
+  ],
+  "held_out_cases": [
+    {
+      "name": "Thin film on black (1 wet dab)",
+      "pbk9": 0.25,
+      "pw6": 0.0,
+      "py3": 0.0,
+      "ground": 0.0,
+      "target_lab": [4.1, -0.4, -1.5]
+    },
+    {
+      "name": "5% PBk9 + 95% PW6 pale gray tint",
+      "pbk9": 0.075,
+      "pw6": 1.425,
+      "py3": 0.0,
+      "ground": 1.0,
+      "target_lab": [85.5, -1.7, 0.0]
+    },
+    {
+      "name": "40% PBk9 + 60% PW6 mid gray tint",
+      "pbk9": 0.60,
+      "pw6": 0.90,
+      "py3": 0.0,
+      "ground": 1.0,
+      "target_lab": [62.8, -3.1, -0.3]
+    },
+    {
+      "name": "Deep olive mix (40% PBk9 + 60% PY3)",
+      "pbk9": 0.60,
+      "pw6": 0.0,
+      "py3": 0.90,
+      "ground": 1.0,
+      "target_lab": [18.5, -6.8, 13.2]
+    }
+  ],
+  "hiding_power_check": {
+    "thin_glaze_mass": 0.25,
+    "target_min_hiding_ratio_pct": 35.0
+  }
+}
