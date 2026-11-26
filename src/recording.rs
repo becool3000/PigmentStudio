@@ -177,6 +177,8 @@ pub enum RecordedEvent {
         knife_sweep: bool,
         #[serde(default)]
         bristle_sweep: bool,
+        #[serde(default)]
+        round_pressure: bool,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         tile: Option<bool>,
         samples: Vec<RecordedSample>,
@@ -358,6 +360,7 @@ pub fn compile_events_in(
                 auto_follow,
                 knife_sweep,
                 bristle_sweep,
+                round_pressure,
                 tile,
                 samples,
             } => {
@@ -400,7 +403,8 @@ pub fn compile_events_in(
                         1.0,
                         stroke_tile,
                         (*brush == BrushKind::PaletteKnife && *knife_sweep)
-                            || (*brush == BrushKind::Flat && *bristle_sweep),
+                            || (*brush == BrushKind::Flat && *bristle_sweep)
+                            || (*brush == BrushKind::Round && *round_pressure),
                         &mut commands,
                     )
                 };

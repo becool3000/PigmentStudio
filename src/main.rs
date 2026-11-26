@@ -1150,7 +1150,7 @@ impl Studio {
                     self.auto_follow && surface == Surface::Canvas,
                     load_ratio,
                     self.paint.tile,
-                    matches!(self.brush, Brush::PaletteKnife | Brush::Flat),
+                    matches!(self.brush, Brush::Round | Brush::PaletteKnife | Brush::Flat),
                     &mut self.commands,
                 )
             },
@@ -1230,6 +1230,7 @@ impl Studio {
                 && (stroke.ink_is_held() || (self.ink_selected && surface == Surface::Canvas));
             let auto_follow = stroke.follows_path();
             let swept = stroke.sweeps_contact();
+            let round_pressure = stroke.has_round_pressure();
             stroke.finish(&mut self.commands);
             if !self.active_stroke_samples.is_empty() {
                 let samples = std::mem::take(&mut self.active_stroke_samples);
@@ -1249,6 +1250,7 @@ impl Studio {
                     auto_follow,
                     knife_sweep: swept && self.brush == Brush::PaletteKnife,
                     bristle_sweep: swept && self.brush == Brush::Flat,
+                    round_pressure,
                     tile: Some(self.paint.tile && surface == Surface::Canvas),
                     samples,
                 });

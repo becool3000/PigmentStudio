@@ -70,6 +70,8 @@ Status: v0.1 prototype is implemented and passes all automated tests and benchma
 - [x] Robust oil brush pack (Hog-Bristle Flat, Filbert, Fan, Palette Knife, Soft Mop, Dry-brush skip, and Auto-follow stroke rotation).
 - [x] Add split jar dips and swept hog-bristle flat contact with pressure-dependent bundle breakup.
 - [ ] Validate flat-brush split loading, pressure, and lift with a physical tablet at 100% and 150% Windows DPI scaling.
+- [x] Give Round a finer light-pressure tip and continuous paint transfer through pressure ramps.
+- [ ] Validate Round touchdown, broad strokes, and lift with a physical tablet at 100% and 150% Windows DPI scaling.
 - [ ] Additional pigments / customizable palette slots (e.g. Raw Umber, Cadmium Red, Viridian).
 - [x] Project persistence / session save-and-load (saving canvas, palette state, and swatches to disk).
 

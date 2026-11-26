@@ -1513,6 +1513,7 @@ fn test_phase_c_recording_headless_and_deep_undo() {
                 auto_follow: false,
                 knife_sweep: false,
                 bristle_sweep: false,
+                round_pressure: false,
                 tile: Some(false),
                 samples: vec![
                     RecordedSample {
@@ -1580,6 +1581,7 @@ fn test_phase_c_recording_headless_and_deep_undo() {
             auto_follow: false,
             knife_sweep: false,
             bristle_sweep: false,
+            round_pressure: false,
             tile: Some(false),
             samples: vec![RecordedSample {
                 x,
@@ -2153,6 +2155,86 @@ fn dx12_brush_reservoirs_are_independent_and_clean_is_local() {
 }
 
 #[test]
+fn dx12_round_pressure_ramp_and_wet_transfer() {
+    let mut rig = Rig::new();
+    let recording = Recording::parse(
+        r#"{"format":"pigment-studio-recording-v2","events":[
+            {"type":"stroke","surface":"canvas","brush":"round","round_pressure":true,"diameter":64,
+             "samples":[
+                {"x":105,"y":300,"pressure":0.06},
+                {"x":175,"y":300,"pressure":0.06},
+                {"x":255,"y":300,"pressure":0.37},
+                {"x":375,"y":300,"pressure":0.88},
+                {"x":600,"y":300,"pressure":0.88},
+                {"x":720,"y":300,"pressure":0.35},
+                {"x":835,"y":300,"pressure":0.06},
+                {"x":895,"y":300,"pressure":0.06}
+             ]},
+            {"type":"stroke","surface":"canvas","brush":"round","round_pressure":true,"diameter":48,
+             "samples":[
+                {"x":472,"y":600,"pressure":0.86},
+                {"x":523,"y":607,"pressure":0.9},
+                {"x":555,"y":617,"pressure":0.77},
+                {"x":578,"y":626,"pressure":0.23}
+             ]}
+        ]}"#,
+    )
+    .unwrap();
+
+    let mut commands = vec![Command::Service(Brush::Round, BrushService::Dip(0))];
+    commands.extend(recording::compile_events(
+        &recording.events[..1],
+        &mut false,
+    ));
+    let (ramp, _) = rig.state(&commands);
+    let mass = |x, y| paint_at(&ramp, x, y)[0];
+    let width = |x| (262..338).filter(|y| mass(x, *y) > 0.012).count();
+    let (light, medium, firm, lift) = (width(140), width(255), width(480), width(860));
+    assert!(light > 1 && light < medium && medium < firm && lift.abs_diff(light) <= 2);
+    assert!(
+        (110..889).all(|x| mass(x, 300) > 0.012),
+        "pressure ramp has a gap"
+    );
+    let plateau = (400..550).map(|x| mass(x, 300));
+    let min = plateau.clone().fold(f32::INFINITY, f32::min);
+    let max = plateau.fold(0.0, f32::max);
+    assert!(
+        max - min < 0.015,
+        "periodic bands across firm contact: {min}..{max}"
+    );
+
+    let (before, loads_before) = rig.state(&[
+        mark(490., 600., Surface::Canvas, Brush::Round),
+        Command::Service(Brush::Round, BrushService::Wipe(0.0)),
+        Command::Service(Brush::Round, BrushService::Dip(1)),
+        mark(520., 602., Surface::Canvas, Brush::Round),
+        Command::Service(Brush::Round, BrushService::Wipe(0.0)),
+    ]);
+    let (after, loads_after) = rig.state(&recording::compile_events(
+        &recording.events[1..],
+        &mut false,
+    ));
+    let mixed = (550..573).any(|x| {
+        let origin = paint_at(&before, x, 617);
+        let paint = paint_at(&after, x, 617);
+        origin[0] + origin[1] == 0.0 && paint[0] > 0.002 && paint[1] > 0.002
+    });
+    assert!(
+        mixed,
+        "the round should carry yellow and blue beyond the source marks"
+    );
+    for (a, b) in totals(&before, &loads_before)
+        .into_iter()
+        .zip(totals(&after, &loads_after))
+    {
+        assert!(
+            (a - b).abs() < 0.001 * a.max(1.0),
+            "paint mass changed: {a} -> {b}"
+        );
+    }
+}
+
+#[test]
 fn test_phase_e_underlayer_and_batch_rendering() {
     use crate::recording::{
         render_batch, render_headless, BatchJob, BatchManifest, BrushKind, RecordedEvent,
@@ -2197,6 +2279,7 @@ fn test_phase_e_underlayer_and_batch_rendering() {
                 auto_follow: false,
                 knife_sweep: false,
                 bristle_sweep: false,
+                round_pressure: false,
                 tile: Some(false),
                 samples: vec![RecordedSample {
                     x: 500.0,
@@ -3366,6 +3449,7 @@ fn test_v030_edge_hairline_smooth_height_and_set_tile() {
             auto_follow: false,
             knife_sweep: false,
             bristle_sweep: false,
+            round_pressure: false,
             tile: None,
             samples: vec![RecordedSample {
                 x: 4.0,
@@ -3388,6 +3472,7 @@ fn test_v030_edge_hairline_smooth_height_and_set_tile() {
             auto_follow: false,
             knife_sweep: false,
             bristle_sweep: false,
+            round_pressure: false,
             tile: None,
             samples: vec![RecordedSample {
                 x: 4.0,

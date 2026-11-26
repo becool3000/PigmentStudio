@@ -298,8 +298,8 @@ impl Dab {
         dab
     }
 
-    pub fn soften_knife_travel_edge(&mut self) {
-        self.axis[3] = 1.0;
+    pub fn set_refined_tip(&mut self, weight: f32) {
+        self.axis[3] = weight;
     }
 
     pub fn charcoal(

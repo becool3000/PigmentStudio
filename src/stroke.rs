@@ -28,6 +28,7 @@ pub struct Stroke {
     auto_angle: bool,
     pending_first_dab: bool,
     continuous_knife: bool,
+    round_pressure: bool,
     sweep: bool,
     swept: bool,
     load_ratio: f32,
@@ -80,7 +81,7 @@ impl Stroke {
         auto_angle: bool,
         load_ratio: f32,
         tile: bool,
-        sweep: bool,
+        refined: bool,
         commands: &mut Vec<Command>,
     ) -> Self {
         let stroke = Self {
@@ -97,11 +98,12 @@ impl Stroke {
                 .unwrap_or(angle),
             auto_angle,
             pending_first_dab: auto_angle
-                && (brush == Brush::PaletteKnife || (brush == Brush::Flat && sweep))
+                && (brush == Brush::PaletteKnife || (brush == Brush::Flat && refined))
                 && sample.angle.is_none(),
             continuous_knife: brush == Brush::PaletteKnife
                 && (auto_angle || sample.angle.is_some()),
-            sweep: sweep && matches!(brush, Brush::PaletteKnife | Brush::Flat),
+            round_pressure: brush == Brush::Round && refined,
+            sweep: refined && matches!(brush, Brush::PaletteKnife | Brush::Flat),
             swept: false,
             load_ratio,
             tile,
@@ -137,6 +139,7 @@ impl Stroke {
             auto_angle: false,
             pending_first_dab: false,
             continuous_knife: false,
+            round_pressure: false,
             sweep: false,
             swept: false,
             load_ratio: 1.0,
@@ -168,6 +171,7 @@ impl Stroke {
             auto_angle: false,
             pending_first_dab: false,
             continuous_knife: false,
+            round_pressure: false,
             sweep: false,
             swept: false,
             load_ratio: 1.0,
@@ -189,6 +193,10 @@ impl Stroke {
 
     pub fn sweeps_contact(&self) -> bool {
         self.sweep
+    }
+
+    pub fn has_round_pressure(&self) -> bool {
+        self.round_pressure
     }
 
     pub fn dwell(&mut self, now: Instant, commands: &mut Vec<Command>) {
@@ -323,7 +331,7 @@ impl Stroke {
         commands: &mut Vec<Command>,
     ) {
         // Keep quadrature accurate when a long input interval crosses much of
-        // the blade or turns sharply. Ordinary pen samples typically need one segment.
+        // the tip or turns sharply. Ordinary pen samples typically need one segment.
         let radius = self.radius(sample.pressure.min(self.last.pressure));
         let max_distance = (radius * 0.25).max(0.75);
         let turn = (self.angle - previous_angle).abs();
@@ -355,7 +363,12 @@ impl Stroke {
         if self.ink_hold.is_some() {
             return Dab::ink_radius(pressure);
         }
-        (0.5 * self.diameter * (0.22 + 0.78 * pressure.sqrt())).max(0.75)
+        let spread = if self.round_pressure {
+            0.12 + 0.88 * pressure.powf(0.75)
+        } else {
+            0.22 + 0.78 * pressure.sqrt()
+        };
+        (0.5 * self.diameter * spread).max(0.75)
     }
 
     fn dab(&self, sample: Sample, angle: f32, commands: &mut Vec<Command>) {
@@ -388,8 +401,12 @@ impl Stroke {
             self.tile,
             self.load_ratio,
         );
-        if self.continuous_knife {
-            dab.soften_knife_travel_edge();
+        if self.round_pressure {
+            let pressure = ((sample.pressure - 0.015) / 0.735).clamp(0.0, 1.0);
+            let contact = pressure * pressure * (3.0 - 2.0 * pressure);
+            dab.set_refined_tip(0.08 + 0.92 * contact);
+        } else if self.continuous_knife {
+            dab.set_refined_tip(1.0);
         }
         commands.push(Command::Dab(dab));
     }

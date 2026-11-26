@@ -125,3 +125,7 @@ In a recording, give a flat brush's `dip_rack` or `dip_custom` action an optiona
 ```
 
 For a three-color stroke, dip the opposite edge in Phthalo Blue (slot 4) and dip the middle in both jars. Use `"bristle_sweep": true` on the flat stroke. Broad pressure brings the bundles into contact and lighter pressure leaves broken bristle marks. Use Auto-follow or per-sample angles to turn the brush. New desktop flat strokes record the swept contact flag. Older recordings use their original footprint.
+
+### Round brush pressure
+
+Set `"round_pressure": true` on a Round stroke to use the desktop brush's refined pressure curve. Light pressure gives a smaller contact area and deposits less paint. A firm pass opens the tip, and easing pressure while moving tapers the mark. The `diameter` field still sets the brush size at full pressure. Include the last few positive-pressure samples before lifting to describe the taper.
