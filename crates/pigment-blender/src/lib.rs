@@ -130,6 +130,7 @@ impl PigmentSession {
         let ink_canvas = mk_buf("ink_canvas", INK_BYTES, copies | BufferUsage::STORAGE);
         let reference_layer = mk_buf("ref_layer", REF_BYTES, copies | BufferUsage::STORAGE);
         let sketch_canvas = mk_buf("sketch_canvas", SKETCH_BYTES, copies | BufferUsage::STORAGE);
+        let paint_step = mk_buf("paint_step", DRY_BYTES, BufferUsage::STORAGE);
         let state = mk_buf("brush_state", BRUSH_BYTES, copies | BufferUsage::STORAGE);
 
         let band_data = pigment_engine::spectrum();
@@ -209,6 +210,7 @@ impl PigmentSession {
                 buffer_layout(8, BufferType::Storage { read_only: false }, false, None),
                 buffer_layout(9, BufferType::Storage { read_only: false }, false, None),
                 buffer_layout(10, BufferType::Storage { read_only: false }, false, None),
+                buffer_layout(11, BufferType::Storage { read_only: false }, false, None),
             ],
         });
         let view = output.create_view(&Default::default());
@@ -263,6 +265,10 @@ impl PigmentSession {
                 wgpu::BindGroupEntry {
                     binding: 10,
                     resource: sketch_canvas.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 11,
+                    resource: paint_step.as_entire_binding(),
                 },
             ],
         });

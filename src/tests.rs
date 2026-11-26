@@ -4011,3 +4011,86 @@ fn test_slice2_serve_tier_a_editing_checkpoints_and_inspection() {
         255
     );
 }
+
+#[test]
+fn test_slice1_gravity_conservation_and_downward_flow() {
+    let mut rig = Rig::new();
+    let mut cmds = Vec::new();
+    // Equip Phthalo Blue + Cadmium Red mix in rack slot 0 and dip Round brush
+    cmds.push(Command::EquipRack(
+        0,
+        [0.0, 0.5, 0.0, 0.0, 0.0, 0.0, 0.5, 0.0],
+    ));
+    cmds.push(Command::Service(Brush::Round, BrushService::DipRack(0)));
+    // Paint a thick puddle at (512, 300)
+    for _ in 0..4 {
+        cmds.push(Command::Dab(Dab::new_tiled(
+            egui::pos2(512.0, 300.0),
+            24.0,
+            1.0,
+            Surface::Canvas,
+            Brush::Round,
+            0.0,
+            false,
+        )));
+    }
+    let (before_bytes, _) = rig.state(&cmds);
+    let before_px: &[[f32; 8]] = bytemuck::cast_slice(&before_bytes);
+    let canvas_px = (SIDE as usize) * (SIDE as usize);
+    let mut total_before = [0.0f64; 8];
+    let mut below_before = 0.0f64;
+    for y in 0..SIDE as usize {
+        for x in 0..SIDE as usize {
+            let p = before_px[y * SIDE as usize + x];
+            for c in 0..8 {
+                total_before[c] += f64::from(p[c]);
+            }
+            if y > 326 {
+                below_before += p.iter().map(|&v| f64::from(v)).sum::<f64>();
+            }
+        }
+    }
+    let sum_before: f64 = total_before.iter().sum();
+    assert!(sum_before > 10.0, "expected substantial painted mass");
+    assert!(
+        below_before < 1e-4,
+        "no paint should be below y=326 initially"
+    );
+
+    // Step 120 ticks (2s at 60 Hz) of low-viscosity gravity straight down (90 deg)
+    let gravity_cmds: Vec<_> = (0..120)
+        .map(|_| Command::AdvanceGravity {
+            strength: 0.75,
+            viscosity: 0.12,
+            angle_deg: 90.0,
+        })
+        .collect();
+    let (after_bytes, _) = rig.state(&gravity_cmds);
+    let after_px: &[[f32; 8]] = bytemuck::cast_slice(&after_bytes);
+    let mut total_after = [0.0f64; 8];
+    let mut below_after = 0.0f64;
+    for y in 0..SIDE as usize {
+        for x in 0..SIDE as usize {
+            let p = after_px[y * SIDE as usize + x];
+            for c in 0..8 {
+                total_after[c] += f64::from(p[c]);
+            }
+            if y > 326 {
+                below_after += p.iter().map(|&v| f64::from(v)).sum::<f64>();
+            }
+        }
+    }
+    let _ = canvas_px;
+    for c in 0..8 {
+        assert!(
+            (total_before[c] - total_after[c]).abs() <= 1e-2,
+            "channel {c} mass not conserved: before={} after={}",
+            total_before[c],
+            total_after[c]
+        );
+    }
+    assert!(
+        below_after > 0.5,
+        "expected paint to drip below y=326, got {below_after}"
+    );
+}

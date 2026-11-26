@@ -33,6 +33,7 @@ struct DrySubstrate {
 @group(0) @binding(8) var<storage, read_write> dry_substrate: array<DrySubstrate>;
 @group(0) @binding(9) var<storage, read_write> reference_layer: array<u32>;
 @group(0) @binding(10) var<storage, read_write> sketch_canvas: array<f32>;
+@group(0) @binding(11) var<storage, read_write> paint_step: array<Pigments>;
 var<workgroup> sampled: array<Pigments, 64>;
 var<workgroup> weights: array<f32, 64>;
 var<workgroup> occupied: array<atomic<u32>, 8>;
@@ -437,7 +438,7 @@ fn composite_linear_color(wet: Pigments, at: u32, is_canvas: bool) -> vec3<f32> 
 @compute @workgroup_size(8, 8)
 fn apply(@builtin(global_invocation_id) id: vec3<u32>) {
     if (any(id.xy >= dab.bounds.zw)) { return; }
-    let wrap = dab.mode.w != 0u && (dab.mode.x == 0u || dab.mode.x == 9u || dab.mode.x == 15u);
+    let wrap = dab.mode.w != 0u && (dab.mode.x == 0u || dab.mode.x == 9u || dab.mode.x == 15u || dab.mode.x == 18u);
     let pixel = wrap_canvas_pixel(dab.bounds.xy + id.xy, wrap);
     let at = index(pixel);
     var paint = canvas[at];
@@ -602,7 +603,77 @@ fn apply(@builtin(global_invocation_id) id: vec3<u32>) {
         ink_canvas[at] = ink_canvas[at] + vec2<f32>(dark, wet);
     } else if (dab.mode.x == 10u) {
         ink_canvas[at] = ink_step[at];
+    } else if (dab.mode.x == 18u) {
+        canvas[at] = paint_step[at];
     }
+}
+
+fn paint_outflow_frac(pos: vec2<i32>, strength: f32, viscosity: f32) -> f32 {
+    if (pos.x < 0 || pos.x >= 1024 || pos.y < 0 || pos.y >= 1024) {
+        return 0.0;
+    }
+    let p_at = index(vec2<u32>(pos));
+    let mass = amount(canvas[p_at]);
+    if (mass <= 1e-6) {
+        return 0.0;
+    }
+    // Bingham-plastic yield stress: cubic curve so fluid enamel drips freely while thick oil stays put.
+    let v = clamp(viscosity, 0.0, 1.0);
+    let yield_thresh = 0.0005 + 0.35 * v * v * v;
+    let excess = max(mass - yield_thresh, 0.0);
+    if (excess <= 0.0) {
+        return 0.0;
+    }
+    // Linen weave & dry-ridge channeling creates organic rivulets instead of flat sheets.
+    let fx = f32(pos.x);
+    let fy = f32(pos.y);
+    let weave = 0.85 + 0.30 * sin(fx * 0.45 + fy * 0.17) * cos(fx * 0.19 - fy * 0.31);
+    let flow_rate = clamp(strength * (1.0 - viscosity * 0.82) * weave, 0.0, 0.85);
+    return clamp((excess / mass) * flow_rate, 0.0, 0.72);
+}
+
+@compute @workgroup_size(8, 8)
+fn flow_paint(@builtin(global_invocation_id) id: vec3<u32>) {
+    if (any(id.xy >= dab.bounds.zw)) { return; }
+    let pixel = dab.bounds.xy + id.xy;
+    if (pixel.x >= 1024u || pixel.y >= 1024u) { return; }
+    let pos = vec2<i32>(pixel);
+    let at = index(pixel);
+
+    let gx = dab.axis.x;
+    let gy = dab.axis.y;
+    let strength = dab.brush.x;
+    let viscosity = dab.brush.y;
+
+    let dx = select(-1, 1, gx >= 0.0);
+    let dy = select(-1, 1, gy >= 0.0);
+    let wx = abs(gx);
+    let wy = abs(gy);
+    let w_sum = max(wx + wy, 1e-5);
+    let fx = wx / w_sum;
+    let fy = wy / w_sum;
+
+    let cur = canvas[at];
+    let out_frac = paint_outflow_frac(pos, strength, viscosity);
+    let can_x = select(0.0, 1.0, (pos.x + dx) >= 0 && (pos.x + dx) < 1024);
+    let can_y = select(0.0, 1.0, (pos.y + dy) >= 0 && (pos.y + dy) < 1024);
+    var next_paint = scale(cur, max(1.0 - out_frac * (fx * can_x + fy * can_y), 0.0));
+
+    let src_x = pos - vec2<i32>(dx, 0);
+    if (src_x.x >= 0 && src_x.x < 1024 && fx > 0.0) {
+        let f = paint_outflow_frac(src_x, strength, viscosity) * fx;
+        if (f > 0.0) {
+            next_paint = add(next_paint, scale(canvas[index(vec2<u32>(src_x))], f));
+        }
+    }
+    let src_y = pos - vec2<i32>(0, dy);
+    if (src_y.y >= 0 && src_y.y < 1024 && fy > 0.0) {
+        let f = paint_outflow_frac(src_y, strength, viscosity) * fy;
+        if (f > 0.0) {
+            next_paint = add(next_paint, scale(canvas[index(vec2<u32>(src_y))], f));
+        }
+    }
+    paint_step[at] = next_paint;
 }
 
 fn runoff(wet: f32, y: u32) -> f32 {

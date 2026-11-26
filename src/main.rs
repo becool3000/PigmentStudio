@@ -688,6 +688,7 @@ impl ApplicationHandler for App {
         let ink_held = studio.stroke.as_ref().is_some_and(Stroke::ink_is_held);
         let ink_wet = studio.paint.ink_is_wet();
         let ink_animating = studio.drawable && (ink_held || ink_wet);
+        let gravity_animating = studio.drawable && studio.gravity.enabled;
         let now = Instant::now();
         if ink_animating && now >= studio.next_ink_step {
             studio.next_ink_step = now + Duration::from_millis(16);
@@ -701,9 +702,19 @@ impl ApplicationHandler for App {
                 studio.window.request_redraw();
             }
         }
+        if gravity_animating && now >= studio.next_gravity_step {
+            studio.next_gravity_step = now + Duration::from_millis(16);
+            studio.commands.push(Command::AdvanceGravity {
+                strength: studio.gravity.strength,
+                viscosity: studio.gravity.viscosity,
+                angle_deg: studio.gravity.angle_deg,
+            });
+            studio.window.request_redraw();
+        }
         let polling = studio.exporting.is_some()
             || studio.placement_result.is_some()
             || ink_animating
+            || gravity_animating
             || studio.stroke.is_some()
             || !studio.commands.is_empty();
         event_loop.set_control_flow(if polling {
@@ -711,6 +722,25 @@ impl ApplicationHandler for App {
         } else {
             ControlFlow::Wait
         });
+    }
+}
+
+#[derive(Clone, Copy)]
+struct GravitySettings {
+    enabled: bool,
+    strength: f32,
+    viscosity: f32,
+    angle_deg: f32,
+}
+
+impl Default for GravitySettings {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            strength: 0.45,
+            viscosity: 0.30,
+            angle_deg: 90.0,
+        }
     }
 }
 
@@ -752,6 +782,8 @@ struct Studio {
     charcoal_erase: bool,
     charcoal_size: f32,
     next_ink_step: Instant,
+    gravity: GravitySettings,
+    next_gravity_step: Instant,
 
     notes: Vec<notes::Note>,
     note_tool: bool,
@@ -898,6 +930,8 @@ impl Studio {
             charcoal_erase: false,
             charcoal_size: 14.0,
             next_ink_step: Instant::now(),
+            gravity: GravitySettings::default(),
+            next_gravity_step: Instant::now(),
             notes: notes::read(&notes::default_path()),
             note_tool: false,
             notes_manager_open: false,
@@ -2893,6 +2927,37 @@ impl Studio {
                     self.workbench.lighting.canvas_weave = 0.35;
                     self.workbench.lighting.specular_sheen = 1.0;
                 }
+            }
+        });
+
+        ui.separator();
+        ui.collapsing("🌊 Gravity & Viscosity", |ui| {
+            ui.checkbox(&mut self.gravity.enabled, "Enable Gravity")
+                .on_hover_text("Simulate real-time gravity drip and flow on wet canvas paint (conserves all 8 pigment channels)");
+            ui.add(
+                egui::Slider::new(&mut self.gravity.strength, 0.05..=1.0)
+                    .text("Gravity"),
+            )
+            .on_hover_text("Flow speed of wet paint under gravity");
+            ui.add(
+                egui::Slider::new(&mut self.gravity.viscosity, 0.0..=1.0)
+                    .text("Viscosity"),
+            )
+            .on_hover_text("Low = fluid enamel drips, High = thick oil impasto that resists sagging");
+            ui.add(
+                egui::Slider::new(&mut self.gravity.angle_deg, 0.0..=360.0)
+                    .text("Tilt Angle")
+                    .suffix("°"),
+            )
+            .on_hover_text("Direction of gravity on the canvas (90° = straight down)");
+            if ui
+                .button("↓ Reset Down (90°)")
+                .on_hover_text("Reset gravity to straight down (90°) and default viscosity")
+                .clicked()
+            {
+                self.gravity.angle_deg = 90.0;
+                self.gravity.strength = 0.45;
+                self.gravity.viscosity = 0.30;
             }
         });
 

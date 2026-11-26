@@ -352,6 +352,11 @@ pub enum Command {
     Clear(Surface),
     Initialize,
     AdvanceInk,
+    AdvanceGravity {
+        strength: f32,
+        viscosity: f32,
+        angle_deg: f32,
+    },
     CheckTubes([u32; 4]),
     Tubes,
     SeedBenchmark,
@@ -486,6 +491,7 @@ pub struct PaintGpu {
     ink_history: [Option<WetInk>; HISTORY],
     ink_canvas: wgpu::Buffer,
     flow_ink: wgpu::ComputePipeline,
+    flow_paint: wgpu::ComputePipeline,
     canvas: wgpu::Buffer,
     dry_canvas: wgpu::Buffer,
     pub dry_substrate: wgpu::Buffer,
@@ -544,6 +550,7 @@ impl PaintGpu {
         });
         let reference_layer = buffer("Reference layer", REF_BYTES, copies | BufferUsage::STORAGE);
         let sketch_canvas = buffer("Sketch canvas", SKETCH_BYTES, copies | BufferUsage::STORAGE);
+        let paint_step = buffer("Paint gravity scratch", DRY_BYTES, BufferUsage::STORAGE);
         let history = Vec::with_capacity(HISTORY);
         let state = buffer(
             "Brush loads and transfer",
@@ -615,6 +622,7 @@ impl PaintGpu {
                 buffer_layout(8, BufferType::Storage { read_only: false }, false, None),
                 buffer_layout(9, BufferType::Storage { read_only: false }, false, None),
                 buffer_layout(10, BufferType::Storage { read_only: false }, false, None),
+                buffer_layout(11, BufferType::Storage { read_only: false }, false, None),
             ],
         });
         let bindings = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -671,6 +679,10 @@ impl PaintGpu {
                     binding: 10,
                     resource: sketch_canvas.as_entire_binding(),
                 },
+                wgpu::BindGroupEntry {
+                    binding: 11,
+                    resource: paint_step.as_entire_binding(),
+                },
             ],
         });
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -702,6 +714,7 @@ impl PaintGpu {
             ink_history: [None; HISTORY],
             ink_canvas,
             flow_ink: pipeline("flow_ink"),
+            flow_paint: pipeline("flow_paint"),
             state,
             device: device.clone(),
             history,
@@ -967,6 +980,22 @@ impl PaintGpu {
                     self.ink = (ink.remaining > 0).then_some(ink);
                     dab
                 }
+                Command::AdvanceGravity {
+                    strength,
+                    viscosity,
+                    angle_deg,
+                } => {
+                    let rad = angle_deg.to_radians();
+                    let mut dab = Dab::operation([0, 0, SIDE, SIDE], 18);
+                    dab.axis = [rad.cos(), rad.sin(), 0.0, 0.0];
+                    dab.brush = [
+                        strength.clamp(0.0, 1.0),
+                        viscosity.clamp(0.0, 1.0),
+                        0.0,
+                        0.0,
+                    ];
+                    dab
+                }
                 Command::Undo => {
                     if !self.can_undo() {
                         continue;
@@ -1120,6 +1149,12 @@ impl PaintGpu {
                 10 => self.dispatch(
                     encoder,
                     &self.flow_ink,
+                    offset,
+                    [dab.bounds[2].div_ceil(8), dab.bounds[3].div_ceil(8)],
+                ),
+                18 => self.dispatch(
+                    encoder,
+                    &self.flow_paint,
                     offset,
                     [dab.bounds[2].div_ceil(8), dab.bounds[3].div_ceil(8)],
                 ),
