@@ -2739,3 +2739,128 @@ fn test_phase_6_ultramarine_blue_pb29_calibration_and_cpu_gpu_parity() {
         );
     }
 }
+
+#[test]
+fn test_phase_6_burnt_sienna_pbr7_calibration_and_cpu_gpu_parity() {
+    const {
+        assert!(crate::project::CURRENT_CALIBRATION_VERSION >= 8);
+    }
+
+    let mut rig = Rig::new();
+    rig.paint.lighting.enabled = false;
+
+    // 1. Thick PBr7 masstone (warm chestnut-mahogany)
+    let mast_img = rig.canvas(&[
+        Command::Initialize,
+        Command::Service(Brush::Round, BrushService::Load(5)),
+        Command::Dab(Dab::new(
+            egui::pos2(160.0, 160.0),
+            56.0,
+            1.0,
+            Surface::Canvas,
+            Brush::Round,
+            0.0,
+        )),
+        Command::Dab(Dab::new(
+            egui::pos2(160.0, 160.0),
+            56.0,
+            1.0,
+            Surface::Canvas,
+            Brush::Round,
+            0.0,
+        )),
+        Command::Dab(Dab::new(
+            egui::pos2(160.0, 160.0),
+            56.0,
+            1.0,
+            Surface::Canvas,
+            Brush::Round,
+            0.0,
+        )),
+    ]);
+    let mast_diag = rig
+        .paint
+        .sample_diagnostics(&rig.device, &rig.queue, 160, 160);
+    let mast_cpu = crate::pigment::rgb_composite(mast_diag.wet_channels, mast_diag.dry_channels);
+    let mast_gpu = pixel(&mast_img, 160, 160);
+    assert!(
+        mast_gpu[0] > mast_gpu[1] && mast_gpu[1] > mast_gpu[2],
+        "PBr7 masstone should be warm earth (R > G > B): {mast_gpu:?}"
+    );
+    for ch in 0..3 {
+        assert!(
+            mast_cpu[ch].abs_diff(mast_gpu[ch]) <= 2,
+            "PBr7 masstone CPU/GPU mismatch ch {ch}: cpu={} gpu={}",
+            mast_cpu[ch],
+            mast_gpu[ch]
+        );
+    }
+
+    // 2. PBr7 + PW6 warm terracotta tint
+    let terra_img = rig.canvas(&[
+        Command::Initialize,
+        Command::Service(Brush::Round, BrushService::Load(3)),
+        Command::Service(Brush::Round, BrushService::Load(3)),
+        Command::Service(Brush::Round, BrushService::Load(3)),
+        Command::Service(Brush::Round, BrushService::Load(5)),
+        Command::Dab(Dab::new(
+            egui::pos2(320.0, 160.0),
+            56.0,
+            1.0,
+            Surface::Canvas,
+            Brush::Round,
+            0.0,
+        )),
+    ]);
+    let terra_diag = rig
+        .paint
+        .sample_diagnostics(&rig.device, &rig.queue, 320, 160);
+    let terra_cpu = crate::pigment::rgb_composite(terra_diag.wet_channels, terra_diag.dry_channels);
+    let terra_gpu = pixel(&terra_img, 320, 160);
+    assert!(
+        terra_gpu[0] > terra_gpu[1] && terra_gpu[1] > terra_gpu[2],
+        "PBr7 + PW6 tint should be warm terracotta (R > G > B): {terra_gpu:?}"
+    );
+    for ch in 0..3 {
+        assert!(
+            terra_cpu[ch].abs_diff(terra_gpu[ch]) <= 2,
+            "PBr7 + PW6 tint CPU/GPU mismatch ch {ch}: cpu={} gpu={}",
+            terra_cpu[ch],
+            terra_gpu[ch]
+        );
+    }
+
+    // 3. PBr7 + PB29 neutral chromatic gray mix
+    let gray_img = rig.canvas(&[
+        Command::Initialize,
+        Command::Service(Brush::Round, BrushService::Load(4)),
+        Command::Service(Brush::Round, BrushService::Load(5)),
+        Command::Dab(Dab::new(
+            egui::pos2(480.0, 160.0),
+            56.0,
+            1.0,
+            Surface::Canvas,
+            Brush::Round,
+            0.0,
+        )),
+    ]);
+    let gray_diag = rig
+        .paint
+        .sample_diagnostics(&rig.device, &rig.queue, 480, 160);
+    let gray_cpu = crate::pigment::rgb_composite(gray_diag.wet_channels, gray_diag.dry_channels);
+    let gray_gpu = pixel(&gray_img, 480, 160);
+    let spread = gray_gpu[0].max(gray_gpu[1]).max(gray_gpu[2])
+        - gray_gpu[0].min(gray_gpu[1]).min(gray_gpu[2]);
+    assert!(
+        spread < 50,
+        "PBr7 + PB29 mix should neutralize toward chromatic gray (spread={spread}): {gray_gpu:?}"
+    );
+    for ch in 0..3 {
+        assert!(
+            gray_cpu[ch].abs_diff(gray_gpu[ch]) <= 2,
+            "PBr7 + PB29 gray CPU/GPU mismatch ch {ch}: cpu={} gpu={}",
+            gray_cpu[ch],
+            gray_gpu[ch]
+        );
+    }
+}

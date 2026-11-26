@@ -134,8 +134,8 @@ pub const PIGMENTS: &[PigmentDef] = &[
         rgb: [142, 64, 38],
         lore: "Mined from the iron-rich hills of Siena, Tuscany, and roasted in kilns to dehydrate the limonite into radiant hematite. Warm, glowing mahogany undertones for portraiture.",
         recipe: [0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0],
-        absorption: [4.5, 4.2, 2.8, 1.6, 0.55, 0.21, 0.13],
-        scattering: [0.68, 0.75, 0.8, 0.82, 0.81, 0.75, 0.7],
+        absorption: [4.872, 5.67, 3.055, 1.6, 0.445, 0.187, 0.126],
+        scattering: [0.433, 0.758, 0.653, 0.796, 0.682, 0.741, 1.066],
     },
     PigmentDef {
         id: "bone_black",
