@@ -35,21 +35,44 @@ impl Surface {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Brush {
     Round,
     Flat,
+    Filbert,
+    Fan,
+    PaletteKnife,
+    SoftMop,
 }
 
 impl Brush {
-    pub fn index(self) -> usize {
-        usize::from(self == Self::Flat)
+    pub fn is_directional(self) -> bool {
+        matches!(
+            self,
+            Self::Flat | Self::Filbert | Self::Fan | Self::PaletteKnife
+        )
     }
+
+    pub fn index(self) -> usize {
+        usize::from(self.is_directional())
+    }
+
     fn load_start(self) -> u32 {
-        if self == Self::Round {
-            0
-        } else {
+        if self.is_directional() {
             1
+        } else {
+            0
+        }
+    }
+
+    pub fn profile_id(self) -> u32 {
+        match self {
+            Self::Round => 0,
+            Self::Flat => 1,
+            Self::Filbert => 2,
+            Self::Fan => 3,
+            Self::PaletteKnife => 4,
+            Self::SoftMop => 5,
         }
     }
 }
@@ -123,8 +146,8 @@ impl Dab {
                 radius,
                 pressure,
             ],
-            axis: [cos, sin, 0., 0.],
-            mode: [0, brush.load_start(), 0, u32::from(wrap)],
+            axis: [cos, sin, 1.0, 0.],
+            mode: [0, brush.load_start(), brush.profile_id(), u32::from(wrap)],
             tubes: [0; 4],
         }
     }
@@ -150,6 +173,22 @@ impl Dab {
         dab
     }
 
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_with_load(
+        position: egui::Pos2,
+        radius: f32,
+        pressure: f32,
+        surface: Surface,
+        brush: Brush,
+        angle: f32,
+        tiled: bool,
+        load_ratio: f32,
+    ) -> Self {
+        let mut dab = Self::new_tiled(position, radius, pressure, surface, brush, angle, tiled);
+        dab.axis[2] = load_ratio.clamp(0.0, 1.0);
+        dab
+    }
+
     pub fn charcoal(
         position: egui::Pos2,
         radius: f32,
@@ -167,6 +206,7 @@ impl Dab {
             tiled,
         );
         dab.mode[0] = 15;
+        dab.mode[2] = 0;
         dab.axis[0] = if erase { -1.0 } else { 1.0 };
         dab
     }
@@ -201,7 +241,6 @@ pub enum Command {
     RemoveSwatch(usize),
     EquipRack(usize, [f32; 8]),
     DryCanvas,
-    #[cfg(test)]
     ImportUnderlayer(std::sync::Arc<Vec<u32>>),
     ImportReference(std::sync::Arc<Vec<u32>>),
     ClearSketch,
@@ -724,7 +763,6 @@ impl PaintGpu {
                     ];
                     continue;
                 }
-                #[cfg(test)]
                 Command::ImportUnderlayer(ref words) => {
                     self.ink = None;
                     encoder.clear_buffer(
@@ -1459,7 +1497,6 @@ pub fn load_png_as_reference(path: &std::path::Path) -> Result<std::sync::Arc<Ve
     Ok(std::sync::Arc::new(words))
 }
 
-#[allow(dead_code)]
 pub fn load_png_as_substrate(path: &std::path::Path) -> Result<std::sync::Arc<Vec<u32>>, String> {
     let canvas_rgba = load_png_rgba1024(path)?;
     Ok(std::sync::Arc::new(

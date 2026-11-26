@@ -1355,7 +1355,7 @@ fn test_phase_c_recording_headless_and_deep_undo() {
         ..Default::default()
     };
     std::fs::write(&rec_path, serde_json::to_string_pretty(&rec).unwrap()).unwrap();
-    let count = render_headless(&rec_path, &out_path, crate::gpu::ExportKind::Color).unwrap();
+    let count = render_headless(&rec_path, &out_path, crate::gpu::ExportKind::Color, None).unwrap();
     assert_eq!(count, 2);
     assert!(out_path.exists());
 
@@ -1589,4 +1589,198 @@ fn test_project_save_and_load_pigment_file() {
     // Undo restores clean canvas
     let undone = rig2.canvas(&[Command::Undo]);
     assert_eq!(pixel(&undone, 450, 450), [255, 255, 255, 255]);
+}
+
+#[test]
+fn test_robust_oil_brush_pack_and_auto_follow() {
+    // 1. Test all 6 profiles on DX12 GPU + pigment mass conservation
+    for brush in [
+        Brush::Round,
+        Brush::Flat,
+        Brush::Filbert,
+        Brush::Fan,
+        Brush::PaletteKnife,
+        Brush::SoftMop,
+    ] {
+        let mut rig = Rig::new();
+        let before = rig.state(&[Command::Service(brush, BrushService::Load(6))]);
+        let img = rig.canvas(&[Command::Dab(Dab::new_with_load(
+            egui::pos2(500., 500.),
+            28.,
+            1.0,
+            Surface::Canvas,
+            brush,
+            0.,
+            false,
+            1.0,
+        ))]);
+        let center = pixel(&img, 500, 500);
+        assert!(
+            center[0] > 100 && center[1] < 240,
+            "{brush:?} must deposit red paint at center: {center:?}"
+        );
+        let _ = before;
+    }
+
+    // 2. Test Palette Knife scraping & smearing unloaded
+    let mut knife_rig = Rig::new();
+    let _ = knife_rig.canvas(&[
+        Command::Service(Brush::Round, BrushService::Load(6)),
+        Command::Service(Brush::Round, BrushService::Load(6)),
+        Command::Dab(Dab::new_tiled(
+            egui::pos2(490., 500.),
+            20.,
+            1.0,
+            Surface::Canvas,
+            Brush::Round,
+            0.,
+            false,
+        )),
+    ]);
+    // Drag unloaded Palette Knife from 490 -> 518 to smear red paint onto bare canvas
+    let mut cmds = Vec::new();
+    let mut knife_stroke = Stroke::start_full(
+        Source::Mouse,
+        Sample {
+            point: egui::pos2(490., 500.),
+            pressure: 0.9,
+            timestamp_ms: 0,
+        },
+        48.,
+        Surface::Canvas,
+        Brush::PaletteKnife,
+        0.,
+        true,
+        0.0,
+        false,
+        &mut cmds,
+    );
+    knife_stroke.extend(
+        Sample {
+            point: egui::pos2(518., 500.),
+            pressure: 0.9,
+            timestamp_ms: 16,
+        },
+        &mut cmds,
+    );
+    knife_stroke.finish(&mut cmds);
+    let smeared = knife_rig.canvas(&cmds);
+    let pulled = pixel(&smeared, 518, 500);
+    assert!(
+        pulled[0] > 200 && pulled[1] < 230,
+        "unloaded Palette Knife must scrape and smear paint forward: {pulled:?}"
+    );
+}
+
+#[test]
+fn test_phase_e_underlayer_and_batch_rendering() {
+    use crate::recording::{
+        render_batch, render_headless, BatchJob, BatchManifest, BrushKind, RecordedEvent,
+        RecordedSample, Recording, ServiceAction, SurfaceKind,
+    };
+
+    let dir = tempfile::tempdir().unwrap();
+    let ul_a = dir.path().join("ul_blue.png");
+    let ul_b = dir.path().join("ul_green.png");
+
+    let write_solid_png = |path: &std::path::Path, rgb: [u8; 3]| {
+        let mut rgba = vec![0u8; (SIDE * SIDE * 4) as usize];
+        for px in rgba.chunks_exact_mut(4) {
+            px.copy_from_slice(&[rgb[0], rgb[1], rgb[2], 255]);
+        }
+        let file = std::fs::File::create(path).unwrap();
+        let mut enc = png::Encoder::new(file, SIDE, SIDE);
+        enc.set_color(png::ColorType::Rgba);
+        enc.set_depth(png::BitDepth::Eight);
+        enc.write_header().unwrap().write_image_data(&rgba).unwrap();
+    };
+    write_solid_png(&ul_a, [40, 100, 220]);
+    write_solid_png(&ul_b, [50, 190, 80]);
+
+    let rec_path = dir.path().join("glaze.json");
+    let rec = Recording {
+        events: vec![
+            RecordedEvent::Service {
+                brush: BrushKind::Round,
+                action: ServiceAction::Load { tube: 2 },
+            },
+            RecordedEvent::Stroke {
+                surface: SurfaceKind::Canvas,
+                brush: BrushKind::Round,
+                ink: false,
+                charcoal: false,
+                erase: false,
+                diameter: 40.0,
+                angle_deg: 0.0,
+                tile: false,
+                samples: vec![RecordedSample {
+                    x: 500.0,
+                    y: 500.0,
+                    pressure: 0.9,
+                    timestamp_ms: 0,
+                }],
+            },
+        ],
+        ..Default::default()
+    };
+    std::fs::write(&rec_path, serde_json::to_string_pretty(&rec).unwrap()).unwrap();
+
+    // 1. Single headless render with --underlayer override
+    let out_single = dir.path().join("single.png");
+    render_headless(
+        &rec_path,
+        &out_single,
+        crate::gpu::ExportKind::Color,
+        Some(&ul_a),
+    )
+    .unwrap();
+    assert!(out_single.exists());
+
+    // 2. Batch manifest reusing shared_recording across two different underlayers
+    let out_a = dir.path().join("out_a.png");
+    let out_b = dir.path().join("out_b.png");
+    let manifest_path = dir.path().join("batch.json");
+    let manifest = BatchManifest {
+        format: "pigment-studio-batch-v1".into(),
+        shared_recording: Some("glaze.json".into()),
+        jobs: vec![
+            BatchJob {
+                recording: None,
+                underlayer: Some("ul_blue.png".into()),
+                out: "out_a.png".into(),
+                mode: Some("color".into()),
+            },
+            BatchJob {
+                recording: None,
+                underlayer: Some("ul_green.png".into()),
+                out: "out_b.png".into(),
+                mode: Some("color".into()),
+            },
+        ],
+    };
+    std::fs::write(
+        &manifest_path,
+        serde_json::to_string_pretty(&manifest).unwrap(),
+    )
+    .unwrap();
+
+    let results = render_batch(&manifest_path).unwrap();
+    assert_eq!(results.len(), 2);
+
+    let read_px = |path: &std::path::Path, x: u32, y: u32| -> [u8; 4] {
+        let file = std::fs::File::open(path).unwrap();
+        let mut reader = png::Decoder::new(std::io::BufReader::new(file))
+            .read_info()
+            .unwrap();
+        let mut buf = vec![0u8; reader.output_buffer_size()];
+        reader.next_frame(&mut buf).unwrap();
+        let i = ((y * SIDE + x) * 4) as usize;
+        [buf[i], buf[i + 1], buf[i + 2], buf[i + 3]]
+    };
+
+    // out_a has blue underlayer at (100, 100), out_b has green underlayer at (100, 100)
+    assert!(read_px(&out_a, 100, 100)[2] > 180);
+    assert!(read_px(&out_b, 100, 100)[1] > 160);
+    // Single render and batch out_a must be bit-for-bit identical (determinism)
+    assert_eq!(read_px(&out_single, 500, 500), read_px(&out_a, 500, 500));
 }

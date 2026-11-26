@@ -59,20 +59,63 @@ fn tip(pixel: vec2<u32>) -> vec2<f32> {
         delta = delta - round(delta / 1024.0) * 1024.0;
     }
     let p = delta / dab.brush.z;
-    if (dab.mode.y == 0u) {
+    let profile = dab.mode.z;
+    if (profile == 0u) {
         return vec2<f32>(1.0 - smoothstep(0.3, 1.0, length(p)), 0.0);
     }
+    if (profile == 5u) {
+        // Soft Mop: wide, feathered radial blender
+        return vec2<f32>(1.0 - smoothstep(0.15, 1.0, length(p)), 0.0);
+    }
+
     let local = vec2<f32>(dot(p, dab.axis.xy), dot(p, vec2<f32>(-dab.axis.y, dab.axis.x)));
     let width = mix(0.83, 1.0, dab.brush.w);
     let across = local.x / width;
-    let edge = max(abs(across), abs(local.y) / 0.36);
     let group = clamp(floor((across + 1.0) * 1.5), 0.0, 2.0);
-    let ridge = mix(0.54 + 0.46 * smoothstep(0.08, 0.26, min(fract((across + 1.0) * 4.5), 1.0 - fract((across + 1.0) * 4.5))), 1.0, dab.brush.w);
-    return vec2<f32>((1.0 - smoothstep(0.68, 1.0, edge)) * ridge, group);
+    let furrow = smoothstep(0.08, 0.28, min(fract((across + 1.0) * 4.5), 1.0 - fract((across + 1.0) * 4.5)));
+
+    let weave_tooth = clamp((cos(f32(pixel.x) * 1.9635) - cos(f32(pixel.y) * 1.9635)) * 0.5 + 0.5, 0.0, 1.0);
+    let dry_skip = smoothstep(0.0, 0.28, dab.axis.z);
+    let tooth_mask = mix(smoothstep(0.35, 0.72, weave_tooth), 1.0, dry_skip);
+
+    if (profile == 4u) {
+        // Palette Knife: crisp steel blade edge with trailing ridge bias
+        let edge = max(abs(across), abs(local.y) / 0.22);
+        let blade = 1.0 - smoothstep(0.86, 1.0, edge);
+        let ridge = 0.85 + 0.15 * smoothstep(-0.22, 0.22, -local.y);
+        return vec2<f32>(blade * ridge, group);
+    }
+
+    if (profile == 2u) {
+        // Filbert: almond/oval tip with soft tapered corners and bristle grooves
+        let edge = length(vec2<f32>(across, local.y / 0.52));
+        let shape = 1.0 - smoothstep(0.55, 1.0, edge);
+        let bristles = 0.58 + 0.42 * furrow;
+        return vec2<f32>(shape * bristles * tooth_mask, group);
+    }
+
+    if (profile == 3u) {
+        // Fan Brush: curved arc of 9 separated bristle tufts
+        let arc_y = local.y + 0.22 * across * across;
+        let edge = max(abs(across), abs(arc_y) / 0.26);
+        let shape = 1.0 - smoothstep(0.65, 1.0, edge);
+        let tuft = pow(abs(sin(across * 14.137)), mix(2.2, 0.75, dab.brush.w));
+        return vec2<f32>(shape * tuft * tooth_mask, group);
+    }
+
+    // Upgraded Hog-Bristle Flat: crisp corners + persistent deep bristle furrows
+    let edge = max(abs(across), abs(local.y) / 0.36);
+    let ridge = mix(0.42 + 0.58 * furrow, 0.72 + 0.28 * furrow, dab.brush.w);
+    return vec2<f32>((1.0 - smoothstep(0.76, 1.0, edge)) * ridge * tooth_mask, group);
 }
 
 fn pickup(w: f32) -> f32 {
-    let canvas_rate = mix(0.075, 0.23, dab.brush.w);
+    var canvas_rate = mix(0.075, 0.23, dab.brush.w);
+    if (dab.mode.z == 4u) {
+        canvas_rate = mix(0.45, 0.80, dab.brush.w);
+    } else if (dab.mode.z == 5u) {
+        canvas_rate = mix(0.28, 0.52, dab.brush.w);
+    }
     let palette_rate = mix(0.16, 0.43, dab.brush.w);
     return w * select(canvas_rate, palette_rate, dab.brush.y >= 1024.0);
 }
@@ -109,7 +152,12 @@ fn gather(@builtin(local_invocation_index) i: u32, @builtin(workgroup_id) work: 
         let load_index = dab.mode.y + group;
         let mixed = add(state.loads[load_index], sampled[0]);
         let area_sum = weights[0];
-        let deposit = min(area_sum * mix(0.085, 0.25, dab.brush.w), amount(mixed) * mix(0.045, 0.12, dab.brush.w));
+        let deposit_rate = select(
+            mix(0.085, 0.25, dab.brush.w),
+            mix(0.14, 0.38, dab.brush.w),
+            dab.mode.z == 4u
+        );
+        let deposit = min(area_sum * deposit_rate, amount(mixed) * mix(0.045, 0.12, dab.brush.w));
         let used_fraction = deposit / max(amount(mixed), 0.00000001);
         state.loads[load_index] = scale(mixed, 1.0 - used_fraction);
         state.transfer[group] = scale(mixed, used_fraction / max(area_sum, 0.00000001));

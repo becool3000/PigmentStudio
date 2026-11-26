@@ -10,6 +10,10 @@ use std::path::Path;
 pub enum BrushKind {
     Round,
     Flat,
+    Filbert,
+    Fan,
+    PaletteKnife,
+    SoftMop,
 }
 
 impl From<Brush> for BrushKind {
@@ -17,6 +21,10 @@ impl From<Brush> for BrushKind {
         match b {
             Brush::Round => Self::Round,
             Brush::Flat => Self::Flat,
+            Brush::Filbert => Self::Filbert,
+            Brush::Fan => Self::Fan,
+            Brush::PaletteKnife => Self::PaletteKnife,
+            Brush::SoftMop => Self::SoftMop,
         }
     }
 }
@@ -26,6 +34,10 @@ impl From<BrushKind> for Brush {
         match b {
             BrushKind::Round => Self::Round,
             BrushKind::Flat => Self::Flat,
+            BrushKind::Filbert => Self::Filbert,
+            BrushKind::Fan => Self::Fan,
+            BrushKind::PaletteKnife => Self::PaletteKnife,
+            BrushKind::SoftMop => Self::SoftMop,
         }
     }
 }
@@ -144,6 +156,9 @@ pub enum RecordedEvent {
     SetTile {
         enabled: bool,
     },
+    ImportUnderlayer {
+        path: String,
+    },
     #[serde(skip)]
     ImportReference {
         words: std::sync::Arc<Vec<u32>>,
@@ -194,6 +209,8 @@ impl From<LightingConfig> for Lighting {
 pub struct Recording {
     pub format: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub underlayer_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub lighting: Option<LightingConfig>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tile: Option<bool>,
@@ -204,6 +221,7 @@ impl Default for Recording {
     fn default() -> Self {
         Self {
             format: "pigment-studio-recording-v1".into(),
+            underlayer_path: None,
             lighting: None,
             tile: None,
             events: Vec::new(),
@@ -212,6 +230,25 @@ impl Default for Recording {
 }
 
 pub fn compile_events(events: &[RecordedEvent], tile_state: &mut bool) -> Vec<Command> {
+    compile_events_in(events, tile_state, None).unwrap_or_default()
+}
+
+pub fn resolve_path(base_dir: Option<&Path>, raw: &str) -> std::path::PathBuf {
+    let p = Path::new(raw);
+    if p.is_absolute() {
+        p.to_path_buf()
+    } else if let Some(dir) = base_dir {
+        dir.join(p)
+    } else {
+        p.to_path_buf()
+    }
+}
+
+pub fn compile_events_in(
+    events: &[RecordedEvent],
+    tile_state: &mut bool,
+    base_dir: Option<&Path>,
+) -> Result<Vec<Command>, String> {
     let mut commands = Vec::new();
     for event in events {
         match event {
@@ -294,12 +331,17 @@ pub fn compile_events(events: &[RecordedEvent], tile_state: &mut bool) -> Vec<Co
             RecordedEvent::SetTile { enabled } => {
                 *tile_state = *enabled;
             }
+            RecordedEvent::ImportUnderlayer { path } => {
+                let resolved = resolve_path(base_dir, path);
+                let words = gpu::load_png_as_substrate(&resolved)?;
+                commands.push(Command::ImportUnderlayer(words));
+            }
             RecordedEvent::ImportReference { words } => {
                 commands.push(Command::ImportReference(words.clone()));
             }
         }
     }
-    commands
+    Ok(commands)
 }
 
 pub fn equip_cabinet(commands: &mut Vec<Command>) {
@@ -312,9 +354,13 @@ pub fn render_headless(
     recording_path: &Path,
     out_path: &Path,
     mode: ExportKind,
+    underlayer_override: Option<&Path>,
 ) -> Result<usize, String> {
     let text = std::fs::read_to_string(recording_path).map_err(|e| e.to_string())?;
     let recording: Recording = serde_json::from_str(&text).map_err(|e| e.to_string())?;
+    let base_dir = recording_path
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty());
 
     let inst = wgpu::Instance::new(&wgpu::InstanceDescriptor {
         backends: wgpu::Backends::DX12,
@@ -322,35 +368,182 @@ pub fn render_headless(
     });
     let (device, queue, _) = pollster::block_on(gpu::device(&inst, None))?;
     let mut paint = PaintGpu::new(&device);
-    if let Some(lighting) = recording.lighting.clone() {
-        paint.lighting = lighting.into();
-    }
-    if let Some(tile) = recording.tile {
-        paint.tile = tile;
-    }
+    render_one(
+        &device,
+        &queue,
+        &mut paint,
+        &recording,
+        base_dir,
+        underlayer_override,
+        out_path,
+        mode,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn render_one(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    paint: &mut PaintGpu,
+    recording: &Recording,
+    base_dir: Option<&Path>,
+    underlayer_override: Option<&Path>,
+    out_path: &Path,
+    mode: ExportKind,
+) -> Result<usize, String> {
+    paint.lighting = recording
+        .lighting
+        .clone()
+        .map(Into::into)
+        .unwrap_or(Lighting {
+            enabled: false,
+            ..Default::default()
+        });
+    paint.tile = recording.tile.unwrap_or(false);
 
     let mut commands = vec![Command::Initialize];
     equip_cabinet(&mut commands);
+
+    if let Some(ul_path) = underlayer_override {
+        let words = gpu::load_png_as_substrate(ul_path)?;
+        commands.push(Command::ImportUnderlayer(words));
+    } else if let Some(ref raw) = recording.underlayer_path {
+        let resolved = resolve_path(base_dir, raw);
+        let words = gpu::load_png_as_substrate(&resolved)?;
+        commands.push(Command::ImportUnderlayer(words));
+    }
+
     let mut tile_state = paint.tile;
-    commands.extend(compile_events(&recording.events, &mut tile_state));
+    commands.extend(compile_events_in(
+        &recording.events,
+        &mut tile_state,
+        base_dir,
+    )?);
     paint.tile = tile_state;
 
     for chunk in commands.chunks(MAX_COMMANDS) {
         let mut encoder = device.create_command_encoder(&Default::default());
-        paint.encode(&device, &queue, &mut encoder, chunk);
+        paint.encode(device, queue, &mut encoder, chunk);
         queue.submit([encoder.finish()]);
     }
     while paint.ink_is_wet() {
         let mut encoder = device.create_command_encoder(&Default::default());
-        paint.encode(&device, &queue, &mut encoder, &[Command::AdvanceInk]);
+        paint.encode(device, queue, &mut encoder, &[Command::AdvanceInk]);
         queue.submit([encoder.finish()]);
     }
 
     let mut encoder = device.create_command_encoder(&Default::default());
-    let buffer = paint.readback_kind(&device, &queue, &mut encoder, mode);
+    let buffer = paint.readback_kind(device, queue, &mut encoder, mode);
     queue.submit([encoder.finish()]);
     let rx = gpu::export_with_srgb(buffer, out_path.to_path_buf(), mode.is_srgb());
     let _ = device.poll(wgpu::Maintain::Wait);
     rx.recv().map_err(|e| e.to_string())??;
     Ok(recording.events.len())
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct BatchManifest {
+    pub format: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shared_recording: Option<String>,
+    pub jobs: Vec<BatchJob>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct BatchJob {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recording: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub underlayer: Option<String>,
+    pub out: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mode: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct BatchJobOutput {
+    pub index: usize,
+    pub out: String,
+    pub mode: String,
+    pub events: usize,
+}
+
+pub fn parse_export_mode(mode_str: &str) -> Result<ExportKind, String> {
+    match mode_str {
+        "color" => Ok(ExportKind::Color),
+        "transparent" => Ok(ExportKind::Transparent),
+        "height" => Ok(ExportKind::Height),
+        "normal" => Ok(ExportKind::Normal),
+        other => Err(format!(
+            "Unknown mode '{other}'. Expected color, transparent, height, or normal."
+        )),
+    }
+}
+
+pub fn render_batch(manifest_path: &Path) -> Result<Vec<BatchJobOutput>, String> {
+    let text = std::fs::read_to_string(manifest_path).map_err(|e| e.to_string())?;
+    let manifest: BatchManifest = serde_json::from_str(&text).map_err(|e| e.to_string())?;
+    let manifest_dir = manifest_path.parent().filter(|p| !p.as_os_str().is_empty());
+
+    let inst = wgpu::Instance::new(&wgpu::InstanceDescriptor {
+        backends: wgpu::Backends::DX12,
+        ..Default::default()
+    });
+    let (device, queue, _) = pollster::block_on(gpu::device(&inst, None))?;
+    let mut paint = PaintGpu::new(&device);
+    let mut cache: std::collections::HashMap<std::path::PathBuf, Recording> =
+        std::collections::HashMap::new();
+    let mut results = Vec::with_capacity(manifest.jobs.len());
+
+    for (index, job) in manifest.jobs.iter().enumerate() {
+        let rec_raw = job
+            .recording
+            .as_deref()
+            .or(manifest.shared_recording.as_deref())
+            .ok_or_else(|| {
+                format!(
+                    "Batch job {index} is missing 'recording' and no 'shared_recording' was set."
+                )
+            })?;
+        let rec_path = resolve_path(manifest_dir, rec_raw);
+        let recording = if let Some(cached) = cache.get(&rec_path) {
+            cached.clone()
+        } else {
+            let rec_text = std::fs::read_to_string(&rec_path)
+                .map_err(|e| format!("Job {index} recording {}: {e}", rec_path.display()))?;
+            let parsed: Recording = serde_json::from_str(&rec_text)
+                .map_err(|e| format!("Job {index} recording {}: {e}", rec_path.display()))?;
+            cache.insert(rec_path.clone(), parsed.clone());
+            parsed
+        };
+        let rec_dir = rec_path.parent().filter(|p| !p.as_os_str().is_empty());
+        let underlayer_path = job
+            .underlayer
+            .as_deref()
+            .map(|p| resolve_path(manifest_dir, p));
+        let out_path = resolve_path(manifest_dir, &job.out);
+        if let Some(parent) = out_path.parent().filter(|p| !p.as_os_str().is_empty()) {
+            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        let mode_str = job.mode.as_deref().unwrap_or("color");
+        let mode = parse_export_mode(mode_str)?;
+
+        let events = render_one(
+            &device,
+            &queue,
+            &mut paint,
+            &recording,
+            rec_dir,
+            underlayer_path.as_deref(),
+            &out_path,
+            mode,
+        )?;
+        results.push(BatchJobOutput {
+            index,
+            out: out_path.display().to_string(),
+            mode: mode_str.to_string(),
+            events,
+        });
+    }
+    Ok(results)
 }

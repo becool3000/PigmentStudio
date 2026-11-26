@@ -24,6 +24,8 @@ pub struct Stroke {
     pub surface: Surface,
     brush: Brush,
     angle: f32,
+    auto_angle: bool,
+    load_ratio: f32,
     tile: bool,
     charcoal_erase: Option<bool>,
     ink_hold: Option<(Instant, Pos2)>,
@@ -56,6 +58,24 @@ impl Stroke {
         tile: bool,
         commands: &mut Vec<Command>,
     ) -> Self {
+        Self::start_full(
+            source, sample, diameter, surface, brush, angle, false, 1.0, tile, commands,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn start_full(
+        source: Source,
+        sample: Sample,
+        diameter: f32,
+        surface: Surface,
+        brush: Brush,
+        angle: f32,
+        auto_angle: bool,
+        load_ratio: f32,
+        tile: bool,
+        commands: &mut Vec<Command>,
+    ) -> Self {
         let stroke = Self {
             source,
             last: sample,
@@ -65,6 +85,8 @@ impl Stroke {
             surface,
             brush,
             angle,
+            auto_angle,
+            load_ratio,
             tile,
             charcoal_erase: None,
             ink_hold: None,
@@ -93,6 +115,8 @@ impl Stroke {
             surface: Surface::Canvas,
             brush: Brush::Round,
             angle: 0.,
+            auto_angle: false,
+            load_ratio: 1.0,
             tile,
             charcoal_erase: None,
             ink_hold: Some((Instant::now() + Duration::from_millis(34), sample.point)),
@@ -118,6 +142,8 @@ impl Stroke {
             surface: Surface::Canvas,
             brush: Brush::Round,
             angle: 0.,
+            auto_angle: false,
+            load_ratio: 1.0,
             tile,
             charcoal_erase: Some(erase),
             ink_hold: None,
@@ -157,6 +183,15 @@ impl Stroke {
             return;
         }
         let distance = self.last.point.distance(sample.point);
+        if self.auto_angle && self.brush.is_directional() && distance >= 1.5 {
+            let delta = sample.point - self.last.point;
+            let target = delta.y.atan2(delta.x) + std::f32::consts::FRAC_PI_2;
+            let mut diff = (target - self.angle).rem_euclid(std::f32::consts::TAU);
+            if diff > std::f32::consts::PI {
+                diff -= std::f32::consts::TAU;
+            }
+            self.angle += diff * 0.45;
+        }
         if distance == 0. {
             if (sample.pressure - self.pressure_at_dab).abs() >= 0.04 {
                 self.dab(sample, commands);
@@ -220,7 +255,7 @@ impl Stroke {
             )));
             return;
         }
-        commands.push(Command::Dab(Dab::new_tiled(
+        commands.push(Command::Dab(Dab::new_with_load(
             sample.point,
             self.radius(sample.pressure),
             sample.pressure,
@@ -228,6 +263,7 @@ impl Stroke {
             self.brush,
             self.angle,
             self.tile,
+            self.load_ratio,
         )));
     }
 }

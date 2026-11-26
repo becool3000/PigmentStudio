@@ -56,7 +56,8 @@ Status: v0.1 prototype is implemented and passes all automated tests and benchma
 
 ## Upcoming feature preparation (ready for implementation)
 
-- [ ] Palette knife tool for crisp scraping, blending, and applying thick opaque patches.
+- [x] Palette knife tool for crisp scraping, blending, and applying thick opaque patches.
+- [x] Robust oil brush pack (Hog-Bristle Flat, Filbert, Fan, Palette Knife, Soft Mop, Dry-brush skip, and Auto-follow stroke rotation).
 - [ ] Additional pigments / customizable palette slots (e.g. Raw Umber, Cadmium Red, Viridian).
 - [x] Project persistence / session save-and-load (saving canvas, palette state, and swatches to disk).
 
@@ -78,3 +79,8 @@ Status: v0.1 prototype is implemented and passes all automated tests and benchma
 
 ### Phase D — Standalone Pigment Engine Crate
 - [ ] Extract core Kubelka-Munk spectral math and WGSL mixing shaders into a standalone workspace crate under `MIT`, keeping the desktop app `GPL-3.0-only`.
+
+### Phase E — Reachable Underlayer, Batch Animation & Agent Docs
+- [x] Reachable underlayer import: expose `ImportUnderlayer` in `File → Import Dried Underlayer…`, support `underlayer_path` in `pigment-studio-recording-v1` JSON, and add `--underlayer <img.png>` to the `--render` CLI (keeping `ImportUnderlayer` active in non-test builds) for headless glazing over 3D renders.
+- [x] Deterministic batch rendering: add `--batch <manifest.json>` (or multi-frame CLI) reusing one DX12 `PaintGpu` instance across many recordings or per-frame underlayer PNGs with deterministic reset (`Command::Initialize`) between frames.
+- [x] Documented recording format: publish a formal JSON Schema for `pigment-studio-recording-v1` plus a reference table of `tube` indices (`0..7`), `dip_rack` cabinet slots (`0..19`), and brush profiles so agents can author strokes from scratch.

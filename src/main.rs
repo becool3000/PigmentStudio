@@ -16,10 +16,11 @@ mod workbench;
 mod tests;
 
 use egui::{Color32, Pos2, Rect};
-use gpu::{Brush, BrushService, Command, Dab, ExportKind, PaintGpu, Surface, MAX_COMMANDS, SIDE};
+use gpu::{Brush, BrushService, Command, Dab, PaintGpu, Surface, MAX_COMMANDS, SIDE};
 use pen::{PenInput, Phase};
 use recording::{RecordedEvent, RecordedSample, Recording};
 use std::{
+    collections::VecDeque,
     path::PathBuf,
     sync::{mpsc::Receiver, Arc},
     time::{Duration, Instant},
@@ -56,6 +57,7 @@ fn main() -> std::process::ExitCode {
             || arg == "--inspect-pixel"
             || arg == "--clear-done-notes"
             || arg == "--render"
+            || arg == "--batch"
     });
     #[cfg(windows)]
     if is_cli {
@@ -97,7 +99,7 @@ fn main() -> std::process::ExitCode {
 
     if let Some(pos) = args.iter().position(|arg| arg == "--render") {
         let Some(rec_path) = args.get(pos + 1).map(PathBuf::from) else {
-            eprintln!("Usage: --render <recording.json> --out <output.png> [--mode color|transparent|height|normal]");
+            eprintln!("Usage: --render <recording.json> --out <output.png> [--mode color|transparent|height|normal] [--underlayer <img.png>]");
             return std::process::ExitCode::FAILURE;
         };
         let out_path = args
@@ -112,19 +114,19 @@ fn main() -> std::process::ExitCode {
             .and_then(|i| args.get(i + 1))
             .map(String::as_str)
             .unwrap_or("color");
-        let mode = match mode_str {
-            "color" => ExportKind::Color,
-            "transparent" => ExportKind::Transparent,
-            "height" => ExportKind::Height,
-            "normal" => ExportKind::Normal,
-            other => {
-                eprintln!(
-                    "Unknown --mode '{other}'. Expected color, transparent, height, or normal."
-                );
+        let underlayer_path = args
+            .iter()
+            .position(|a| a == "--underlayer")
+            .and_then(|i| args.get(i + 1))
+            .map(PathBuf::from);
+        let mode = match recording::parse_export_mode(mode_str) {
+            Ok(m) => m,
+            Err(err) => {
+                eprintln!("{err}");
                 return std::process::ExitCode::FAILURE;
             }
         };
-        match recording::render_headless(&rec_path, &out_path, mode) {
+        match recording::render_headless(&rec_path, &out_path, mode, underlayer_path.as_deref()) {
             Ok(events) => {
                 println!(
                     "{}",
@@ -139,6 +141,30 @@ fn main() -> std::process::ExitCode {
             }
             Err(err) => {
                 eprintln!("Headless render failed: {err}");
+                return std::process::ExitCode::FAILURE;
+            }
+        }
+    }
+
+    if let Some(pos) = args.iter().position(|arg| arg == "--batch") {
+        let Some(manifest_path) = args.get(pos + 1).map(PathBuf::from) else {
+            eprintln!("Usage: --batch <manifest.json>");
+            return std::process::ExitCode::FAILURE;
+        };
+        match recording::render_batch(&manifest_path) {
+            Ok(jobs) => {
+                println!(
+                    "{}",
+                    serde_json::json!({
+                        "ok": true,
+                        "rendered": jobs.len(),
+                        "jobs": jobs,
+                    })
+                );
+                return std::process::ExitCode::SUCCESS;
+            }
+            Err(err) => {
+                eprintln!("Batch render failed: {err}");
                 return std::process::ExitCode::FAILURE;
             }
         }
@@ -162,7 +188,17 @@ fn main() -> std::process::ExitCode {
     }
 
     let benchmark = args.iter().any(|argument| argument == "--benchmark");
-    if let Err(error) = run(benchmark) {
+    let reference = args
+        .iter()
+        .position(|a| a == "--reference")
+        .and_then(|i| args.get(i + 1))
+        .map(PathBuf::from);
+    let replay = args
+        .iter()
+        .position(|a| a == "--replay")
+        .and_then(|i| args.get(i + 1))
+        .map(PathBuf::from);
+    if let Err(error) = run(benchmark, reference, replay) {
         eprintln!("{error}");
         if !benchmark {
             rfd::MessageDialog::new()
@@ -176,10 +212,12 @@ fn main() -> std::process::ExitCode {
     std::process::ExitCode::SUCCESS
 }
 
-fn run(benchmark: bool) -> Result<(), String> {
+fn run(benchmark: bool, reference: Option<PathBuf>, replay: Option<PathBuf>) -> Result<(), String> {
     let event_loop = EventLoop::new().map_err(|e| e.to_string())?;
     let mut app = App {
         benchmark: benchmark.then(benchmark::Benchmark::default),
+        reference,
+        replay,
         ..Default::default()
     };
     event_loop.run_app(&mut app).map_err(|e| e.to_string())?;
@@ -198,6 +236,8 @@ struct App {
     studio: Option<Studio>,
     error: Option<String>,
     benchmark: Option<benchmark::Benchmark>,
+    reference: Option<PathBuf>,
+    replay: Option<PathBuf>,
 }
 
 impl ApplicationHandler for App {
@@ -205,6 +245,8 @@ impl ApplicationHandler for App {
         if self.studio.is_some() {
             return;
         }
+        let ref_path = self.reference.take();
+        let rep_path = self.replay.take();
         let result = event_loop
             .create_window(
                 Window::default_attributes()
@@ -214,7 +256,9 @@ impl ApplicationHandler for App {
                     .with_visible(false),
             )
             .map_err(|e| e.to_string())
-            .and_then(|window| pollster::block_on(Studio::new(Arc::new(window))));
+            .and_then(|window| {
+                pollster::block_on(Studio::new(Arc::new(window), ref_path, rep_path))
+            });
         match result {
             Ok(studio) => {
                 studio.window.set_visible(true);
@@ -565,6 +609,7 @@ struct Studio {
     pen_waits_for_ui: bool,
     selected_dossier: Option<&'static cabinet::PigmentDef>,
     brush: Brush,
+    auto_follow: bool,
     workbench: workbench::Workbench,
     placement_pending: bool,
     placement_result: Option<Receiver<Option<bool>>>,
@@ -586,6 +631,7 @@ struct Studio {
 
     pressure: f32,
     commands: Vec<Command>,
+    replay_queue: VecDeque<Command>,
     recording: Recording,
     active_stroke_samples: Vec<RecordedSample>,
     undo_marks: Vec<usize>,
@@ -598,7 +644,11 @@ struct Studio {
 }
 
 impl Studio {
-    async fn new(window: Arc<Window>) -> Result<Self, String> {
+    async fn new(
+        window: Arc<Window>,
+        reference_path: Option<PathBuf>,
+        replay_path: Option<PathBuf>,
+    ) -> Result<Self, String> {
         let instance = instance();
         let surface = instance.create_surface(window.clone()).map_err(|e| {
             format!("Could not open the GPU canvas. Check your graphics driver. {e}")
@@ -648,8 +698,34 @@ impl Studio {
             commands.push(Command::EquipRack(slot, p.recipe));
         }
         let mut paint = paint;
-        let workbench = workbench::Workbench::default();
+        let mut workbench = workbench::Workbench::default();
         paint.lighting = workbench.lighting;
+
+        let mut recording = Recording::default();
+        let mut replay_queue = VecDeque::new();
+        if let Some(ref_p) = reference_path {
+            if let Ok(words) = gpu::load_png_as_reference(&ref_p) {
+                paint.layers.reference_visible = true;
+                paint.layers.reference_opacity = 0.55;
+                commands.push(Command::ImportReference(words));
+            }
+        }
+        if let Some(rep_p) = replay_path {
+            if let Ok(text) = std::fs::read_to_string(&rep_p) {
+                if let Ok(rec) = serde_json::from_str::<Recording>(&text) {
+                    if let Some(lighting) = rec.lighting.clone() {
+                        workbench.lighting = lighting.into();
+                        paint.lighting = workbench.lighting;
+                    }
+                    let mut tile_state = rec.tile.unwrap_or(paint.tile);
+                    let cmds = recording::compile_events(&rec.events, &mut tile_state);
+                    paint.tile = tile_state;
+                    replay_queue.extend(cmds);
+                    recording = rec;
+                }
+            }
+        }
+
         Ok(Self {
             pen,
             window,
@@ -676,6 +752,7 @@ impl Studio {
             rag_gesture: None,
             pen_waits_for_ui: false,
             brush: Brush::Round,
+            auto_follow: true,
             workbench,
             placement_pending: false,
             placement_result: None,
@@ -695,7 +772,8 @@ impl Studio {
             selected_note: None,
             pressure: 0.,
             commands,
-            recording: Recording::default(),
+            replay_queue,
+            recording,
             active_stroke_samples: Vec::new(),
             undo_marks: Vec::new(),
             gpu_undo_depth: 0,
@@ -1015,13 +1093,16 @@ impl Studio {
                     let load = &mut self.workbench.session.loads[self.brush.index()];
                     *load = (*load - dep).max(0.0);
                 }
-                Stroke::start_tiled(
+                let load_ratio = self.workbench.session.loads[self.brush.index()];
+                Stroke::start_full(
                     source,
                     sample,
                     self.workbench.sizes[self.brush.index()],
                     surface,
                     self.brush,
                     self.workbench.angle.to_radians(),
+                    self.auto_follow && surface == Surface::Canvas,
+                    load_ratio,
                     self.paint.tile,
                     &mut self.commands,
                 )
@@ -1268,6 +1349,30 @@ impl Studio {
                 }
                 Err(err) => {
                     self.status = format!("Reference import failed: {err}");
+                }
+            }
+        }
+    }
+
+    fn import_underlayer_dialog(&mut self) {
+        self.end_stroke();
+        if let Some(path) = rfd::FileDialog::new()
+            .set_parent(&*self.window)
+            .add_filter("PNG image", &["png"])
+            .pick_file()
+        {
+            match gpu::load_png_as_substrate(&path) {
+                Ok(words) => {
+                    self.snapshot();
+                    self.recording.events.push(RecordedEvent::ImportUnderlayer {
+                        path: path.display().to_string(),
+                    });
+                    self.commands.push(Command::ImportUnderlayer(words));
+                    self.status = format!("Imported dried underlayer {}", path.display());
+                    audio::play(audio::Sound::BrassClick);
+                }
+                Err(err) => {
+                    self.status = format!("Underlayer import failed: {err}");
                 }
             }
         }
@@ -1566,6 +1671,10 @@ impl Studio {
                         self.import_reference_dialog();
                         ui.close_menu();
                     }
+                    if ui.button("Import Dried Underlayer…").clicked() {
+                        self.import_underlayer_dialog();
+                        ui.close_menu();
+                    }
                     ui.separator();
                     ui.add_enabled_ui(can_export, |ui| {
                         ui.menu_button("Export", |ui| {
@@ -1757,31 +1866,24 @@ impl Studio {
 
                 ui.menu_button("Tools", |ui| {
                     let on_paint = self.paint.layers.active == gpu::ActiveLayer::Paint;
-                    if ui
-                        .radio(
-                            on_paint && !self.ink_selected && self.brush == Brush::Round,
-                            "Round Brush",
-                        )
-                        .clicked()
-                    {
-                        self.end_stroke();
-                        self.paint.layers.active = gpu::ActiveLayer::Paint;
-                        self.ink_selected = false;
-                        self.brush = Brush::Round;
-                        ui.close_menu();
-                    }
-                    if ui
-                        .radio(
-                            on_paint && !self.ink_selected && self.brush == Brush::Flat,
-                            "Flat Brush",
-                        )
-                        .clicked()
-                    {
-                        self.end_stroke();
-                        self.paint.layers.active = gpu::ActiveLayer::Paint;
-                        self.ink_selected = false;
-                        self.brush = Brush::Flat;
-                        ui.close_menu();
+                    for (b, label) in [
+                        (Brush::Round, "Round Brush"),
+                        (Brush::Flat, "Flat Brush (Hog-Bristle)"),
+                        (Brush::Filbert, "Filbert Brush"),
+                        (Brush::Fan, "Fan Brush"),
+                        (Brush::PaletteKnife, "Palette Knife"),
+                        (Brush::SoftMop, "Soft Mop (Blender)"),
+                    ] {
+                        if ui
+                            .radio(on_paint && !self.ink_selected && self.brush == b, label)
+                            .clicked()
+                        {
+                            self.end_stroke();
+                            self.paint.layers.active = gpu::ActiveLayer::Paint;
+                            self.ink_selected = false;
+                            self.brush = b;
+                            ui.close_menu();
+                        }
                     }
                     if ui.radio(on_paint && self.ink_selected, "Ink Pen").clicked() {
                         self.end_stroke();
@@ -2290,12 +2392,19 @@ impl Studio {
         ui.horizontal(|ui| {
             self.brush_card(ui, Brush::Round, "Round");
             self.brush_card(ui, Brush::Flat, "Flat");
+        });
+        ui.horizontal(|ui| {
+            self.brush_card(ui, Brush::Filbert, "Filbert");
+            self.brush_card(ui, Brush::Fan, "Fan");
+        });
+        ui.horizontal(|ui| {
+            self.brush_card(ui, Brush::PaletteKnife, "Knife");
+            self.brush_card(ui, Brush::SoftMop, "Soft Mop");
+        });
+        ui.horizontal(|ui| {
             let ink_on = self.paint.layers.active == gpu::ActiveLayer::Paint && self.ink_selected;
             if ui
-                .add_sized(
-                    egui::vec2(58., 42.),
-                    egui::SelectableLabel::new(ink_on, "Ink Pen"),
-                )
+                .selectable_label(ink_on, "Ink Pen")
                 .on_hover_text("Draw lightly for a fine line. Press and pause to make ink drip.")
                 .clicked()
             {
@@ -2303,8 +2412,6 @@ impl Studio {
                 self.paint.layers.active = gpu::ActiveLayer::Paint;
                 self.ink_selected = true;
             }
-        });
-        ui.horizontal(|ui| {
             let sketch_on = self.paint.layers.active == gpu::ActiveLayer::Sketch;
             if ui
                 .selectable_label(sketch_on && !self.charcoal_erase, "✏ Charcoal")
@@ -2344,15 +2451,23 @@ impl Studio {
         }
         if self.paint.layers.active == gpu::ActiveLayer::Paint
             && !self.ink_selected
-            && self.brush == Brush::Flat
+            && self.brush.is_directional()
         {
-            ui.add(
-                egui::Slider::new(&mut self.workbench.angle, 0.0..=180.0)
-                    .text("Angle")
-                    .suffix("°")
-                    .integer(),
-            )
-            .on_hover_text("Sets the direction of the flat brush’s wide edge.");
+            ui.horizontal(|ui| {
+                ui.checkbox(&mut self.auto_follow, "Auto-follow")
+                    .on_hover_text(
+                        "Automatically rotate directional brushes along your stroke path.",
+                    );
+                ui.add_enabled_ui(!self.auto_follow, |ui| {
+                    ui.add(
+                        egui::Slider::new(&mut self.workbench.angle, 0.0..=180.0)
+                            .text("Angle")
+                            .suffix("°")
+                            .integer(),
+                    )
+                    .on_hover_text("Manual angle when Auto-follow is off.");
+                });
+            });
         }
         ui.add(egui::ProgressBar::new(self.pressure).text(format!(
             "Pressure {}%",
@@ -3226,6 +3341,15 @@ impl Studio {
         for (id, delta) in &output.textures_delta.set {
             self.renderer
                 .update_texture(&self.device, &self.queue, *id, delta);
+        }
+        for _ in 0..14 {
+            let Some(cmd) = self.replay_queue.pop_front() else {
+                break;
+            };
+            self.commands.push(cmd);
+        }
+        if !self.replay_queue.is_empty() {
+            self.window.request_redraw();
         }
         let mut encoder = self.device.create_command_encoder(&Default::default());
         let count = self.commands.len().min(MAX_COMMANDS);

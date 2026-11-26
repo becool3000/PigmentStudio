@@ -34,6 +34,7 @@ Model physical paint thickness and volume on the canvas. Add surface normal mapp
 - **Dried underlayer import:** Import external sketches or renders (e.g., from Klad) onto the dried substrate for wet overpainting and glazing.
 - **Palette export:** Export custom jar recipes and swatches for reuse across projects.
 - **JSON stroke recording, replay & headless rendering:** Record and replay strokes deterministically for agent automation, deep undo, and high-res re-rendering.
+- **Batch animation & overpaint pipeline:** Single-process deterministic batch rendering across frame sequences or per-frame 3D underlayers (`--underlayer`, `--batch`), backed by a documented JSON Schema and pigment/rack index table.
 - **Permissive pigment engine crate:** Extract the core Kubelka-Munk mixing model and shaders into a standalone crate for runtime use in games and tools.
 
 ## Immersive 3D Atelier Studio (Long-Term Vision)
