@@ -24,10 +24,13 @@ pub struct Stroke {
     pub surface: Surface,
     brush: Brush,
     angle: f32,
+    tile: bool,
+    charcoal_erase: Option<bool>,
     ink_hold: Option<(Instant, Pos2)>,
 }
 
 impl Stroke {
+    #[cfg(test)]
     pub fn start(
         source: Source,
         sample: Sample,
@@ -35,6 +38,22 @@ impl Stroke {
         surface: Surface,
         brush: Brush,
         angle: f32,
+        commands: &mut Vec<Command>,
+    ) -> Self {
+        Self::start_tiled(
+            source, sample, diameter, surface, brush, angle, false, commands,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn start_tiled(
+        source: Source,
+        sample: Sample,
+        diameter: f32,
+        surface: Surface,
+        brush: Brush,
+        angle: f32,
+        tile: bool,
         commands: &mut Vec<Command>,
     ) -> Self {
         let stroke = Self {
@@ -46,13 +65,25 @@ impl Stroke {
             surface,
             brush,
             angle,
+            tile,
+            charcoal_erase: None,
             ink_hold: None,
         };
         stroke.dab(sample, commands);
         stroke
     }
 
+    #[cfg(test)]
     pub fn start_ink(source: Source, sample: Sample, commands: &mut Vec<Command>) -> Self {
+        Self::start_ink_tiled(source, sample, false, commands)
+    }
+
+    pub fn start_ink_tiled(
+        source: Source,
+        sample: Sample,
+        tile: bool,
+        commands: &mut Vec<Command>,
+    ) -> Self {
         let stroke = Self {
             source,
             last: sample,
@@ -62,7 +93,34 @@ impl Stroke {
             surface: Surface::Canvas,
             brush: Brush::Round,
             angle: 0.,
+            tile,
+            charcoal_erase: None,
             ink_hold: Some((Instant::now() + Duration::from_millis(34), sample.point)),
+        };
+        stroke.dab(sample, commands);
+        stroke
+    }
+
+    pub fn start_charcoal(
+        source: Source,
+        sample: Sample,
+        diameter: f32,
+        erase: bool,
+        tile: bool,
+        commands: &mut Vec<Command>,
+    ) -> Self {
+        let stroke = Self {
+            source,
+            last: sample,
+            pressure_at_dab: sample.pressure,
+            distance_since_dab: 0.,
+            diameter,
+            surface: Surface::Canvas,
+            brush: Brush::Round,
+            angle: 0.,
+            tile,
+            charcoal_erase: Some(erase),
+            ink_hold: None,
         };
         stroke.dab(sample, commands);
         stroke
@@ -81,10 +139,11 @@ impl Stroke {
         }
         self.ink_hold = Some((now + Duration::from_millis(34), self.last.point));
         if self.ink_is_held() && previous.distance(self.last.point) < 3. {
-            commands.push(Command::Dab(Dab::ink(
+            commands.push(Command::Dab(Dab::ink_tiled(
                 self.last.point,
                 self.last.pressure,
                 true,
+                self.tile,
             )));
         }
     }
@@ -142,17 +201,33 @@ impl Stroke {
     }
 
     fn dab(&self, sample: Sample, commands: &mut Vec<Command>) {
-        if self.ink_hold.is_some() {
-            commands.push(Command::Dab(Dab::ink(sample.point, sample.pressure, false)));
+        if let Some(erase) = self.charcoal_erase {
+            commands.push(Command::Dab(Dab::charcoal(
+                sample.point,
+                self.radius(sample.pressure),
+                sample.pressure,
+                erase,
+                self.tile,
+            )));
             return;
         }
-        commands.push(Command::Dab(Dab::new(
+        if self.ink_hold.is_some() {
+            commands.push(Command::Dab(Dab::ink_tiled(
+                sample.point,
+                sample.pressure,
+                false,
+                self.tile,
+            )));
+            return;
+        }
+        commands.push(Command::Dab(Dab::new_tiled(
             sample.point,
             self.radius(sample.pressure),
             sample.pressure,
             self.surface,
             self.brush,
             self.angle,
+            self.tile,
         )));
     }
 }

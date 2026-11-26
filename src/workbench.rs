@@ -1,6 +1,7 @@
 use std::collections::VecDeque;
 
 pub const CUSTOM_JAR_COUNT: usize = 64;
+pub const MAX_UNDO: usize = 64;
 
 #[derive(Clone, Copy)]
 pub struct Session {
@@ -45,7 +46,7 @@ impl Default for Workbench {
 
 impl Workbench {
     pub fn snapshot(&mut self) {
-        if self.history.len() == crate::gpu::HISTORY {
+        if self.history.len() == MAX_UNDO {
             self.history.pop_front();
         }
         self.history.push_back(self.session);

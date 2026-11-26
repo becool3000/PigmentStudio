@@ -56,7 +56,8 @@ impl Rig {
 
     fn canvas(&mut self, commands: &[Command]) -> Vec<u8> {
         let mut encoder = self.device.create_command_encoder(&Default::default());
-        self.paint.encode(&self.queue, &mut encoder, commands);
+        self.paint
+            .encode(&self.device, &self.queue, &mut encoder, commands);
         let buffer = self.paint.readback(&self.device, &mut encoder);
         self.queue.submit([encoder.finish()]);
         pixels(&buffer, &self.device)
@@ -64,7 +65,8 @@ impl Rig {
 
     fn state(&mut self, commands: &[Command]) -> (Vec<u8>, Vec<u8>) {
         let mut encoder = self.device.create_command_encoder(&Default::default());
-        self.paint.encode(&self.queue, &mut encoder, commands);
+        self.paint
+            .encode(&self.device, &self.queue, &mut encoder, commands);
         let (pigments, brushes) = self.paint.inspect(&self.device, &mut encoder);
         self.queue.submit([encoder.finish()]);
         (
@@ -75,8 +77,12 @@ impl Rig {
 
     fn check_tubes(&mut self, recipe: [u32; 4]) -> bool {
         let mut encoder = self.device.create_command_encoder(&Default::default());
-        self.paint
-            .encode(&self.queue, &mut encoder, &[Command::CheckTubes(recipe)]);
+        self.paint.encode(
+            &self.device,
+            &self.queue,
+            &mut encoder,
+            &[Command::CheckTubes(recipe)],
+        );
         let result = self.paint.placement_readback(&self.device, &mut encoder);
         self.queue.submit([encoder.finish()]);
         pixels(&result, &self.device)[0] != 0
@@ -1025,4 +1031,562 @@ fn test_3d_impasto_relief_and_studio_lighting() {
         dried_center[0] > 150,
         "dried impasto must retain vibrant red: {dried_center:?}"
     );
+}
+
+#[test]
+fn test_phase_a_exports_transparent_height_normal_and_palette() {
+    let mut rig = Rig::new();
+
+    // Paint a thick Cadmium Red / Vermilion dab at (500, 500) and save to Custom Jar 0
+    let _ = rig.canvas(&[
+        Command::Service(Brush::Round, BrushService::Load(6)),
+        Command::Service(Brush::Round, BrushService::Load(6)),
+        Command::Dab(Dab::new(
+            egui::pos2(500., 500.),
+            24.,
+            1.0,
+            Surface::Canvas,
+            Brush::Round,
+            0.,
+        )),
+        Command::SaveSwatch(0, Surface::Canvas, [500, 500]),
+    ]);
+
+    let read_kind = |rig: &Rig, kind: crate::gpu::ExportKind| -> Vec<u8> {
+        let mut encoder = rig.device.create_command_encoder(&Default::default());
+        let buffer = rig
+            .paint
+            .readback_kind(&rig.device, &rig.queue, &mut encoder, kind);
+        rig.queue.submit([encoder.finish()]);
+        let (done, rx) = std::sync::mpsc::channel();
+        buffer.slice(..).map_async(wgpu::MapMode::Read, move |r| {
+            let _ = done.send(r);
+        });
+        let _ = rig.device.poll(wgpu::Maintain::Wait);
+        rx.recv().unwrap().unwrap();
+        let data = buffer.slice(..).get_mapped_range().to_vec();
+        buffer.unmap();
+        data
+    };
+
+    // 1. Transparent PNG export: bare pixel has alpha 0, painted center has high alpha
+    let transparent = read_kind(&rig, crate::gpu::ExportKind::Transparent);
+    let bare_t = pixel(&transparent, 10, 10);
+    let center_t = pixel(&transparent, 500, 500);
+    assert_eq!(bare_t[3], 0, "bare canvas must be transparent: {bare_t:?}");
+    assert!(
+        center_t[3] > 200 && center_t[0] > 150,
+        "painted dab must be opaque red: {center_t:?}"
+    );
+
+    // Verify transparent export preserves studio colors across pigments (no hue shift)
+    for (idx, name) in [
+        (0usize, "Hansa Yellow"),
+        (1, "Phthalo Blue"),
+        (2, "Quinacridone Magenta"),
+        (3, "Titanium White"),
+        (6, "Cadmium Red"),
+        (7, "Bone Black"),
+    ] {
+        let mut color_rig = Rig::new();
+        let _ = color_rig.canvas(&[
+            Command::Service(Brush::Round, BrushService::Load(idx)),
+            Command::Service(Brush::Round, BrushService::Load(idx)),
+            Command::Dab(Dab::new(
+                egui::pos2(500., 500.),
+                24.,
+                1.0,
+                Surface::Canvas,
+                Brush::Round,
+                0.,
+            )),
+        ]);
+        let col = read_kind(&color_rig, crate::gpu::ExportKind::Color);
+        let trn = read_kind(&color_rig, crate::gpu::ExportKind::Transparent);
+        let c_px = pixel(&col, 500, 500);
+        let t_px = pixel(&trn, 500, 500);
+        eprintln!("{name}: Color={c_px:?}, Transparent={t_px:?}");
+        let a = t_px[3] as f32 / 255.0;
+        for ch in 0..3 {
+            let over_white = (t_px[ch] as f32 * a + 255.0 * (1.0 - a)).round() as i32;
+            let diff = (c_px[ch] as i32 - over_white).abs();
+            assert!(
+                diff <= 20,
+                "{name} channel {ch} over-white drifted: Color={c_px:?}, Transparent={t_px:?}, OverWhite={over_white}"
+            );
+        }
+        assert!(
+            t_px[3] >= 200,
+            "{name} dab center should have strong opacity: {t_px:?}"
+        );
+    }
+
+    // 2. Height map export: painted center is higher than bare canvas and grayscale
+    let height = read_kind(&rig, crate::gpu::ExportKind::Height);
+    let bare_h = pixel(&height, 10, 10);
+    let center_h = pixel(&height, 500, 500);
+    assert_eq!(bare_h[0], bare_h[1]);
+    assert_eq!(bare_h[1], bare_h[2]);
+    assert!(
+        center_h[0] > bare_h[0],
+        "painted impasto height ({center_h:?}) must exceed bare canvas ({bare_h:?})"
+    );
+
+    // 3. Normal map export: slopes tilt outward around (500, 500)
+    let normal = read_kind(&rig, crate::gpu::ExportKind::Normal);
+    let left_n = pixel(&normal, 482, 500);
+    let right_n = pixel(&normal, 518, 500);
+    assert!(
+        left_n[0] < right_n[0] && left_n[2] > 128 && right_n[2] > 128,
+        "normal X must tilt left/right across dab slopes: left={left_n:?}, right={right_n:?}"
+    );
+
+    // 4. Verify display was restored to opaque white on bare canvas after export
+    let restored = read_kind(&rig, crate::gpu::ExportKind::Color);
+    assert_eq!(pixel(&restored, 10, 10), [255, 255, 255, 255]);
+
+    // 5. Palette export (JSON and GPL)
+    let mut occupied = [false; crate::workbench::CUSTOM_JAR_COUNT];
+    occupied[0] = true;
+    let dir = tempfile::tempdir().unwrap();
+    let json_path = dir.path().join("palette.json");
+    let gpl_path = dir.path().join("palette.gpl");
+
+    for path in [&json_path, &gpl_path] {
+        let mut encoder = rig.device.create_command_encoder(&Default::default());
+        let buf = rig.paint.readback_custom_jars(&rig.device, &mut encoder);
+        rig.queue.submit([encoder.finish()]);
+        let rx = crate::gpu::export_palette(buf, occupied, path.clone());
+        let _ = rig.device.poll(wgpu::Maintain::Wait);
+        rx.recv().unwrap().unwrap();
+    }
+
+    let json_text = std::fs::read_to_string(&json_path).unwrap();
+    let parsed: serde_json::Value = serde_json::from_str(&json_text).unwrap();
+    assert_eq!(parsed["jars"][0]["name"], "Jar 1");
+    assert!(parsed["jars"][0]["hex"].as_str().unwrap().starts_with('#'));
+
+    let gpl_text = std::fs::read_to_string(&gpl_path).unwrap();
+    assert!(gpl_text.starts_with("GIMP Palette\n"));
+    assert!(gpl_text.contains("Jar 1"));
+}
+
+#[test]
+fn test_phase_b_seamless_tiling_and_underlayer_import() {
+    let mut rig = Rig::new();
+
+    // 1. Seamless tiling: paint near right and top edges and verify wraparound
+    rig.paint.tile = true;
+    let tiled = rig.canvas(&[
+        Command::Service(Brush::Round, BrushService::Load(6)),
+        Command::Service(Brush::Round, BrushService::Load(6)),
+        Command::Dab(Dab::new_tiled(
+            egui::pos2(1020., 512.),
+            24.,
+            1.0,
+            Surface::Canvas,
+            Brush::Round,
+            0.,
+            true,
+        )),
+        Command::Dab(Dab::new_tiled(
+            egui::pos2(512., 2.),
+            24.,
+            1.0,
+            Surface::Canvas,
+            Brush::Round,
+            0.,
+            true,
+        )),
+    ]);
+    let right_edge = pixel(&tiled, 1023, 512);
+    let left_wrap = pixel(&tiled, 2, 512);
+    let top_edge = pixel(&tiled, 512, 0);
+    let bottom_wrap = pixel(&tiled, 512, 1020);
+    assert!(
+        right_edge[0] > 180 && left_wrap[0] > 180,
+        "horizontal wraparound failed: right={right_edge:?}, left={left_wrap:?}"
+    );
+    assert!(
+        top_edge[0] > 180 && bottom_wrap[0] > 180,
+        "vertical wraparound failed: top={top_edge:?}, bottom={bottom_wrap:?}"
+    );
+
+    // 2. Dried underlayer import: write a 2-tone PNG, import, verify colors, glaze, and undo
+    let mut rig2 = Rig::new();
+    let dir = tempfile::tempdir().unwrap();
+    let png_path = dir.path().join("underlayer.png");
+    let mut rgba = vec![0u8; (SIDE * SIDE * 4) as usize];
+    for y in 0..SIDE {
+        for x in 0..SIDE {
+            let i = ((y * SIDE + x) * 4) as usize;
+            let c = if x < SIDE / 2 {
+                [30, 120, 230, 255]
+            } else {
+                [240, 210, 40, 255]
+            };
+            rgba[i..i + 4].copy_from_slice(&c);
+        }
+    }
+    {
+        let file = std::fs::File::create(&png_path).unwrap();
+        let mut enc = png::Encoder::new(file, SIDE, SIDE);
+        enc.set_color(png::ColorType::Rgba);
+        enc.set_depth(png::BitDepth::Eight);
+        let mut w = enc.write_header().unwrap();
+        w.write_image_data(&rgba).unwrap();
+    }
+
+    let words = crate::gpu::load_png_as_substrate(&png_path).unwrap();
+    let imported = rig2.canvas(&[Command::Snapshot, Command::ImportUnderlayer(words)]);
+    let left_px = pixel(&imported, 200, 500);
+    let right_px = pixel(&imported, 800, 500);
+    eprintln!("Underlayer left={left_px:?}, right={right_px:?}");
+    assert!(
+        (left_px[0] as i32 - 30).abs() <= 8
+            && (left_px[1] as i32 - 120).abs() <= 8
+            && (left_px[2] as i32 - 230).abs() <= 8,
+        "left underlayer color mismatch: {left_px:?}"
+    );
+    assert!(
+        (right_px[0] as i32 - 240).abs() <= 8
+            && (right_px[1] as i32 - 210).abs() <= 8
+            && (right_px[2] as i32 - 40).abs() <= 8,
+        "right underlayer color mismatch: {right_px:?}"
+    );
+
+    // Glaze Quinacridone Magenta over blue underlayer -> should shift toward purple/red
+    let glazed = rig2.canvas(&[
+        Command::Service(Brush::Round, BrushService::Load(2)),
+        Command::Dab(Dab::new(
+            egui::pos2(200., 500.),
+            20.,
+            0.8,
+            Surface::Canvas,
+            Brush::Round,
+            0.,
+        )),
+    ]);
+    let glazed_px = pixel(&glazed, 200, 500);
+    assert!(
+        glazed_px[0] > left_px[0] && glazed_px[1] < left_px[1],
+        "magenta glaze over blue underlayer should increase red and absorb green: {glazed_px:?}"
+    );
+
+    // Undo restores bare white canvas
+    let undone = rig2.canvas(&[Command::Undo]);
+    assert_eq!(pixel(&undone, 200, 500), [255, 255, 255, 255]);
+
+    // 3. Tiled stroke crossing canvas edge must not jump across the canvas
+    let mut stroke_cmds = Vec::new();
+    let mut tiled_stroke = Stroke::start_tiled(
+        Source::Mouse,
+        Sample {
+            point: egui::pos2(1014., 512.),
+            pressure: 1.0,
+            timestamp_ms: 0,
+        },
+        48.,
+        Surface::Canvas,
+        Brush::Round,
+        0.,
+        true,
+        &mut stroke_cmds,
+    );
+    tiled_stroke.extend(
+        Sample {
+            point: egui::pos2(1034., 512.),
+            pressure: 1.0,
+            timestamp_ms: 16,
+        },
+        &mut stroke_cmds,
+    );
+    tiled_stroke.finish(&mut stroke_cmds);
+    assert!(
+        stroke_cmds.len() <= 6,
+        "crossing 20px over the tiled edge should emit <= 6 dabs, got {}",
+        stroke_cmds.len()
+    );
+}
+
+#[test]
+fn test_phase_c_recording_headless_and_deep_undo() {
+    use crate::recording::{
+        compile_events, render_headless, BrushKind, RecordedEvent, RecordedSample, Recording,
+        ServiceAction, SurfaceKind,
+    };
+
+    // 1. Headless JSON recording render test
+    let dir = tempfile::tempdir().unwrap();
+    let rec_path = dir.path().join("stroke.json");
+    let out_path = dir.path().join("render.png");
+
+    let rec = Recording {
+        events: vec![
+            RecordedEvent::Service {
+                brush: BrushKind::Round,
+                action: ServiceAction::Load { tube: 6 },
+            },
+            RecordedEvent::Stroke {
+                surface: SurfaceKind::Canvas,
+                brush: BrushKind::Round,
+                ink: false,
+                charcoal: false,
+                erase: false,
+                diameter: 48.0,
+                angle_deg: 0.0,
+                tile: false,
+                samples: vec![
+                    RecordedSample {
+                        x: 400.0,
+                        y: 500.0,
+                        pressure: 1.0,
+                        timestamp_ms: 0,
+                    },
+                    RecordedSample {
+                        x: 600.0,
+                        y: 500.0,
+                        pressure: 1.0,
+                        timestamp_ms: 16,
+                    },
+                ],
+            },
+        ],
+        ..Default::default()
+    };
+    std::fs::write(&rec_path, serde_json::to_string_pretty(&rec).unwrap()).unwrap();
+    let count = render_headless(&rec_path, &out_path, crate::gpu::ExportKind::Color).unwrap();
+    assert_eq!(count, 2);
+    assert!(out_path.exists());
+
+    // Decode rendered PNG and verify the stroke painted red at (500, 500) and white at (10, 10)
+    let file = std::fs::File::open(&out_path).unwrap();
+    let decoder = png::Decoder::new(std::io::BufReader::new(file));
+    let mut reader = decoder.read_info().unwrap();
+    let mut buf = vec![0u8; reader.output_buffer_size()];
+    let info = reader.next_frame(&mut buf).unwrap();
+    assert_eq!([info.width, info.height], [SIDE, SIDE]);
+    let px = |x: u32, y: u32| -> [u8; 4] {
+        let i = ((y * SIDE + x) * 4) as usize;
+        [buf[i], buf[i + 1], buf[i + 2], buf[i + 3]]
+    };
+    assert_eq!(px(10, 10), [255, 255, 255, 255]);
+    assert!(px(500, 500)[0] > 180 && px(500, 500)[1] < 60);
+
+    // 2. Deep undo (> 8 steps, e.g. 12 steps) via Workbench + recording replay
+    let mut wb = crate::workbench::Workbench::default();
+    let mut events = Vec::new();
+    let mut marks = Vec::new();
+    for step in 0..12 {
+        marks.push(events.len());
+        wb.snapshot();
+        if step == 0 {
+            events.push(RecordedEvent::Service {
+                brush: BrushKind::Round,
+                action: ServiceAction::Load { tube: 1 },
+            });
+        }
+        let x = 100.0 + step as f32 * 60.0;
+        events.push(RecordedEvent::Stroke {
+            surface: SurfaceKind::Canvas,
+            brush: BrushKind::Round,
+            ink: false,
+            charcoal: false,
+            erase: false,
+            diameter: 32.0,
+            angle_deg: 0.0,
+            tile: false,
+            samples: vec![RecordedSample {
+                x,
+                y: 500.0,
+                pressure: 1.0,
+                timestamp_ms: step as u32 * 20,
+            }],
+        });
+    }
+    assert_eq!(wb.history.len(), 12);
+
+    // Undo all 12 steps (past the 8-slot GPU ring limit)
+    for _ in 0..12 {
+        assert!(wb.undo());
+        let mark = marks.pop().unwrap();
+        events.truncate(mark);
+    }
+    assert!(events.is_empty());
+    let mut tile = false;
+    assert!(compile_events(&events, &mut tile).is_empty());
+}
+
+#[test]
+fn test_three_layer_stack_reference_sketch_and_paint() {
+    let mut rig = Rig::new();
+
+    // 1. Import Reference Layer (non-destructive, toggleable)
+    let dir = tempfile::tempdir().unwrap();
+    let png_path = dir.path().join("ref.png");
+    let mut rgba = vec![0u8; (SIDE * SIDE * 4) as usize];
+    for px in rgba.chunks_exact_mut(4) {
+        px.copy_from_slice(&[40, 110, 220, 255]);
+    }
+    {
+        let file = std::fs::File::create(&png_path).unwrap();
+        let mut enc = png::Encoder::new(file, SIDE, SIDE);
+        enc.set_color(png::ColorType::Rgba);
+        enc.set_depth(png::BitDepth::Eight);
+        enc.write_header().unwrap().write_image_data(&rgba).unwrap();
+    }
+
+    let words = crate::gpu::load_png_as_reference(&png_path).unwrap();
+    rig.paint.layers.reference_opacity = 1.0;
+    rig.paint.layers.reference_visible = true;
+    let shown = rig.canvas(&[Command::ImportReference(words)]);
+    assert_eq!(pixel(&shown, 200, 200), [40, 110, 220, 255]);
+
+    // Toggle reference OFF -> white gesso
+    rig.paint.layers.reference_visible = false;
+    let hidden = rig.canvas(&[Command::Dab(Dab::operation(Surface::Canvas.bounds(), 1))]);
+    assert_eq!(pixel(&hidden, 200, 200), [255, 255, 255, 255]);
+
+    // Toggle reference back ON
+    rig.paint.layers.reference_visible = true;
+    let reshown = rig.canvas(&[Command::Dab(Dab::operation(Surface::Canvas.bounds(), 1))]);
+    assert_eq!(pixel(&reshown, 200, 200), [40, 110, 220, 255]);
+
+    // 2. Charcoal Pencil on Sketch Layer + Eraser
+    rig.paint.layers.reference_visible = false;
+    let sketched = rig.canvas(&[Command::Dab(Dab::charcoal(
+        egui::pos2(500., 500.),
+        16.,
+        1.0,
+        false,
+        false,
+    ))]);
+    let s_px = pixel(&sketched, 500, 500);
+    assert!(s_px[0] < 180, "charcoal must darken sketch layer: {s_px:?}");
+
+    let erased = rig.canvas(&[Command::Dab(Dab::charcoal(
+        egui::pos2(500., 500.),
+        16.,
+        1.0,
+        true,
+        false,
+    ))]);
+    let e_px = pixel(&erased, 500, 500);
+    assert!(e_px[0] > s_px[0], "eraser must lighten sketch: {e_px:?}");
+
+    // 3. Paint over Sketch, hide Paint to confirm Sketch is untouched, Clear Paint preserves Sketch
+    let _ = rig.canvas(&[
+        Command::Dab(Dab::charcoal(
+            egui::pos2(300., 300.),
+            16.,
+            1.0,
+            false,
+            false,
+        )),
+        Command::Dab(Dab::charcoal(
+            egui::pos2(300., 300.),
+            16.,
+            1.0,
+            false,
+            false,
+        )),
+        Command::Service(Brush::Round, BrushService::Load(6)),
+        Command::Service(Brush::Round, BrushService::Load(6)),
+        Command::Dab(Dab::new_tiled(
+            egui::pos2(300., 300.),
+            20.,
+            1.0,
+            Surface::Canvas,
+            Brush::Round,
+            0.,
+            false,
+        )),
+    ]);
+    rig.paint.layers.paint_visible = false;
+    let sketch_only = rig.canvas(&[Command::Dab(Dab::operation(Surface::Canvas.bounds(), 1))]);
+    assert!(
+        pixel(&sketch_only, 300, 300)[0] < 150,
+        "charcoal under paint must stay intact"
+    );
+
+    rig.paint.layers.paint_visible = true;
+    let cleared_paint = rig.canvas(&[Command::Clear(Surface::Canvas)]);
+    assert!(
+        pixel(&cleared_paint, 300, 300)[0] < 150,
+        "clearing paint must preserve sketch layer"
+    );
+}
+
+#[test]
+fn test_project_save_and_load_pigment_file() {
+    let mut rig = Rig::new();
+    let _ = rig.canvas(&[
+        Command::Service(Brush::Round, BrushService::Load(6)),
+        Command::Service(Brush::Round, BrushService::Load(6)),
+        Command::Dab(Dab::new_tiled(
+            egui::pos2(450., 450.),
+            24.,
+            1.0,
+            Surface::Canvas,
+            Brush::Round,
+            0.,
+            false,
+        )),
+        Command::Dab(Dab::charcoal(
+            egui::pos2(200., 200.),
+            14.,
+            1.0,
+            false,
+            false,
+        )),
+        Command::SaveSwatch(0, Surface::Canvas, [450, 450]),
+    ]);
+
+    let dir = tempfile::tempdir().unwrap();
+    let proj_path = dir.path().join("test.pigment");
+    let mut jars = vec![false; crate::workbench::CUSTOM_JAR_COUNT];
+    jars[0] = true;
+    let meta = crate::project::ProjectMeta {
+        loads: [0.5, 0.0],
+        jars,
+        sizes: [48.0, 64.0],
+        angle: 30.0,
+        brush: crate::recording::BrushKind::Round,
+        ink_selected: false,
+        charcoal_erase: false,
+        charcoal_size: 14.0,
+        lighting: rig.paint.lighting.into(),
+        layers: rig.paint.layers.into(),
+        tile: true,
+        recording: crate::recording::Recording::default(),
+    };
+
+    let mut encoder = rig.device.create_command_encoder(&Default::default());
+    let buf = rig.paint.readback_project(&rig.device, &mut encoder);
+    rig.queue.submit([encoder.finish()]);
+    let rx = crate::gpu::save_project(buf, meta, proj_path.clone());
+    let _ = rig.device.poll(wgpu::Maintain::Wait);
+    rx.recv().unwrap().unwrap();
+    assert!(proj_path.exists());
+
+    // Load into a brand-new Rig and verify pixels + metadata match
+    let (loaded_meta, bytes) = crate::project::read_project(&proj_path).unwrap();
+    assert_eq!(loaded_meta.sizes, [48.0, 64.0]);
+    assert!(loaded_meta.tile);
+    assert!(loaded_meta.jars[0]);
+
+    let mut rig2 = Rig::new();
+    let loaded = rig2.canvas(&[Command::Snapshot, Command::LoadProject(bytes)]);
+    assert!(
+        pixel(&loaded, 450, 450)[0] > 180,
+        "loaded project must preserve red paint"
+    );
+    assert!(
+        pixel(&loaded, 200, 200)[0] < 180,
+        "loaded project must preserve charcoal sketch"
+    );
+
+    // Undo restores clean canvas
+    let undone = rig2.canvas(&[Command::Undo]);
+    assert_eq!(pixel(&undone, 450, 450), [255, 255, 255, 255]);
 }

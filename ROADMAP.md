@@ -27,6 +27,15 @@ Model physical paint thickness and volume on the canvas. Add surface normal mapp
 - Support a native `.pigment` session file format preserving full floating-point pigment distribution, swatches, and history.
 - High-resolution export (2K/4K tile rendering) with embedded sRGB / Display P3 color profiles.
 
+## Game-dev, Asset Pipeline & Agent Interoperability
+
+- **Transparent, Height & Normal exports:** Export PNGs with coverage-derived alpha for sprites/decals, plus per-pixel paint height and surface normal maps for 3D materials.
+- **Seamless tiling mode:** Wraparound stroke stamping and normal sampling for tileable textures.
+- **Dried underlayer import:** Import external sketches or renders (e.g., from Klad) onto the dried substrate for wet overpainting and glazing.
+- **Palette export:** Export custom jar recipes and swatches for reuse across projects.
+- **JSON stroke recording, replay & headless rendering:** Record and replay strokes deterministically for agent automation, deep undo, and high-res re-rendering.
+- **Permissive pigment engine crate:** Extract the core Kubelka-Munk mixing model and shaders into a standalone crate for runtime use in games and tools.
+
 ## Immersive 3D Atelier Studio (Long-Term Vision)
 
 - Model a physical north-light painter's loft in 3D.

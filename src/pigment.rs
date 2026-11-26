@@ -175,3 +175,107 @@ pub fn rgb6(amount: [f32; 6]) -> [u8; 3] {
     a[..6].copy_from_slice(&amount);
     rgb(a)
 }
+
+fn srgb_u8_to_linear(v: u8) -> f32 {
+    let s = v as f32 / 255.0;
+    if s <= 0.04045 {
+        s / 12.92
+    } else {
+        ((s + 0.055) / 1.055).powf(2.4)
+    }
+}
+
+fn invert_3x3(m: [[f32; 3]; 3]) -> [[f32; 3]; 3] {
+    let c00 = m[1][1] * m[2][2] - m[1][2] * m[2][1];
+    let c01 = m[1][2] * m[2][0] - m[1][0] * m[2][2];
+    let c02 = m[1][0] * m[2][1] - m[1][1] * m[2][0];
+    let det = m[0][0] * c00 + m[0][1] * c01 + m[0][2] * c02;
+    let inv_det = 1.0 / det;
+    [
+        [
+            c00 * inv_det,
+            (m[0][2] * m[2][1] - m[0][1] * m[2][2]) * inv_det,
+            (m[0][1] * m[1][2] - m[0][2] * m[1][1]) * inv_det,
+        ],
+        [
+            c01 * inv_det,
+            (m[0][0] * m[2][2] - m[0][2] * m[2][0]) * inv_det,
+            (m[0][2] * m[1][0] - m[0][0] * m[1][2]) * inv_det,
+        ],
+        [
+            c02 * inv_det,
+            (m[0][1] * m[2][0] - m[0][0] * m[2][1]) * inv_det,
+            (m[0][0] * m[1][1] - m[0][1] * m[1][0]) * inv_det,
+        ],
+    ]
+}
+
+/// Uplifts 1024x1024 sRGB RGBA pixels into 16-bit packed 31-band `DrySubstrate` words.
+pub fn uplift_srgb_to_substrate(rgba: &[u8]) -> Vec<u32> {
+    let spec = spectrum();
+    let basis: [[f32; 3]; 31] = std::array::from_fn(|i| {
+        let lam = 400.0 + 10.0 * i as f32;
+        let g0 = (-((lam - 450.0) / 55.0).powi(2)).exp();
+        let g1 = (-((lam - 540.0) / 50.0).powi(2)).exp();
+        let g2 = (-((lam - 625.0) / 60.0).powi(2)).exp();
+        let sum = g0 + g1 + g2;
+        [g0 / sum, g1 / sum, g2 / sum]
+    });
+
+    let xyz_to_rgb = [
+        [3.2404542, -1.5371385, -0.4985314],
+        [-0.969266, 1.8760108, 0.041556],
+        [0.0556434, -0.2040259, 1.0572252],
+    ];
+    let mut m = [[0.0f32; 3]; 3];
+    for j in 0..3 {
+        let mut xyz = [0.0f32; 3];
+        for i in 0..31 {
+            let w = spec[i][4];
+            for c in 0..3 {
+                xyz[c] += basis[i][j] * w[c];
+            }
+        }
+        for row in 0..3 {
+            m[row][j] = (0..3).map(|c| xyz[c] * xyz_to_rgb[row][c]).sum();
+        }
+    }
+    let inv_m = invert_3x3(m);
+
+    let pixel_count = rgba.len() / 4;
+    let mut out = vec![0xFFFF_FFFFu32; pixel_count * 16];
+    for (p, chunk) in rgba.chunks_exact(4).enumerate() {
+        if chunk[0] == 255 && chunk[1] == 255 && chunk[2] == 255 {
+            continue;
+        }
+        let a = chunk[3] as f32 / 255.0;
+        let lin_r = srgb_u8_to_linear(chunk[0]) * a + (1.0 - a);
+        let lin_g = srgb_u8_to_linear(chunk[1]) * a + (1.0 - a);
+        let lin_b = srgb_u8_to_linear(chunk[2]) * a + (1.0 - a);
+        let coeffs = [
+            inv_m[0][0] * lin_r + inv_m[0][1] * lin_g + inv_m[0][2] * lin_b,
+            inv_m[1][0] * lin_r + inv_m[1][1] * lin_g + inv_m[1][2] * lin_b,
+            inv_m[2][0] * lin_r + inv_m[2][1] * lin_g + inv_m[2][2] * lin_b,
+        ];
+
+        let base = p * 16;
+        for w in 0..16 {
+            let band = |idx: usize| -> u32 {
+                if idx >= 31 {
+                    return 0xFFFF;
+                }
+                let r_corr = (coeffs[0] * basis[idx][0]
+                    + coeffs[1] * basis[idx][1]
+                    + coeffs[2] * basis[idx][2])
+                    .clamp(0.0, 1.0);
+                // Invert Saunderson boundary correction (k2 = 0.60)
+                let r_int = (r_corr / (0.40 + 0.60 * r_corr)).clamp(0.0, 1.0);
+                (r_int * 65535.0).round() as u32
+            };
+            let lo = band(w * 2);
+            let hi = band(w * 2 + 1);
+            out[base + w] = lo | (hi << 16);
+        }
+    }
+    out
+}

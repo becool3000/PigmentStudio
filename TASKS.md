@@ -58,4 +58,23 @@ Status: v0.1 prototype is implemented and passes all automated tests and benchma
 
 - [ ] Palette knife tool for crisp scraping, blending, and applying thick opaque patches.
 - [ ] Additional pigments / customizable palette slots (e.g. Raw Umber, Cadmium Red, Viridian).
-- [ ] Project persistence / session save-and-load (saving canvas, palette state, and swatches to disk).
+- [x] Project persistence / session save-and-load (saving canvas, palette state, and swatches to disk).
+
+## Community feedback roadmap (Discord)
+
+### Phase A — Game-Asset Exports
+- [x] Transparent PNG export: map paint coverage / ASTM D2805 opacity to alpha channel without white gesso background.
+- [x] Height & Normal map export: export Phase 3 Impasto thickness buffer and central-difference surface normals as PNGs.
+- [x] Palette export: export custom jar recipes (pigment weights + sRGB preview) to JSON / `.gpl`.
+
+### Phase B — Texture & Underpainting Workflow
+- [x] Seamless tiling / wraparound mode: toroidal coordinate wrapping in brush/dab stamping and Phase 3 normal gradient sampling.
+- [x] Import image as dried underlayer: uplift sRGB image into `dry_substrate` so wet paint can glaze and layer over sketches or external renders.
+- [x] 3-Layer Studio Stack (Reference → Sketch → Paint): non-destructive Reference Layer (`Import Reference…`, `👁 Ref` toggle, opacity), Charcoal Pencil & Eraser on a dedicated Sketch Layer with linen tooth grain, and a `🗂 Layers` panel in the workbench dock.
+
+### Phase C — Stroke Recording, Headless CLI & Deep Undo
+- [x] Stroke recording, replay & headless CLI rendering: JSON stroke/command schema for deterministic replay, AI/agent control, and headless PNG export.
+- [x] Deeper undo: expand beyond 8 steps via compressed/CPU-offloaded snapshots or checkpoints + JSON stroke replay.
+
+### Phase D — Standalone Pigment Engine Crate
+- [ ] Extract core Kubelka-Munk spectral math and WGSL mixing shaders into a standalone workspace crate under `MIT`, keeping the desktop app `GPL-3.0-only`.

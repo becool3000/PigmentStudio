@@ -30,6 +30,8 @@ struct DrySubstrate {
 };
 
 @group(0) @binding(8) var<storage, read_write> dry_substrate: array<DrySubstrate>;
+@group(0) @binding(9) var<storage, read_write> reference_layer: array<u32>;
+@group(0) @binding(10) var<storage, read_write> sketch_canvas: array<f32>;
 var<workgroup> sampled: array<Pigments, 64>;
 var<workgroup> weights: array<f32, 64>;
 var<workgroup> occupied: array<atomic<u32>, 8>;
@@ -47,8 +49,16 @@ fn pure(id: u32, mass: f32) -> Pigments {
 }
 fn index(pixel: vec2<u32>) -> u32 { return pixel.y * 1024u + pixel.x; }
 
+fn wrap_canvas_pixel(raw: vec2<u32>, wrap: bool) -> vec2<u32> {
+    return select(raw, raw % 1024u, wrap);
+}
+
 fn tip(pixel: vec2<u32>) -> vec2<f32> {
-    let p = (vec2<f32>(pixel) + vec2<f32>(0.5) - dab.brush.xy) / dab.brush.z;
+    var delta = vec2<f32>(pixel) + vec2<f32>(0.5) - dab.brush.xy;
+    if (dab.mode.w != 0u) {
+        delta = delta - round(delta / 1024.0) * 1024.0;
+    }
+    let p = delta / dab.brush.z;
     if (dab.mode.y == 0u) {
         return vec2<f32>(1.0 - smoothstep(0.3, 1.0, length(p)), 0.0);
     }
@@ -74,7 +84,10 @@ fn gather(@builtin(local_invocation_index) i: u32, @builtin(workgroup_id) work: 
     var paint = zero();
     var area = 0.0;
     for (var k = i; k < count; k += 64u) {
-        let pixel = dab.bounds.xy + vec2<u32>(k % dab.bounds.z, k / dab.bounds.z);
+        let pixel = wrap_canvas_pixel(
+            dab.bounds.xy + vec2<u32>(k % dab.bounds.z, k / dab.bounds.z),
+            dab.mode.w != 0u
+        );
         let footprint = tip(pixel);
         if (u32(footprint.y) == group && footprint.x > 0.0) {
             let pixel_paint = canvas[index(pixel)];
@@ -144,6 +157,41 @@ fn choose_slots(@builtin(local_invocation_index) lane: u32) {
 fn srgb(linear: vec3<f32>) -> vec3<f32> {
     return select(1.055 * pow(linear, vec3<f32>(1.0 / 2.4)) - 0.055,
                   12.92 * linear, linear <= vec3<f32>(0.0031308));
+}
+
+fn srgb_to_linear(c: vec3<f32>) -> vec3<f32> {
+    return select(pow((c + vec3<f32>(0.055)) / 1.055, vec3<f32>(2.4)),
+                  c / 12.92, c <= vec3<f32>(0.04045));
+}
+
+fn paint_contrast_alpha(wet: Pigments, dry: Pigments) -> f32 {
+    let combined = add(wet, dry);
+    if (amount(combined) <= 0.00001) { return 0.0; }
+    let k2 = 0.60;
+    var y_w = 0.0;
+    var y_b = 0.0;
+    for (var i = 0u; i < 31u; i++) {
+        let band = bands[i];
+        let k_tot = dot(combined.lo, band.k0) + dot(combined.hi, band.k1);
+        let s_tot = dot(combined.lo, band.s0) + dot(combined.hi, band.s1);
+        let s_safe = max(s_tot, 0.000001);
+        let r = k_tot / s_safe;
+        let a = 1.0 + r;
+        let b = sqrt(r * (r + 2.0));
+        let r_inf = 1.0 / (a + b);
+        let u = sqrt(k_tot * (k_tot + 2.0 * s_tot));
+        let e2 = exp(-2.0 * u);
+
+        let r_int_w = clamp((r_inf + e2) / max(1.0 + e2 * r_inf, 0.00001), 0.0, 1.0);
+        let r_int_b = clamp((r_inf * (1.0 - e2)) / max(1.0 - e2 * r_inf * r_inf, 0.00001), 0.0, 1.0);
+
+        let rw_corr = (r_int_w * (1.0 - k2)) / max(1.0 - k2 * r_int_w, 0.00001);
+        let rb_corr = (r_int_b * (1.0 - k2)) / max(1.0 - k2 * r_int_b, 0.00001);
+
+        y_w += rw_corr * band.xyz.y;
+        y_b += rb_corr * band.xyz.y;
+    }
+    return clamp(1.0 - (y_w - y_b), 0.0, 1.0);
 }
 
 fn composite_display_color(wet: Pigments, at: u32, is_canvas: bool) -> vec4<f32> {
@@ -216,7 +264,8 @@ fn composite_display_color(wet: Pigments, at: u32, is_canvas: bool) -> vec4<f32>
 @compute @workgroup_size(8, 8)
 fn apply(@builtin(global_invocation_id) id: vec3<u32>) {
     if (any(id.xy >= dab.bounds.zw)) { return; }
-    let pixel = dab.bounds.xy + id.xy;
+    let wrap = dab.mode.w != 0u && (dab.mode.x == 0u || dab.mode.x == 9u || dab.mode.x == 15u);
+    let pixel = wrap_canvas_pixel(dab.bounds.xy + id.xy, wrap);
     let at = index(pixel);
     var paint = canvas[at];
     if (dab.mode.x == 0u) {
@@ -325,6 +374,37 @@ fn apply(@builtin(global_invocation_id) id: vec3<u32>) {
                 vec4<f32>(dab.axis.x, dab.axis.y, dab.axis.z, dab.axis.w)
             );
             canvas[at] = paint;
+        } else if (dab.mode.x == 15u) {
+            if (pixel.y < 1024u) {
+                var delta = vec2<f32>(pixel) + vec2<f32>(0.5) - dab.brush.xy;
+                if (dab.mode.w != 0u) {
+                    delta = delta - round(delta / 1024.0) * 1024.0;
+                }
+                let dist = length(delta) / max(dab.brush.z, 0.5);
+                let falloff = 1.0 - smoothstep(0.25, 1.0, dist);
+                if (falloff > 0.0) {
+                    let fx = f32(pixel.x) * 1.9635;
+                    let fy = f32(pixel.y) * 1.9635;
+                    let tooth = 0.55 + 0.45 * clamp((cos(fx) - cos(fy)) * 0.5 + 0.5, 0.0, 1.0);
+                    let pressure = dab.brush.w;
+                    let grain = mix(tooth, 1.0, pressure * 0.65);
+                    if (dab.axis.x >= 0.0) {
+                        let deposit = falloff * grain * pressure * 0.45;
+                        sketch_canvas[at] = clamp(sketch_canvas[at] + deposit * (1.0 - sketch_canvas[at] * 0.6), 0.0, 1.0);
+                    } else {
+                        let erase = falloff * (0.35 + 0.65 * pressure);
+                        sketch_canvas[at] = max(0.0, sketch_canvas[at] * (1.0 - erase));
+                    }
+                }
+            }
+        } else if (dab.mode.x == 16u) {
+            if (pixel.y < 1024u) {
+                sketch_canvas[at] = 0.0;
+            }
+        } else if (dab.mode.x == 17u) {
+            if (pixel.y < 1024u) {
+                reference_layer[at] = 0u;
+            }
         } else if (dab.mode.x == 7u) {
             let stripe = (pixel.x / 79u + pixel.y / 103u) % 3u;
             paint = pure(stripe + 1u, 0.23);
@@ -386,6 +466,25 @@ fn surface_height(pos: vec2<u32>, impasto_scale: f32, weave_scale: f32) -> f32 {
     return h_weave + h_paint;
 }
 
+fn compute_surface_normal(pixel: vec2<u32>, impasto_scale: f32, weave_scale: f32, wrap: bool) -> vec3<f32> {
+    let px = pixel.x;
+    let py = pixel.y;
+    let left_x = select(select(px - 1u, 0u, px == 0u), (px + 1023u) % 1024u, wrap);
+    let right_x = select(select(px + 1u, 1023u, px >= 1023u), (px + 1u) % 1024u, wrap);
+    let up_y = select(select(py - 1u, 0u, py == 0u), (py + 1023u) % 1024u, wrap);
+    let down_y = select(select(py + 1u, 1023u, py >= 1023u), (py + 1u) % 1024u, wrap);
+
+    let h_L = surface_height(vec2<u32>(left_x, py), impasto_scale, weave_scale);
+    let h_R = surface_height(vec2<u32>(right_x, py), impasto_scale, weave_scale);
+    let h_U = surface_height(vec2<u32>(px, up_y), impasto_scale, weave_scale);
+    let h_D = surface_height(vec2<u32>(px, down_y), impasto_scale, weave_scale);
+
+    let dh_dx = (h_R - h_L) * 3.5;
+    let dh_dy = (h_D - h_U) * 3.5;
+
+    return normalize(vec3<f32>(-dh_dx, -dh_dy, 1.0));
+}
+
 @compute @workgroup_size(8, 8)
 fn display(@builtin(global_invocation_id) id: vec3<u32>) {
     if (any(id.xy >= dab.bounds.zw)) { return; }
@@ -393,6 +492,20 @@ fn display(@builtin(global_invocation_id) id: vec3<u32>) {
     let at = index(pixel);
     let wet_paint = canvas[at];
     let is_canvas = pixel.y < 1024u;
+    let export_mode = select(0u, dab.mode.z, is_canvas);
+
+    if (export_mode == 2u) {
+        let h = surface_height(pixel, dab.brush.x, dab.brush.y);
+        let h_norm = clamp((h + 0.15) / 1.15, 0.0, 1.0);
+        textureStore(output, vec2<i32>(pixel), vec4<f32>(vec3<f32>(h_norm), 1.0));
+        return;
+    }
+    if (export_mode == 3u) {
+        let N = compute_surface_normal(pixel, dab.brush.x, dab.brush.y, (dab.mode.w & 1u) != 0u);
+        textureStore(output, vec2<i32>(pixel), vec4<f32>(N * 0.5 + vec3<f32>(0.5), 1.0));
+        return;
+    }
+
     let base = composite_display_color(wet_paint, at, is_canvas);
     var color = base.rgb;
     if (is_canvas) {
@@ -407,23 +520,7 @@ fn display(@builtin(global_invocation_id) id: vec3<u32>) {
             let sheen_scale = dab.brush.z;
             let L = normalize(dab.axis.xyz);
             let V = vec3<f32>(0.0, 0.0, 1.0);
-
-            let px = pixel.x;
-            let py = pixel.y;
-            let left_x = select(px - 1u, 0u, px == 0u);
-            let right_x = select(px + 1u, 1023u, px >= 1023u);
-            let up_y = select(py - 1u, 0u, py == 0u);
-            let down_y = select(py + 1u, 1023u, py >= 1023u);
-
-            let h_L = surface_height(vec2<u32>(left_x, py), impasto_scale, weave_scale);
-            let h_R = surface_height(vec2<u32>(right_x, py), impasto_scale, weave_scale);
-            let h_U = surface_height(vec2<u32>(px, up_y), impasto_scale, weave_scale);
-            let h_D = surface_height(vec2<u32>(px, down_y), impasto_scale, weave_scale);
-
-            let dh_dx = (h_R - h_L) * 3.5;
-            let dh_dy = (h_D - h_U) * 3.5;
-
-            let N = normalize(vec3<f32>(-dh_dx, -dh_dy, 1.0));
+            let N = compute_surface_normal(pixel, impasto_scale, weave_scale, (dab.mode.w & 1u) != 0u);
 
             // Diffuse illumination under raking light
             let NdotL = dot(N, L);
@@ -455,6 +552,61 @@ fn display(@builtin(global_invocation_id) id: vec3<u32>) {
             let light_color = vec3<f32>(1.0, 0.98, 0.95);
 
             color = clamp(color * diffuse_factor + spec_term * light_color, vec3<f32>(0.0), vec3<f32>(1.0));
+        }
+
+        if (export_mode == 1u) {
+            let dry_paint = dry_canvas[at];
+            let total_mass = amount(wet_paint) + amount(dry_paint);
+            let contrast_alpha = paint_contrast_alpha(wet_paint, dry_paint);
+            let mass_alpha = 1.0 - exp(-total_mass * 16.0);
+            let paint_alpha = max(contrast_alpha, mass_alpha);
+            let alpha = clamp(1.0 - (1.0 - paint_alpha) * (1.0 - ink), 0.0, 1.0);
+            if (alpha <= 0.0001) {
+                textureStore(output, vec2<i32>(pixel), vec4<f32>(0.0));
+                return;
+            }
+            let linear_w = srgb_to_linear(color);
+            let min_c = min(linear_w.r, min(linear_w.g, linear_w.b));
+            let white_lift = min(1.0 - alpha, min_c);
+            let linear_fg = clamp((linear_w - vec3<f32>(white_lift)) / alpha, vec3<f32>(0.0), vec3<f32>(1.0));
+            textureStore(output, vec2<i32>(pixel), vec4<f32>(srgb(linear_fg), alpha));
+            return;
+        }
+
+        // Composite 3-layer stack: Reference -> Sketch -> Paint
+        let sketch_opacity = dab.brush.w;
+        let ref_opacity = dab.axis.w;
+        let hide_paint = (dab.mode.w & 2u) != 0u;
+        let sketch_val = select(0.0, clamp(sketch_canvas[at] * sketch_opacity, 0.0, 1.0), sketch_opacity > 0.001);
+        let ref_rgba = select(vec4<f32>(0.0), unpack4x8unorm(reference_layer[at]), ref_opacity > 0.001);
+        let ref_val = ref_rgba.a * ref_opacity;
+        if (ref_val > 0.001 || sketch_val > 0.001 || hide_paint) {
+            var bg = vec3<f32>(1.0);
+            if (ref_val > 0.001) {
+                bg = mix(bg, ref_rgba.rgb, ref_val);
+            }
+            if (sketch_val > 0.001) {
+                bg = mix(bg, vec3<f32>(0.11, 0.105, 0.10), sketch_val);
+            }
+            if (hide_paint) {
+                color = bg;
+            } else {
+                let dry_paint = dry_canvas[at];
+                let total_mass = amount(wet_paint) + amount(dry_paint);
+                let contrast_alpha = paint_contrast_alpha(wet_paint, dry_paint);
+                let mass_alpha = 1.0 - exp(-total_mass * 16.0);
+                let paint_alpha = max(contrast_alpha, mass_alpha);
+                let alpha = clamp(1.0 - (1.0 - paint_alpha) * (1.0 - ink), 0.0, 1.0);
+                if (alpha <= 0.0001) {
+                    color = bg;
+                } else {
+                    let linear_w = srgb_to_linear(color);
+                    let min_c = min(linear_w.r, min(linear_w.g, linear_w.b));
+                    let white_lift = min(1.0 - alpha, min_c);
+                    let linear_fg = clamp((linear_w - vec3<f32>(white_lift)) / alpha, vec3<f32>(0.0), vec3<f32>(1.0));
+                    color = mix(bg, srgb(linear_fg), alpha);
+                }
+            }
         }
     }
     textureStore(output, vec2<i32>(pixel), vec4<f32>(color, 1.0));

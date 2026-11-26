@@ -7,6 +7,8 @@ mod gpu;
 mod notes;
 mod pen;
 mod pigment;
+mod project;
+mod recording;
 mod stroke;
 mod workbench;
 
@@ -14,8 +16,9 @@ mod workbench;
 mod tests;
 
 use egui::{Color32, Pos2, Rect};
-use gpu::{Brush, BrushService, Command, Dab, PaintGpu, Surface, MAX_COMMANDS, SIDE};
+use gpu::{Brush, BrushService, Command, Dab, ExportKind, PaintGpu, Surface, MAX_COMMANDS, SIDE};
 use pen::{PenInput, Phase};
+use recording::{RecordedEvent, RecordedSample, Recording};
 use std::{
     path::PathBuf,
     sync::{mpsc::Receiver, Arc},
@@ -32,6 +35,18 @@ use winit::{
 
 type ExportResult = Receiver<Result<PathBuf, String>>;
 
+enum PendingExport {
+    Image(PathBuf, gpu::ExportKind),
+    Palette(PathBuf),
+    Project(PathBuf, project::ProjectMeta),
+}
+
+enum PendingReadback {
+    Image(PathBuf, wgpu::Buffer, bool),
+    Palette(PathBuf, wgpu::Buffer, [bool; workbench::CUSTOM_JAR_COUNT]),
+    Project(PathBuf, project::ProjectMeta, wgpu::Buffer),
+}
+
 fn main() -> std::process::ExitCode {
     let args: Vec<String> = std::env::args().collect();
     let is_cli = args.iter().any(|arg| {
@@ -40,6 +55,7 @@ fn main() -> std::process::ExitCode {
             || arg == "--note-done"
             || arg == "--inspect-pixel"
             || arg == "--clear-done-notes"
+            || arg == "--render"
     });
     #[cfg(windows)]
     if is_cli {
@@ -77,6 +93,55 @@ fn main() -> std::process::ExitCode {
         let count = notes::clear_done(&notes::default_path());
         println!("Cleared {} done note(s).", count);
         return std::process::ExitCode::SUCCESS;
+    }
+
+    if let Some(pos) = args.iter().position(|arg| arg == "--render") {
+        let Some(rec_path) = args.get(pos + 1).map(PathBuf::from) else {
+            eprintln!("Usage: --render <recording.json> --out <output.png> [--mode color|transparent|height|normal]");
+            return std::process::ExitCode::FAILURE;
+        };
+        let out_path = args
+            .iter()
+            .position(|a| a == "--out")
+            .and_then(|i| args.get(i + 1))
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from("render.png"));
+        let mode_str = args
+            .iter()
+            .position(|a| a == "--mode")
+            .and_then(|i| args.get(i + 1))
+            .map(String::as_str)
+            .unwrap_or("color");
+        let mode = match mode_str {
+            "color" => ExportKind::Color,
+            "transparent" => ExportKind::Transparent,
+            "height" => ExportKind::Height,
+            "normal" => ExportKind::Normal,
+            other => {
+                eprintln!(
+                    "Unknown --mode '{other}'. Expected color, transparent, height, or normal."
+                );
+                return std::process::ExitCode::FAILURE;
+            }
+        };
+        match recording::render_headless(&rec_path, &out_path, mode) {
+            Ok(events) => {
+                println!(
+                    "{}",
+                    serde_json::json!({
+                        "ok": true,
+                        "out": out_path.display().to_string(),
+                        "mode": mode_str,
+                        "events": events,
+                    })
+                );
+                return std::process::ExitCode::SUCCESS;
+            }
+            Err(err) => {
+                eprintln!("Headless render failed: {err}");
+                return std::process::ExitCode::FAILURE;
+            }
+        }
     }
 
     if let Some(pos) = args.iter().position(|arg| arg == "--inspect-pixel") {
@@ -506,18 +571,27 @@ struct Studio {
     workbench_status: String,
     benchmark_seeded: bool,
     ink_selected: bool,
+    charcoal_erase: bool,
+    charcoal_size: f32,
     next_ink_step: Instant,
 
     notes: Vec<notes::Note>,
     note_tool: bool,
     notes_manager_open: bool,
+    show_shortcuts: bool,
+    show_about: bool,
     active_note_at: Option<Pos2>,
     note_input_text: String,
     selected_note: Option<u32>,
 
     pressure: f32,
     commands: Vec<Command>,
-    export_path: Option<PathBuf>,
+    recording: Recording,
+    active_stroke_samples: Vec<RecordedSample>,
+    undo_marks: Vec<usize>,
+    gpu_undo_depth: usize,
+    current_project: Option<PathBuf>,
+    export_path: Option<PendingExport>,
     exporting: Option<ExportResult>,
     status: String,
     started: Instant,
@@ -608,15 +682,24 @@ impl Studio {
             workbench_status: String::new(),
             benchmark_seeded: false,
             ink_selected: false,
+            charcoal_erase: false,
+            charcoal_size: 14.0,
             next_ink_step: Instant::now(),
             notes: notes::read(&notes::default_path()),
             note_tool: false,
             notes_manager_open: false,
+            show_shortcuts: false,
+            show_about: false,
             active_note_at: None,
             note_input_text: String::new(),
             selected_note: None,
             pressure: 0.,
             commands,
+            recording: Recording::default(),
+            active_stroke_samples: Vec::new(),
+            undo_marks: Vec::new(),
+            gpu_undo_depth: 0,
+            current_project: None,
             export_path: None,
             exporting: None,
             status: String::new(),
@@ -677,20 +760,55 @@ impl Studio {
                     .is_some_and(|clip| clip.contains(physical))
             })?,
         };
-        if !rect.contains(physical) {
+        if !(rect.contains(physical)
+            || surface == Surface::Canvas && self.paint.tile && self.stroke.is_some())
+        {
             return None;
         }
         let [_, _, w, h] = surface.bounds();
         let delta = physical - rect.min;
-        Some(egui::pos2(
-            (delta.x / rect.width() * w as f32).clamp(0., w as f32 - 0.001),
-            (delta.y / rect.height() * h as f32).clamp(0., h as f32 - 0.001),
-        ))
+        if surface == Surface::Canvas && self.paint.tile && self.stroke.is_some() {
+            Some(egui::pos2(
+                delta.x / rect.width() * w as f32,
+                delta.y / rect.height() * h as f32,
+            ))
+        } else {
+            Some(egui::pos2(
+                (delta.x / rect.width() * w as f32).clamp(0., w as f32 - 0.001),
+                (delta.y / rect.height() * h as f32).clamp(0., h as f32 - 0.001),
+            ))
+        }
     }
 
     fn snapshot(&mut self) {
+        if self.undo_marks.len() == workbench::MAX_UNDO {
+            self.undo_marks.remove(0);
+        }
+        self.undo_marks.push(self.recording.events.len());
+        self.gpu_undo_depth = (self.gpu_undo_depth + 1).min(gpu::HISTORY);
         self.workbench.snapshot();
         self.commands.push(Command::Snapshot);
+    }
+
+    fn perform_undo(&mut self) {
+        self.end_stroke();
+        if !self.workbench.undo() {
+            return;
+        }
+        if let Some(mark) = self.undo_marks.pop() {
+            self.recording.events.truncate(mark);
+        }
+        if self.gpu_undo_depth > 0 {
+            self.gpu_undo_depth -= 1;
+            self.commands.push(Command::Undo);
+        } else {
+            self.commands.push(Command::Initialize);
+            recording::equip_cabinet(&mut self.commands);
+            let mut tile_state = false;
+            let replayed = recording::compile_events(&self.recording.events, &mut tile_state);
+            self.paint.tile = tile_state;
+            self.commands.extend(replayed);
+        }
     }
 
     fn place_tubes(&mut self, tubes: [u32; 4]) {
@@ -718,7 +836,12 @@ impl Studio {
         self.snapshot();
         let load = &mut self.workbench.session.loads[self.brush.index()];
         *load = (*load + 0.25).min(1.0);
+        self.recording.events.push(RecordedEvent::Service {
+            brush: self.brush.into(),
+            action: service.into(),
+        });
         self.commands.push(Command::Service(self.brush, service));
+        self.paint.layers.active = gpu::ActiveLayer::Paint;
         self.ink_selected = false;
         self.workbench.sampling = false;
     }
@@ -733,8 +856,12 @@ impl Studio {
         self.end_stroke();
         self.snapshot();
         self.workbench.session.loads[self.brush.index()] = target;
-        self.commands
-            .push(Command::Service(self.brush, BrushService::Wipe(scale)));
+        let action = BrushService::Wipe(scale);
+        self.recording.events.push(RecordedEvent::Service {
+            brush: self.brush.into(),
+            action: action.into(),
+        });
+        self.commands.push(Command::Service(self.brush, action));
     }
 
     fn clean_brush(&mut self) {
@@ -744,8 +871,12 @@ impl Studio {
         self.end_stroke();
         self.snapshot();
         self.workbench.session.loads[self.brush.index()] = 0.0;
-        self.commands
-            .push(Command::Service(self.brush, BrushService::Wipe(0.0)));
+        let action = BrushService::Wipe(0.0);
+        self.recording.events.push(RecordedEvent::Service {
+            brush: self.brush.into(),
+            action: action.into(),
+        });
+        self.commands.push(Command::Service(self.brush, action));
     }
 
     fn start_stroke(&mut self, source: Source, position: Pos2, pressure: f32, timestamp_ms: u32) {
@@ -778,6 +909,12 @@ impl Studio {
                 {
                     self.snapshot();
                     self.workbench.session.jars[slot] = true;
+                    self.recording.events.push(RecordedEvent::SaveSwatch {
+                        slot,
+                        surface: recording::SurfaceKind::Palette,
+                        x: point.x as u32,
+                        y: point.y as u32,
+                    });
                     self.commands.push(Command::SaveSwatch(
                         slot,
                         Surface::Palette,
@@ -820,6 +957,12 @@ impl Studio {
                 {
                     self.snapshot();
                     self.workbench.session.jars[slot] = true;
+                    self.recording.events.push(RecordedEvent::SaveSwatch {
+                        slot,
+                        surface: recording::SurfaceKind::Canvas,
+                        x: point.x as u32,
+                        y: point.y as u32,
+                    });
                     self.commands.push(Command::SaveSwatch(
                         slot,
                         Surface::Canvas,
@@ -844,27 +987,46 @@ impl Studio {
             pressure,
             timestamp_ms,
         };
-        self.stroke = Some(if self.ink_selected && surface == Surface::Canvas {
-            Stroke::start_ink(source, sample, &mut self.commands)
-        } else {
-            if surface == Surface::Canvas {
-                let dep = (0.0008
-                    * (self.workbench.sizes[self.brush.index()] / 64.0).clamp(0.4, 2.0)
-                    * pressure)
-                    .min(0.002);
-                let load = &mut self.workbench.session.loads[self.brush.index()];
-                *load = (*load - dep).max(0.0);
-            }
-            Stroke::start(
-                source,
-                sample,
-                self.workbench.sizes[self.brush.index()],
-                surface,
-                self.brush,
-                self.workbench.angle.to_radians(),
-                &mut self.commands,
-            )
+        self.active_stroke_samples.clear();
+        self.active_stroke_samples.push(RecordedSample {
+            x: point.x,
+            y: point.y,
+            pressure,
+            timestamp_ms,
         });
+        self.stroke = Some(
+            if self.paint.layers.active == gpu::ActiveLayer::Sketch && surface == Surface::Canvas {
+                Stroke::start_charcoal(
+                    source,
+                    sample,
+                    self.charcoal_size,
+                    self.charcoal_erase,
+                    self.paint.tile,
+                    &mut self.commands,
+                )
+            } else if self.ink_selected && surface == Surface::Canvas {
+                Stroke::start_ink_tiled(source, sample, self.paint.tile, &mut self.commands)
+            } else {
+                if surface == Surface::Canvas {
+                    let dep = (0.0008
+                        * (self.workbench.sizes[self.brush.index()] / 64.0).clamp(0.4, 2.0)
+                        * pressure)
+                        .min(0.002);
+                    let load = &mut self.workbench.session.loads[self.brush.index()];
+                    *load = (*load - dep).max(0.0);
+                }
+                Stroke::start_tiled(
+                    source,
+                    sample,
+                    self.workbench.sizes[self.brush.index()],
+                    surface,
+                    self.brush,
+                    self.workbench.angle.to_radians(),
+                    self.paint.tile,
+                    &mut self.commands,
+                )
+            },
+        );
     }
 
     fn wipe_gesture(&mut self, source: Source, position: Pos2) {
@@ -897,6 +1059,12 @@ impl Studio {
         };
         self.pressure = pressure;
         if let Some(stroke) = &mut self.stroke {
+            self.active_stroke_samples.push(RecordedSample {
+                x: point.x,
+                y: point.y,
+                pressure,
+                timestamp_ms,
+            });
             let before = self.commands.len();
             let surface = stroke.surface;
             stroke.extend(
@@ -926,7 +1094,29 @@ impl Studio {
         if let Some(stroke) = self.stroke.take() {
             let before = self.commands.len();
             let surface = stroke.surface;
+            let is_charcoal =
+                self.paint.layers.active == gpu::ActiveLayer::Sketch && surface == Surface::Canvas;
+            let ink = !is_charcoal
+                && (stroke.ink_is_held() || (self.ink_selected && surface == Surface::Canvas));
             stroke.finish(&mut self.commands);
+            if !self.active_stroke_samples.is_empty() {
+                let samples = std::mem::take(&mut self.active_stroke_samples);
+                self.recording.events.push(RecordedEvent::Stroke {
+                    surface: surface.into(),
+                    brush: self.brush.into(),
+                    ink,
+                    charcoal: is_charcoal,
+                    erase: self.charcoal_erase,
+                    diameter: if is_charcoal {
+                        self.charcoal_size
+                    } else {
+                        self.workbench.sizes[self.brush.index()]
+                    },
+                    angle_deg: self.workbench.angle,
+                    tile: self.paint.tile && surface == Surface::Canvas,
+                    samples,
+                });
+            }
             if !self.ink_selected && surface == Surface::Canvas {
                 let dabs = self.commands.len() - before;
                 if dabs > 0 {
@@ -1018,126 +1208,783 @@ impl Studio {
         }
     }
 
+    fn refresh_canvas(&mut self) {
+        self.commands
+            .push(Command::Dab(Dab::operation(Surface::Canvas.bounds(), 1)));
+    }
+
+    fn dry_canvas(&mut self) {
+        self.end_stroke();
+        self.snapshot();
+        self.recording.events.push(RecordedEvent::DryCanvas);
+        self.commands.push(Command::DryCanvas);
+        audio::play(audio::Sound::BrassClick);
+    }
+
+    fn toggle_tile(&mut self) {
+        self.end_stroke();
+        self.paint.tile = !self.paint.tile;
+        self.recording.events.push(RecordedEvent::SetTile {
+            enabled: self.paint.tile,
+        });
+        self.refresh_canvas();
+        self.workbench_status = if self.paint.tile {
+            "Seamless tiling enabled: strokes wrap across canvas edges.".into()
+        } else {
+            "Seamless tiling disabled.".into()
+        };
+    }
+
+    fn toggle_reference(&mut self) {
+        self.paint.layers.reference_visible = !self.paint.layers.reference_visible;
+        self.refresh_canvas();
+    }
+
+    fn clear_paint_canvas(&mut self) {
+        self.end_stroke();
+        self.snapshot();
+        self.recording.events.push(RecordedEvent::Clear {
+            surface: recording::SurfaceKind::Canvas,
+        });
+        self.commands.push(Command::Clear(Surface::Canvas));
+    }
+
+    fn import_reference_dialog(&mut self) {
+        self.end_stroke();
+        if let Some(path) = rfd::FileDialog::new()
+            .set_parent(&*self.window)
+            .add_filter("PNG image", &["png"])
+            .pick_file()
+        {
+            match gpu::load_png_as_reference(&path) {
+                Ok(words) => {
+                    self.paint.layers.reference_visible = true;
+                    self.recording.events.push(RecordedEvent::ImportReference {
+                        words: words.clone(),
+                    });
+                    self.commands.push(Command::ImportReference(words));
+                    self.status = format!("Loaded reference {}", path.display());
+                    audio::play(audio::Sound::BrassClick);
+                }
+                Err(err) => {
+                    self.status = format!("Reference import failed: {err}");
+                }
+            }
+        }
+    }
+
+    fn open_project_dialog(&mut self) {
+        self.end_stroke();
+        if let Some(p) = rfd::FileDialog::new()
+            .set_parent(&*self.window)
+            .add_filter("Pigment Studio project", &["pigment"])
+            .pick_file()
+        {
+            match project::read_project(&p) {
+                Ok((meta, bytes)) => {
+                    self.snapshot();
+                    self.workbench.session.loads = meta.loads;
+                    for (dst, src) in self.workbench.session.jars.iter_mut().zip(meta.jars.iter()) {
+                        *dst = *src;
+                    }
+                    self.workbench.sizes = meta.sizes;
+                    self.workbench.angle = meta.angle;
+                    self.brush = meta.brush();
+                    self.ink_selected = meta.ink_selected;
+                    self.charcoal_erase = meta.charcoal_erase;
+                    self.charcoal_size = meta.charcoal_size;
+                    self.workbench.lighting = meta.lighting.into();
+                    self.paint.lighting = self.workbench.lighting;
+                    self.paint.layers = meta.layers.into();
+                    self.paint.tile = meta.tile;
+                    self.recording = meta.recording;
+                    self.current_project = Some(p.clone());
+                    self.commands.push(Command::LoadProject(bytes));
+                    self.status = format!("Opened {}", p.display());
+                    audio::play(audio::Sound::BrassClick);
+                }
+                Err(err) => {
+                    self.status = format!("Open failed: {err}");
+                }
+            }
+        }
+    }
+
+    fn save_project_dialog(&mut self, save_as: bool) {
+        self.end_stroke();
+        let target = if !save_as {
+            self.current_project.clone().or_else(|| {
+                rfd::FileDialog::new()
+                    .set_parent(&*self.window)
+                    .set_file_name("painting.pigment")
+                    .add_filter("Pigment Studio project", &["pigment"])
+                    .save_file()
+            })
+        } else {
+            rfd::FileDialog::new()
+                .set_parent(&*self.window)
+                .set_file_name("painting.pigment")
+                .add_filter("Pigment Studio project", &["pigment"])
+                .save_file()
+        };
+        if let Some(p) = target {
+            let meta = project::ProjectMeta {
+                loads: self.workbench.session.loads,
+                jars: self.workbench.session.jars.to_vec(),
+                sizes: self.workbench.sizes,
+                angle: self.workbench.angle,
+                brush: self.brush.into(),
+                ink_selected: self.ink_selected,
+                charcoal_erase: self.charcoal_erase,
+                charcoal_size: self.charcoal_size,
+                lighting: self.workbench.lighting.into(),
+                layers: self.paint.layers.into(),
+                tile: self.paint.tile,
+                recording: self.recording.clone(),
+            };
+            self.current_project = Some(p.clone());
+            self.export_path = Some(PendingExport::Project(p, meta));
+        }
+    }
+
+    fn export_png_dialog(&mut self, kind: gpu::ExportKind, default_name: &str) {
+        self.end_stroke();
+        if let Some(p) = rfd::FileDialog::new()
+            .set_parent(&*self.window)
+            .set_file_name(default_name)
+            .add_filter("PNG image", &["png"])
+            .save_file()
+        {
+            self.export_path = Some(PendingExport::Image(p, kind));
+        }
+    }
+
+    fn export_palette_dialog(&mut self) {
+        self.end_stroke();
+        if let Some(p) = rfd::FileDialog::new()
+            .set_parent(&*self.window)
+            .set_file_name("palette.json")
+            .add_filter("JSON palette", &["json"])
+            .add_filter("GIMP palette", &["gpl"])
+            .save_file()
+        {
+            self.export_path = Some(PendingExport::Palette(p));
+        }
+    }
+
+    fn save_recording_dialog(&mut self) {
+        self.end_stroke();
+        if let Some(p) = rfd::FileDialog::new()
+            .set_parent(&*self.window)
+            .set_file_name("strokes.json")
+            .add_filter("JSON recording", &["json"])
+            .save_file()
+        {
+            let mut rec = self.recording.clone();
+            rec.lighting = Some(self.workbench.lighting.into());
+            rec.tile = Some(self.paint.tile);
+            match serde_json::to_string_pretty(&rec)
+                .map_err(|e| e.to_string())
+                .and_then(|s| std::fs::write(&p, s).map_err(|e| e.to_string()))
+            {
+                Ok(()) => {
+                    self.status = format!("Saved recording {}", p.display());
+                }
+                Err(err) => {
+                    self.status = format!("Save recording failed: {err}");
+                }
+            }
+        }
+    }
+
+    fn replay_recording_dialog(&mut self) {
+        self.end_stroke();
+        if let Some(p) = rfd::FileDialog::new()
+            .set_parent(&*self.window)
+            .add_filter("JSON recording", &["json"])
+            .pick_file()
+        {
+            match std::fs::read_to_string(&p)
+                .map_err(|e| e.to_string())
+                .and_then(|s| serde_json::from_str::<Recording>(&s).map_err(|e| e.to_string()))
+            {
+                Ok(rec) => {
+                    self.snapshot();
+                    let mut tile_state = rec.tile.unwrap_or(self.paint.tile);
+                    let cmds = recording::compile_events(&rec.events, &mut tile_state);
+                    self.paint.tile = tile_state;
+                    self.recording.events.extend(rec.events);
+                    self.commands.extend(cmds);
+                    self.status = format!("Replayed {}", p.display());
+                }
+                Err(err) => {
+                    self.status = format!("Replay failed: {err}");
+                }
+            }
+        }
+    }
+
     fn layout(&mut self, ctx: &egui::Context) {
         let prev_lighting = self.workbench.lighting;
         egui::TopBottomPanel::top("tools").show(ctx, |ui| {
-            ui.add_space(6.);
-            ui.horizontal(|ui| {
-                ui.strong("Pigment Studio");
-                ui.separator();
-                let can_undo = !self.placement_pending && !self.workbench.history.is_empty();
-                let undo_shortcut =
-                    ctx.input_mut(|input| input.consume_key(egui::Modifiers::CTRL, egui::Key::Z));
-                if ui
-                    .add_enabled(can_undo, egui::Button::new("Undo"))
-                    .on_hover_text("Undo last stroke or action (Ctrl+Z)")
-                    .clicked()
-                    || (can_undo && undo_shortcut)
-                {
-                    self.end_stroke();
-                    if self.workbench.undo() {
-                        self.commands.push(Command::Undo);
-                    }
-                }
-                let typing = ctx.wants_keyboard_input();
-                let undo_shortcut =
-                    !typing && ctx.input_mut(|input| input.consume_key(egui::Modifiers::CTRL, egui::Key::Z));
-                if ui
-                    .add_enabled(can_undo, egui::Button::new("Undo"))
-                    .on_hover_text("Undo last stroke or action (Ctrl+Z)")
-                    .clicked()
-                    || (can_undo && undo_shortcut)
-                {
-                    self.end_stroke();
-                    if self.workbench.undo() {
-                        self.commands.push(Command::Undo);
-                    }
-                }
-                let dry_shortcut =
-                    !typing && ctx.input_mut(|input| input.consume_key(egui::Modifiers::CTRL, egui::Key::D));
-                let note_shortcut =
-                    !typing && ctx.input_mut(|input| input.consume_key(egui::Modifiers::NONE, egui::Key::N));
-                let f12_pressed =
-                    ctx.input_mut(|input| input.consume_key(egui::Modifiers::NONE, egui::Key::F12));
+            let typing = ctx.wants_keyboard_input();
+            let can_undo = !self.placement_pending && !self.workbench.history.is_empty();
+            let can_export = self.exporting.is_none() && self.export_path.is_none();
 
-                if note_shortcut && self.active_note_at.is_none() {
-                    self.note_tool = !self.note_tool;
-                    if self.note_tool {
-                        self.workbench_status = "📌 Note tool active: Click on canvas to pin a note for the agent (N to toggle).".into();
-                    } else {
-                        self.workbench_status = "Note tool deactivated.".into();
+            let undo_shortcut = !typing
+                && ctx.input_mut(|i| i.consume_key(egui::Modifiers::CTRL, egui::Key::Z));
+            let dry_shortcut = !typing
+                && ctx.input_mut(|i| i.consume_key(egui::Modifiers::CTRL, egui::Key::D));
+            let tile_shortcut = !typing
+                && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::T));
+            let ref_shortcut = !typing
+                && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::R));
+            let open_shortcut = !typing
+                && ctx.input_mut(|i| i.consume_key(egui::Modifiers::CTRL, egui::Key::O));
+            let save_as_shortcut = !typing
+                && ctx.input_mut(|i| {
+                    i.consume_key(egui::Modifiers::CTRL | egui::Modifiers::SHIFT, egui::Key::S)
+                });
+            let save_shortcut = !typing
+                && ctx.input_mut(|i| i.consume_key(egui::Modifiers::CTRL, egui::Key::S));
+            let note_shortcut = !typing
+                && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::N));
+            let fit_shortcut = !typing
+                && ctx.input_mut(|i| i.consume_key(egui::Modifiers::CTRL, egui::Key::Num0));
+            let zoom_in_shortcut = !typing
+                && ctx.input_mut(|i| i.consume_key(egui::Modifiers::CTRL, egui::Key::Equals));
+            let zoom_out_shortcut = !typing
+                && ctx.input_mut(|i| i.consume_key(egui::Modifiers::CTRL, egui::Key::Minus));
+            let f12_pressed =
+                ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::F12));
+
+            if can_undo && undo_shortcut {
+                self.perform_undo();
+            }
+            if dry_shortcut {
+                self.dry_canvas();
+            }
+            if tile_shortcut {
+                self.toggle_tile();
+            }
+            if self.paint.layers.has_reference && ref_shortcut {
+                self.toggle_reference();
+            }
+            if can_export && open_shortcut {
+                self.open_project_dialog();
+            }
+            if can_export && save_as_shortcut {
+                self.save_project_dialog(true);
+            } else if can_export && save_shortcut {
+                self.save_project_dialog(false);
+            }
+            if note_shortcut && self.active_note_at.is_none() {
+                self.note_tool = !self.note_tool;
+                self.workbench_status = if self.note_tool {
+                    "📌 Note tool active: Click on canvas to pin a note for the agent (N to toggle).".into()
+                } else {
+                    "Note tool deactivated.".into()
+                };
+            }
+            if fit_shortcut {
+                self.end_stroke();
+                self.view = CanvasView::default();
+                self.update_canvas();
+            }
+            if zoom_in_shortcut {
+                if let Some(vp) = self.viewport {
+                    self.view.zoom_at(vp, vp.center(), 1.25);
+                    self.update_canvas();
+                }
+            }
+            if zoom_out_shortcut {
+                if let Some(vp) = self.viewport {
+                    self.view.zoom_at(vp, vp.center(), 0.8);
+                    self.update_canvas();
+                }
+            }
+            if f12_pressed {
+                if let Some(cursor_pos) = self.cursor {
+                    if let Some(pt) = self.to_surface(Surface::Canvas, cursor_pos) {
+                        let diag = self.paint.sample_diagnostics(
+                            &self.device,
+                            &self.queue,
+                            pt.x as u32,
+                            pt.y as u32,
+                        );
+                        let note = notes::add(
+                            &notes::default_path(),
+                            pt.x,
+                            pt.y,
+                            "Quick F12 diagnostic dump",
+                            "artist",
+                            Some(diag),
+                        );
+                        self.notes = notes::read(&notes::default_path());
+                        self.workbench_status = format!(
+                            "F12: Dumped diagnostic note #{} at ({:.0}, {:.0}).",
+                            note.id, pt.x, pt.y
+                        );
+                        audio::play(audio::Sound::BrassClick);
                     }
                 }
+            }
 
-                if f12_pressed {
-                    if let Some(cursor_pos) = self.cursor {
-                        if let Some(pt) = self.to_surface(Surface::Canvas, cursor_pos) {
-                            let diag = self.paint.sample_diagnostics(&self.device, &self.queue, pt.x as u32, pt.y as u32);
-                            let note = notes::add(&notes::default_path(), pt.x, pt.y, "Quick F12 diagnostic dump", "artist", Some(diag));
-                            self.notes = notes::read(&notes::default_path());
-                            self.workbench_status = format!("F12: Dumped diagnostic note #{} at ({:.0}, {:.0}).", note.id, pt.x, pt.y);
-                            audio::play(audio::Sound::BrassClick);
+            egui::menu::bar(ui, |ui| {
+                ui.menu_button("File", |ui| {
+                    if ui.button("New Canvas").clicked() {
+                        self.clear_paint_canvas();
+                        ui.close_menu();
+                    }
+                    ui.separator();
+                    if ui
+                        .add_enabled(can_export, egui::Button::new("Open Project…\tCtrl+O"))
+                        .clicked()
+                    {
+                        self.open_project_dialog();
+                        ui.close_menu();
+                    }
+                    if ui
+                        .add_enabled(can_export, egui::Button::new("Save Project\tCtrl+S"))
+                        .clicked()
+                    {
+                        self.save_project_dialog(false);
+                        ui.close_menu();
+                    }
+                    if ui
+                        .add_enabled(
+                            can_export,
+                            egui::Button::new("Save Project As…\tCtrl+Shift+S"),
+                        )
+                        .clicked()
+                    {
+                        self.save_project_dialog(true);
+                        ui.close_menu();
+                    }
+                    ui.separator();
+                    if ui.button("Import Reference Image…").clicked() {
+                        self.import_reference_dialog();
+                        ui.close_menu();
+                    }
+                    ui.separator();
+                    ui.add_enabled_ui(can_export, |ui| {
+                        ui.menu_button("Export", |ui| {
+                            if ui.button("PNG (Canvas)…").clicked() {
+                                self.export_png_dialog(gpu::ExportKind::Color, "painting.png");
+                                ui.close_menu();
+                            }
+                            if ui.button("Transparent PNG (Paint Only)…").clicked() {
+                                self.export_png_dialog(
+                                    gpu::ExportKind::Transparent,
+                                    "painting-transparent.png",
+                                );
+                                ui.close_menu();
+                            }
+                            if ui.button("Height Map (PNG)…").clicked() {
+                                self.export_png_dialog(
+                                    gpu::ExportKind::Height,
+                                    "painting-height.png",
+                                );
+                                ui.close_menu();
+                            }
+                            if ui.button("Normal Map (PNG)…").clicked() {
+                                self.export_png_dialog(
+                                    gpu::ExportKind::Normal,
+                                    "painting-normal.png",
+                                );
+                                ui.close_menu();
+                            }
+                            ui.separator();
+                            let has_jars = self.workbench.session.jars.iter().any(|&o| o);
+                            if ui
+                                .add_enabled(has_jars, egui::Button::new("Palette (JSON / GPL)…"))
+                                .on_disabled_hover_text("Fill at least one custom jar first.")
+                                .clicked()
+                            {
+                                self.export_palette_dialog();
+                                ui.close_menu();
+                            }
+                        });
+                    });
+                    ui.menu_button("Recording", |ui| {
+                        if ui
+                            .add_enabled(
+                                !self.recording.events.is_empty(),
+                                egui::Button::new("Save Stroke Recording (JSON)…"),
+                            )
+                            .clicked()
+                        {
+                            self.save_recording_dialog();
+                            ui.close_menu();
                         }
+                        if ui.button("Replay Stroke Recording (JSON)…").clicked() {
+                            self.replay_recording_dialog();
+                            ui.close_menu();
+                        }
+                    });
+                    ui.separator();
+                    if ui.button("Exit").clicked() {
+                        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                        ui.close_menu();
                     }
-                }
+                });
 
-                let note_btn = ui.selectable_label(self.note_tool, "📌 Note (N)")
-                    .on_hover_text("Toggle Note tool (N): Click anywhere on the canvas to drop a pinned diagnostic note for the agent. Hover and press F12 for quick dump.");
-                if note_btn.clicked() {
+                ui.menu_button("Edit", |ui| {
+                    let undo_label = format!("Undo ({})\tCtrl+Z", self.workbench.history.len());
+                    if ui
+                        .add_enabled(can_undo, egui::Button::new(undo_label))
+                        .clicked()
+                    {
+                        self.perform_undo();
+                        ui.close_menu();
+                    }
+                    ui.separator();
+                    if ui.button("Clear Paint Canvas").clicked() {
+                        self.clear_paint_canvas();
+                        ui.close_menu();
+                    }
+                    if ui.button("Clear Mixing Palette").clicked() {
+                        self.end_stroke();
+                        self.snapshot();
+                        self.recording.events.push(RecordedEvent::Clear {
+                            surface: recording::SurfaceKind::Palette,
+                        });
+                        self.commands.push(Command::Clear(Surface::Palette));
+                        ui.close_menu();
+                    }
+                    if ui.button("Clear Sketch Layer").clicked() {
+                        self.end_stroke();
+                        self.snapshot();
+                        self.recording.events.push(RecordedEvent::ClearSketch);
+                        self.commands.push(Command::ClearSketch);
+                        ui.close_menu();
+                    }
+                    if ui
+                        .add_enabled(
+                            self.paint.layers.has_reference,
+                            egui::Button::new("Clear Reference Layer"),
+                        )
+                        .clicked()
+                    {
+                        self.recording.events.push(RecordedEvent::ClearReference);
+                        self.commands.push(Command::ClearReference);
+                        ui.close_menu();
+                    }
+                });
+
+                ui.menu_button("Canvas", |ui| {
+                    if ui.button("Dry Canvas\tCtrl+D").clicked() {
+                        self.dry_canvas();
+                        ui.close_menu();
+                    }
+                    let mut tiled = self.paint.tile;
+                    if ui.checkbox(&mut tiled, "Seamless Tiling\tT").clicked() {
+                        self.toggle_tile();
+                        ui.close_menu();
+                    }
+                    ui.separator();
+                    if ui
+                        .checkbox(
+                            &mut self.workbench.lighting.enabled,
+                            "3D Impasto & Studio Light",
+                        )
+                        .changed()
+                    {
+                        self.paint.lighting = self.workbench.lighting;
+                        self.refresh_canvas();
+                    }
+                    if ui.button("Reset to North Light").clicked() {
+                        self.workbench.lighting.light_angle_deg = 315.0;
+                        self.workbench.lighting.light_elevation_deg = 45.0;
+                        self.workbench.lighting.impasto_depth = 1.0;
+                        self.workbench.lighting.canvas_weave = 0.35;
+                        self.workbench.lighting.specular_sheen = 1.0;
+                        self.paint.lighting = self.workbench.lighting;
+                        self.refresh_canvas();
+                        ui.close_menu();
+                    }
+                });
+
+                ui.menu_button("Layer", |ui| {
+                    if ui
+                        .radio(
+                            self.paint.layers.active == gpu::ActiveLayer::Paint,
+                            "Active: Paint (Oil & Ink)",
+                        )
+                        .clicked()
+                    {
+                        self.end_stroke();
+                        self.paint.layers.active = gpu::ActiveLayer::Paint;
+                        ui.close_menu();
+                    }
+                    if ui
+                        .radio(
+                            self.paint.layers.active == gpu::ActiveLayer::Sketch,
+                            "Active: Sketch (Charcoal)",
+                        )
+                        .clicked()
+                    {
+                        self.end_stroke();
+                        self.paint.layers.active = gpu::ActiveLayer::Sketch;
+                        ui.close_menu();
+                    }
+                    ui.separator();
+                    if ui
+                        .checkbox(&mut self.paint.layers.paint_visible, "Show Paint Layer")
+                        .changed()
+                    {
+                        self.refresh_canvas();
+                    }
+                    if ui
+                        .checkbox(&mut self.paint.layers.sketch_visible, "Show Sketch Layer")
+                        .changed()
+                    {
+                        self.refresh_canvas();
+                    }
+                    if ui
+                        .add_enabled(
+                            self.paint.layers.has_reference,
+                            egui::Checkbox::new(
+                                &mut self.paint.layers.reference_visible,
+                                "Show Reference Layer\tR",
+                            ),
+                        )
+                        .changed()
+                    {
+                        self.refresh_canvas();
+                    }
+                });
+
+                ui.menu_button("Tools", |ui| {
+                    let on_paint = self.paint.layers.active == gpu::ActiveLayer::Paint;
+                    if ui
+                        .radio(
+                            on_paint && !self.ink_selected && self.brush == Brush::Round,
+                            "Round Brush",
+                        )
+                        .clicked()
+                    {
+                        self.end_stroke();
+                        self.paint.layers.active = gpu::ActiveLayer::Paint;
+                        self.ink_selected = false;
+                        self.brush = Brush::Round;
+                        ui.close_menu();
+                    }
+                    if ui
+                        .radio(
+                            on_paint && !self.ink_selected && self.brush == Brush::Flat,
+                            "Flat Brush",
+                        )
+                        .clicked()
+                    {
+                        self.end_stroke();
+                        self.paint.layers.active = gpu::ActiveLayer::Paint;
+                        self.ink_selected = false;
+                        self.brush = Brush::Flat;
+                        ui.close_menu();
+                    }
+                    if ui.radio(on_paint && self.ink_selected, "Ink Pen").clicked() {
+                        self.end_stroke();
+                        self.paint.layers.active = gpu::ActiveLayer::Paint;
+                        self.ink_selected = true;
+                        ui.close_menu();
+                    }
+                    ui.separator();
+                    let on_sketch = self.paint.layers.active == gpu::ActiveLayer::Sketch;
+                    if ui
+                        .radio(on_sketch && !self.charcoal_erase, "Charcoal Pencil")
+                        .clicked()
+                    {
+                        self.end_stroke();
+                        self.paint.layers.active = gpu::ActiveLayer::Sketch;
+                        self.paint.layers.sketch_visible = true;
+                        self.charcoal_erase = false;
+                        ui.close_menu();
+                    }
+                    if ui
+                        .radio(on_sketch && self.charcoal_erase, "Charcoal Eraser")
+                        .clicked()
+                    {
+                        self.end_stroke();
+                        self.paint.layers.active = gpu::ActiveLayer::Sketch;
+                        self.paint.layers.sketch_visible = true;
+                        self.charcoal_erase = true;
+                        ui.close_menu();
+                    }
+                    ui.separator();
+                    if ui.button("Fill Jar (Sample Color)").clicked() {
+                        self.end_stroke();
+                        self.paint.layers.active = gpu::ActiveLayer::Paint;
+                        self.ink_selected = false;
+                        self.workbench.sampling = true;
+                        self.workbench_status =
+                            "Tap a color on the canvas or palette to fill a custom jar.".into();
+                        ui.close_menu();
+                    }
+                    if ui.button("Clean Brush").clicked() {
+                        self.clean_brush();
+                        ui.close_menu();
+                    }
+                    if ui.checkbox(&mut self.note_tool, "Pin Note Tool\tN").clicked() {
+                        ui.close_menu();
+                    }
+                });
+
+                ui.menu_button("View", |ui| {
+                    if ui.button("Fit Canvas\tCtrl+0").clicked() {
+                        self.end_stroke();
+                        self.view = CanvasView::default();
+                        self.update_canvas();
+                        ui.close_menu();
+                    }
+                    if ui.button("Zoom In\tCtrl+=").clicked() {
+                        if let Some(vp) = self.viewport {
+                            self.view.zoom_at(vp, vp.center(), 1.25);
+                            self.update_canvas();
+                        }
+                        ui.close_menu();
+                    }
+                    if ui.button("Zoom Out\tCtrl+-").clicked() {
+                        if let Some(vp) = self.viewport {
+                            self.view.zoom_at(vp, vp.center(), 0.8);
+                            self.update_canvas();
+                        }
+                        ui.close_menu();
+                    }
+                    ui.separator();
+                    if ui
+                        .checkbox(&mut self.notes_manager_open, "Notes Manager")
+                        .clicked()
+                    {
+                        ui.close_menu();
+                    }
+                });
+
+                ui.menu_button("Help", |ui| {
+                    if ui.button("Keyboard Shortcuts…").clicked() {
+                        self.show_shortcuts = true;
+                        ui.close_menu();
+                    }
+                    if ui.button("About Pigment Studio").clicked() {
+                        self.show_about = true;
+                        ui.close_menu();
+                    }
+                });
+            });
+
+            ui.separator();
+            ui.horizontal_wrapped(|ui| {
+                if ui
+                    .add_enabled(
+                        can_undo,
+                        egui::Button::new(format!("Undo ({})", self.workbench.history.len())),
+                    )
+                    .on_hover_text("Undo last action, up to 64 steps (Ctrl+Z)")
+                    .clicked()
+                {
+                    self.perform_undo();
+                }
+                if ui
+                    .button("☀️ Dry")
+                    .on_hover_text("Cure wet paint into a permanent dry underlayer (Ctrl+D)")
+                    .clicked()
+                {
+                    self.dry_canvas();
+                }
+                if ui
+                    .selectable_label(self.paint.tile, "🔁 Tile")
+                    .on_hover_text("Seamless Tiling (T)")
+                    .clicked()
+                {
+                    self.toggle_tile();
+                }
+                if ui
+                    .add_enabled(
+                        self.paint.layers.has_reference,
+                        egui::SelectableLabel::new(
+                            self.paint.layers.has_reference && self.paint.layers.reference_visible,
+                            "👁 Ref",
+                        ),
+                    )
+                    .on_hover_text("Toggle Reference Layer visibility (R)")
+                    .clicked()
+                {
+                    self.toggle_reference();
+                }
+                if ui
+                    .selectable_label(self.note_tool, "📌 Note")
+                    .on_hover_text("Pin Note tool (N). Hover and press F12 for quick dump.")
+                    .clicked()
+                {
                     self.note_tool = !self.note_tool;
-                    if self.note_tool {
-                        self.workbench_status = "📌 Note tool active: Click on canvas to pin a note for the agent.".into();
-                    }
                 }
-
                 let total_notes = self.notes.len();
                 let open_notes = self.notes.iter().filter(|n| !n.done).count();
-                let notes_list_btn = ui.selectable_label(
-                    self.notes_manager_open,
-                    format!("📋 Notes ({open_notes}/{total_notes}) ▾"),
-                ).on_hover_text("Open Notes Manager: view, manage, inspect, or pan to pinned notes.");
-                if notes_list_btn.clicked() {
+                if ui
+                    .selectable_label(
+                        self.notes_manager_open,
+                        format!("📋 Notes ({open_notes}/{total_notes})"),
+                    )
+                    .clicked()
+                {
                     self.notes_manager_open = !self.notes_manager_open;
                 }
-
                 if ui
-                    .button("☀️ Dry canvas")
-                    .on_hover_text("Lock and cure wet paint into a permanent dry underlayer (Ctrl+D). Allows glazing and painting over background without bleed-through or brush contamination.")
+                    .button("Fit")
+                    .on_hover_text("Fit canvas to viewport (Ctrl+0)")
                     .clicked()
-                    || dry_shortcut
                 {
-                    self.end_stroke();
-                    self.snapshot();
-                    self.commands.push(Command::DryCanvas);
-                    audio::play(audio::Sound::BrassClick);
-                }
-                if ui.button("Fit canvas").clicked() {
                     self.end_stroke();
                     self.view = CanvasView::default();
                     self.update_canvas();
                 }
-                if ui.button("Clear canvas").clicked() {
-                    self.end_stroke();
-                    self.snapshot();
-                    self.commands.push(Command::Clear(Surface::Canvas));
-                }
-                if ui
-                    .add_enabled(
-                        self.exporting.is_none() && self.export_path.is_none(),
-                        egui::Button::new("Export PNG"),
-                    )
-                    .clicked()
-                {
-                    self.end_stroke();
-                    self.export_path = rfd::FileDialog::new()
-                        .set_parent(&*self.window)
-                        .set_file_name("painting.png")
-                        .add_filter("PNG image", &["png"])
-                        .save_file();
-                }
             });
-            ui.add_space(6.);
+            ui.add_space(2.);
         });
+
+        if self.show_shortcuts {
+            egui::Window::new("Keyboard Shortcuts")
+                .collapsible(false)
+                .resizable(false)
+                .open(&mut self.show_shortcuts)
+                .show(ctx, |ui| {
+                    egui::Grid::new("shortcuts_grid")
+                        .num_columns(2)
+                        .spacing([20.0, 6.0])
+                        .show(ui, |ui| {
+                            for (key, desc) in [
+                                ("Ctrl+Z", "Undo (up to 64 steps)"),
+                                ("Ctrl+O", "Open .pigment project"),
+                                ("Ctrl+S / Ctrl+Shift+S", "Save / Save As .pigment project"),
+                                ("Ctrl+D", "Dry wet paint onto substrate"),
+                                ("T", "Toggle Seamless Tiling mode"),
+                                ("R", "Toggle Reference Layer visibility"),
+                                ("N", "Toggle Pin Note tool"),
+                                ("F12", "Quick diagnostic dump at cursor"),
+                                ("Ctrl+0 / Ctrl+= / Ctrl+-", "Fit / Zoom In / Zoom Out"),
+                                ("Right-drag / Scroll", "Pan / Zoom canvas"),
+                            ] {
+                                ui.strong(key);
+                                ui.label(desc);
+                                ui.end_row();
+                            }
+                        });
+                });
+        }
+
+        if self.show_about {
+            egui::Window::new("About Pigment Studio")
+                .collapsible(false)
+                .resizable(false)
+                .open(&mut self.show_about)
+                .show(ctx, |ui| {
+                    ui.strong("Pigment Studio");
+                    ui.label("Authentic spectral Kubelka-Munk oil painting, charcoal sketching, and fluid ink workbench on Direct3D 12.");
+                    ui.add_space(4.0);
+                    ui.label("License: GPL-3.0-only");
+                    ui.hyperlink("https://github.com/becool3000/PigmentStudio");
+                });
+        }
 
         self.palette = None;
         self.palette_clip = None;
@@ -1204,6 +2051,7 @@ impl Studio {
             .show(ui, |ui| {
                 self.mixing_palette_ui(ui);
                 self.brush_controls_ui(ui);
+                self.layers_ui(ui);
             });
 
         ui.separator();
@@ -1442,20 +2290,51 @@ impl Studio {
         ui.horizontal(|ui| {
             self.brush_card(ui, Brush::Round, "Round");
             self.brush_card(ui, Brush::Flat, "Flat");
+            let ink_on = self.paint.layers.active == gpu::ActiveLayer::Paint && self.ink_selected;
             if ui
                 .add_sized(
                     egui::vec2(58., 42.),
-                    egui::SelectableLabel::new(self.ink_selected, "Ink Pen"),
+                    egui::SelectableLabel::new(ink_on, "Ink Pen"),
                 )
                 .on_hover_text("Draw lightly for a fine line. Press and pause to make ink drip.")
                 .clicked()
-                && !self.ink_selected
             {
                 self.end_stroke();
+                self.paint.layers.active = gpu::ActiveLayer::Paint;
                 self.ink_selected = true;
             }
         });
-        if !self.ink_selected {
+        ui.horizontal(|ui| {
+            let sketch_on = self.paint.layers.active == gpu::ActiveLayer::Sketch;
+            if ui
+                .selectable_label(sketch_on && !self.charcoal_erase, "✏ Charcoal")
+                .on_hover_text("Sketch with charcoal pencil on the Sketch Layer.")
+                .clicked()
+            {
+                self.end_stroke();
+                self.paint.layers.active = gpu::ActiveLayer::Sketch;
+                self.paint.layers.sketch_visible = true;
+                self.charcoal_erase = false;
+            }
+            if ui
+                .selectable_label(sketch_on && self.charcoal_erase, "⌫ Eraser")
+                .on_hover_text("Erase charcoal on the Sketch Layer.")
+                .clicked()
+            {
+                self.end_stroke();
+                self.paint.layers.active = gpu::ActiveLayer::Sketch;
+                self.paint.layers.sketch_visible = true;
+                self.charcoal_erase = true;
+            }
+        });
+        if self.paint.layers.active == gpu::ActiveLayer::Sketch {
+            ui.add(
+                egui::Slider::new(&mut self.charcoal_size, 2.0..=64.0)
+                    .text("Charcoal Size")
+                    .suffix(" px")
+                    .integer(),
+            );
+        } else if !self.ink_selected {
             ui.add(
                 egui::Slider::new(&mut self.workbench.sizes[self.brush.index()], 4.0..=96.0)
                     .text("Size")
@@ -1463,7 +2342,10 @@ impl Studio {
                     .integer(),
             );
         }
-        if !self.ink_selected && self.brush == Brush::Flat {
+        if self.paint.layers.active == gpu::ActiveLayer::Paint
+            && !self.ink_selected
+            && self.brush == Brush::Flat
+        {
             ui.add(
                 egui::Slider::new(&mut self.workbench.angle, 0.0..=180.0)
                     .text("Angle")
@@ -1476,7 +2358,9 @@ impl Studio {
             "Pressure {}%",
             (self.pressure * 100.).round() as u32
         )));
-        if self.ink_selected {
+        if self.paint.layers.active == gpu::ActiveLayer::Sketch {
+            ui.label("Sketching on Sketch Layer (charcoal & eraser).");
+        } else if self.ink_selected {
             ui.label("Press and pause to make ink drip.");
         } else {
             ui.horizontal(|ui| {
@@ -1504,6 +2388,109 @@ impl Studio {
             });
             ui.label("Swipe rag to wipe off 10% load.");
         }
+    }
+
+    fn layers_ui(&mut self, ui: &mut egui::Ui) {
+        ui.separator();
+        ui.collapsing("🗂 Layers (Paint / Sketch / Reference)", |ui| {
+            let mut refresh = false;
+
+            ui.horizontal(|ui| {
+                let eye = if self.paint.layers.paint_visible {
+                    "👁"
+                } else {
+                    "—"
+                };
+                if ui
+                    .small_button(eye)
+                    .on_hover_text("Toggle Paint Layer")
+                    .clicked()
+                {
+                    self.paint.layers.paint_visible = !self.paint.layers.paint_visible;
+                    refresh = true;
+                }
+                let active = self.paint.layers.active == gpu::ActiveLayer::Paint;
+                if ui.selectable_label(active, "Paint (Oil & Ink)").clicked() {
+                    self.end_stroke();
+                    self.paint.layers.active = gpu::ActiveLayer::Paint;
+                }
+            });
+
+            ui.horizontal(|ui| {
+                let eye = if self.paint.layers.sketch_visible {
+                    "👁"
+                } else {
+                    "—"
+                };
+                if ui
+                    .small_button(eye)
+                    .on_hover_text("Toggle Sketch Layer")
+                    .clicked()
+                {
+                    self.paint.layers.sketch_visible = !self.paint.layers.sketch_visible;
+                    refresh = true;
+                }
+                let active = self.paint.layers.active == gpu::ActiveLayer::Sketch;
+                if ui.selectable_label(active, "Sketch (Charcoal)").clicked() {
+                    self.end_stroke();
+                    self.paint.layers.active = gpu::ActiveLayer::Sketch;
+                }
+                if ui.small_button("Clear").clicked() {
+                    self.end_stroke();
+                    self.snapshot();
+                    self.recording.events.push(RecordedEvent::ClearSketch);
+                    self.commands.push(Command::ClearSketch);
+                }
+            });
+            if ui
+                .add(
+                    egui::Slider::new(&mut self.paint.layers.sketch_opacity, 0.0..=1.0)
+                        .text("Sketch Opacity"),
+                )
+                .changed()
+            {
+                refresh = true;
+            }
+
+            ui.horizontal(|ui| {
+                let eye = if self.paint.layers.reference_visible {
+                    "👁"
+                } else {
+                    "—"
+                };
+                if ui
+                    .add_enabled(
+                        self.paint.layers.has_reference,
+                        egui::Button::new(eye).small(),
+                    )
+                    .on_hover_text("Toggle Reference Layer (R)")
+                    .clicked()
+                {
+                    self.paint.layers.reference_visible = !self.paint.layers.reference_visible;
+                    refresh = true;
+                }
+                ui.label("Reference");
+                if self.paint.layers.has_reference && ui.small_button("Clear").clicked() {
+                    self.recording.events.push(RecordedEvent::ClearReference);
+                    self.commands.push(Command::ClearReference);
+                }
+            });
+            if self.paint.layers.has_reference
+                && ui
+                    .add(
+                        egui::Slider::new(&mut self.paint.layers.reference_opacity, 0.0..=1.0)
+                            .text("Ref Opacity"),
+                    )
+                    .changed()
+            {
+                refresh = true;
+            }
+
+            if refresh {
+                self.commands
+                    .push(Command::Dab(Dab::operation(Surface::Canvas.bounds(), 1)));
+            }
+        });
     }
 
     fn studio_settings_ui(&mut self, ui: &mut egui::Ui) {
@@ -1563,7 +2550,10 @@ impl Studio {
 
     fn brush_card(&mut self, ui: &mut egui::Ui, brush: Brush, name: &str) {
         let (rect, response) = ui.allocate_exact_size(egui::vec2(104., 42.), egui::Sense::click());
-        let color = if !self.ink_selected && self.brush == brush {
+        let color = if self.paint.layers.active == gpu::ActiveLayer::Paint
+            && !self.ink_selected
+            && self.brush == brush
+        {
             Color32::from_rgb(49, 73, 70)
         } else {
             Color32::from_gray(43)
@@ -1664,11 +2654,11 @@ impl Studio {
                 "{name} brush: {load_pct}% loaded. Bristle tip fills from edge inward."
             ))
             .clicked()
-            && (self.ink_selected || self.brush != brush)
         {
             self.end_stroke();
-            self.brush = brush;
+            self.paint.layers.active = gpu::ActiveLayer::Paint;
             self.ink_selected = false;
+            self.brush = brush;
         }
     }
 
@@ -2243,6 +3233,7 @@ impl Studio {
             .iter()
             .any(|command| matches!(command, Command::CheckTubes(_)));
         self.paint.encode(
+            &self.device,
             &self.queue,
             &mut encoder,
             &self.commands[..self.commands.len().min(MAX_COMMANDS)],
@@ -2251,9 +3242,22 @@ impl Studio {
         let placement =
             checked_palette.then(|| self.paint.placement_readback(&self.device, &mut encoder));
         let export = if self.commands.is_empty() {
-            self.export_path
-                .take()
-                .map(|path| (path, self.paint.readback(&self.device, &mut encoder)))
+            self.export_path.take().map(|pending| match pending {
+                PendingExport::Image(path, kind) => {
+                    let buffer =
+                        self.paint
+                            .readback_kind(&self.device, &self.queue, &mut encoder, kind);
+                    PendingReadback::Image(path, buffer, kind.is_srgb())
+                }
+                PendingExport::Palette(path) => {
+                    let buffer = self.paint.readback_custom_jars(&self.device, &mut encoder);
+                    PendingReadback::Palette(path, buffer, self.workbench.session.jars)
+                }
+                PendingExport::Project(path, meta) => {
+                    let buffer = self.paint.readback_project(&self.device, &mut encoder);
+                    PendingReadback::Project(path, meta, buffer)
+                }
+            })
         } else {
             self.window.request_redraw();
             None
@@ -2284,8 +3288,18 @@ impl Studio {
         if let Some(buffer) = placement {
             self.placement_result = Some(gpu::placement_result(buffer));
         }
-        if let Some((path, buffer)) = export {
-            self.exporting = Some(gpu::export(buffer, path));
+        if let Some(readback) = export {
+            self.exporting = Some(match readback {
+                PendingReadback::Image(path, buffer, is_srgb) => {
+                    gpu::export_with_srgb(buffer, path, is_srgb)
+                }
+                PendingReadback::Palette(path, buffer, jars) => {
+                    gpu::export_palette(buffer, jars, path)
+                }
+                PendingReadback::Project(path, meta, buffer) => {
+                    gpu::save_project(buffer, meta, path)
+                }
+            });
             self.window.request_redraw();
         }
         self.window.pre_present_notify();
