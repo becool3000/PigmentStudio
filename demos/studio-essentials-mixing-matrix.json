@@ -1,0 +1,8558 @@
+{
+  "format": "pigment-studio-recording-v1",
+  "lighting": {
+    "enabled": true,
+    "impasto_depth": 1.0,
+    "canvas_weave": 0.35,
+    "specular_sheen": 0.85,
+    "light_angle_deg": 315.0,
+    "light_elevation_deg": 45.0
+  },
+  "tile": false,
+  "events": [
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 148,
+          "y": 48,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 148,
+          "y": 48,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 148,
+          "y": 48,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 148,
+          "y": 48,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 48,
+          "y": 148,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 48,
+          "y": 148,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 48,
+          "y": 148,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 48,
+          "y": 148,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 256,
+          "y": 48,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 256,
+          "y": 48,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 256,
+          "y": 48,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 256,
+          "y": 48,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 48,
+          "y": 256,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 48,
+          "y": 256,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 48,
+          "y": 256,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 48,
+          "y": 256,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 364,
+          "y": 48,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 364,
+          "y": 48,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 364,
+          "y": 48,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 364,
+          "y": 48,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 48,
+          "y": 364,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 48,
+          "y": 364,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 48,
+          "y": 364,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 48,
+          "y": 364,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 472,
+          "y": 48,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 472,
+          "y": 48,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 472,
+          "y": 48,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 472,
+          "y": 48,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 48,
+          "y": 472,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 48,
+          "y": 472,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 48,
+          "y": 472,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 48,
+          "y": 472,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 580,
+          "y": 48,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 580,
+          "y": 48,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 580,
+          "y": 48,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 580,
+          "y": 48,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 48,
+          "y": 580,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 48,
+          "y": 580,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 48,
+          "y": 580,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 48,
+          "y": 580,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 688,
+          "y": 48,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 688,
+          "y": 48,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 688,
+          "y": 48,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 688,
+          "y": 48,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 48,
+          "y": 688,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 48,
+          "y": 688,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 48,
+          "y": 688,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 48,
+          "y": 688,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 796,
+          "y": 48,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 796,
+          "y": 48,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 796,
+          "y": 48,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 796,
+          "y": 48,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 48,
+          "y": 796,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 48,
+          "y": 796,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 48,
+          "y": 796,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 48,
+          "y": 796,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 904,
+          "y": 48,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 904,
+          "y": 48,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 904,
+          "y": 48,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 904,
+          "y": 48,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 48,
+          "y": 904,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 48,
+          "y": 904,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 48,
+          "y": 904,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 36,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 48,
+          "y": 904,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 148,
+          "y": 148,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 148,
+          "y": 148,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 148,
+          "y": 148,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 148,
+          "y": 148,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 148,
+          "y": 148,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.5,
+        0.0,
+        0.0,
+        0.5,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 256,
+          "y": 148,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 256,
+          "y": 148,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 256,
+          "y": 148,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 256,
+          "y": 148,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 256,
+          "y": 148,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.0,
+        0.0,
+        0.5,
+        0.0,
+        0.0,
+        0.5,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 364,
+          "y": 148,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 364,
+          "y": 148,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 364,
+          "y": 148,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 364,
+          "y": 148,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 364,
+          "y": 148,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.0,
+        0.5,
+        0.5,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 472,
+          "y": 148,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 472,
+          "y": 148,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 472,
+          "y": 148,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 472,
+          "y": 148,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 472,
+          "y": 148,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.5,
+        0.0,
+        0.5,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 580,
+          "y": 148,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 580,
+          "y": 148,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 580,
+          "y": 148,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 580,
+          "y": 148,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 580,
+          "y": 148,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.0,
+        0.0,
+        0.5,
+        0.5,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 688,
+          "y": 148,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 688,
+          "y": 148,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 688,
+          "y": 148,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 688,
+          "y": 148,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 688,
+          "y": 148,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.0,
+        0.0,
+        0.5,
+        0.0,
+        0.5,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 796,
+          "y": 148,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 796,
+          "y": 148,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 796,
+          "y": 148,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 796,
+          "y": 148,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 796,
+          "y": 148,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.0,
+        0.0,
+        0.5,
+        0.0,
+        0.0,
+        0.0,
+        0.5
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 904,
+          "y": 148,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 904,
+          "y": 148,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 904,
+          "y": 148,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 904,
+          "y": 148,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 904,
+          "y": 148,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.25,
+        0.0,
+        0.0,
+        0.75,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 148,
+          "y": 256,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 148,
+          "y": 256,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 148,
+          "y": 256,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 148,
+          "y": 256,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 148,
+          "y": 256,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 256,
+          "y": 256,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 256,
+          "y": 256,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 256,
+          "y": 256,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 256,
+          "y": 256,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 256,
+          "y": 256,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.5,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.5,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 364,
+          "y": 256,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 364,
+          "y": 256,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 364,
+          "y": 256,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 364,
+          "y": 256,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 364,
+          "y": 256,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.5,
+        0.0,
+        0.5,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 472,
+          "y": 256,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 472,
+          "y": 256,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 472,
+          "y": 256,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 472,
+          "y": 256,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 472,
+          "y": 256,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.5,
+        0.5,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 580,
+          "y": 256,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 580,
+          "y": 256,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 580,
+          "y": 256,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 580,
+          "y": 256,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 580,
+          "y": 256,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.5,
+        0.0,
+        0.0,
+        0.0,
+        0.5,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 688,
+          "y": 256,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 688,
+          "y": 256,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 688,
+          "y": 256,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 688,
+          "y": 256,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 688,
+          "y": 256,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.5,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.5,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 796,
+          "y": 256,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 796,
+          "y": 256,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 796,
+          "y": 256,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 796,
+          "y": 256,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 796,
+          "y": 256,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.5,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.5
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 904,
+          "y": 256,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 904,
+          "y": 256,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 904,
+          "y": 256,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 904,
+          "y": 256,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 904,
+          "y": 256,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.0,
+        0.0,
+        0.75,
+        0.0,
+        0.0,
+        0.25,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 148,
+          "y": 364,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 148,
+          "y": 364,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 148,
+          "y": 364,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 148,
+          "y": 364,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 148,
+          "y": 364,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.25,
+        0.0,
+        0.0,
+        0.5,
+        0.0,
+        0.0,
+        0.25,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 256,
+          "y": 364,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 256,
+          "y": 364,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 256,
+          "y": 364,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 256,
+          "y": 364,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 256,
+          "y": 364,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 364,
+          "y": 364,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 364,
+          "y": 364,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 364,
+          "y": 364,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 364,
+          "y": 364,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 364,
+          "y": 364,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.0,
+        0.5,
+        0.0,
+        0.0,
+        0.0,
+        0.5,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 472,
+          "y": 364,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 472,
+          "y": 364,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 472,
+          "y": 364,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 472,
+          "y": 364,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 472,
+          "y": 364,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.5,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.5,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 580,
+          "y": 364,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 580,
+          "y": 364,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 580,
+          "y": 364,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 580,
+          "y": 364,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 580,
+          "y": 364,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.5,
+        0.0,
+        0.5,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 688,
+          "y": 364,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 688,
+          "y": 364,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 688,
+          "y": 364,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 688,
+          "y": 364,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 688,
+          "y": 364,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.5,
+        0.5,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 796,
+          "y": 364,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 796,
+          "y": 364,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 796,
+          "y": 364,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 796,
+          "y": 364,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 796,
+          "y": 364,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.5,
+        0.5
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 904,
+          "y": 364,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 904,
+          "y": 364,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 904,
+          "y": 364,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 904,
+          "y": 364,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 904,
+          "y": 364,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.0,
+        0.25,
+        0.75,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 148,
+          "y": 472,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 148,
+          "y": 472,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 148,
+          "y": 472,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 148,
+          "y": 472,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 148,
+          "y": 472,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.25,
+        0.0,
+        0.25,
+        0.5,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 256,
+          "y": 472,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 256,
+          "y": 472,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 256,
+          "y": 472,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 256,
+          "y": 472,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 256,
+          "y": 472,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.0,
+        0.25,
+        0.5,
+        0.0,
+        0.0,
+        0.25,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 364,
+          "y": 472,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 364,
+          "y": 472,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 364,
+          "y": 472,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 364,
+          "y": 472,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 364,
+          "y": 472,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 472,
+          "y": 472,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 472,
+          "y": 472,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 472,
+          "y": 472,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 472,
+          "y": 472,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 472,
+          "y": 472,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.5,
+        0.5,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 580,
+          "y": 472,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 580,
+          "y": 472,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 580,
+          "y": 472,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 580,
+          "y": 472,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 580,
+          "y": 472,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.0,
+        0.5,
+        0.0,
+        0.5,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 688,
+          "y": 472,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 688,
+          "y": 472,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 688,
+          "y": 472,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 688,
+          "y": 472,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 688,
+          "y": 472,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.0,
+        0.5,
+        0.0,
+        0.0,
+        0.5,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 796,
+          "y": 472,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 796,
+          "y": 472,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 796,
+          "y": 472,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 796,
+          "y": 472,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 796,
+          "y": 472,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.0,
+        0.5,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.5
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 904,
+          "y": 472,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 904,
+          "y": 472,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 904,
+          "y": 472,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 904,
+          "y": 472,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 904,
+          "y": 472,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.25,
+        0.0,
+        0.75,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 148,
+          "y": 580,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 148,
+          "y": 580,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 148,
+          "y": 580,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 148,
+          "y": 580,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 148,
+          "y": 580,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.25,
+        0.25,
+        0.0,
+        0.5,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 256,
+          "y": 580,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 256,
+          "y": 580,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 256,
+          "y": 580,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 256,
+          "y": 580,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 256,
+          "y": 580,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.25,
+        0.0,
+        0.5,
+        0.0,
+        0.0,
+        0.25,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 364,
+          "y": 580,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 364,
+          "y": 580,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 364,
+          "y": 580,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 364,
+          "y": 580,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 364,
+          "y": 580,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.25,
+        0.25,
+        0.5,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 472,
+          "y": 580,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 472,
+          "y": 580,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 472,
+          "y": 580,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 472,
+          "y": 580,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 472,
+          "y": 580,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 580,
+          "y": 580,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 580,
+          "y": 580,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 580,
+          "y": 580,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 580,
+          "y": 580,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 580,
+          "y": 580,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.5,
+        0.0,
+        0.0,
+        0.5,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 688,
+          "y": 580,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 688,
+          "y": 580,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 688,
+          "y": 580,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 688,
+          "y": 580,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 688,
+          "y": 580,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.5,
+        0.0,
+        0.0,
+        0.0,
+        0.5,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 796,
+          "y": 580,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 796,
+          "y": 580,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 796,
+          "y": 580,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 796,
+          "y": 580,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 796,
+          "y": 580,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.5,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.5
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 904,
+          "y": 580,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 904,
+          "y": 580,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 904,
+          "y": 580,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 904,
+          "y": 580,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 904,
+          "y": 580,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.0,
+        0.0,
+        0.75,
+        0.25,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 148,
+          "y": 688,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 148,
+          "y": 688,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 148,
+          "y": 688,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 148,
+          "y": 688,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 148,
+          "y": 688,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.25,
+        0.0,
+        0.0,
+        0.5,
+        0.25,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 256,
+          "y": 688,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 256,
+          "y": 688,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 256,
+          "y": 688,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 256,
+          "y": 688,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 256,
+          "y": 688,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.0,
+        0.0,
+        0.5,
+        0.25,
+        0.0,
+        0.25,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 364,
+          "y": 688,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 364,
+          "y": 688,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 364,
+          "y": 688,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 364,
+          "y": 688,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 364,
+          "y": 688,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.0,
+        0.25,
+        0.5,
+        0.25,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 472,
+          "y": 688,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 472,
+          "y": 688,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 472,
+          "y": 688,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 472,
+          "y": 688,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 472,
+          "y": 688,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.25,
+        0.0,
+        0.5,
+        0.25,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 580,
+          "y": 688,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 580,
+          "y": 688,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 580,
+          "y": 688,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 580,
+          "y": 688,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 580,
+          "y": 688,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 688,
+          "y": 688,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 688,
+          "y": 688,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 688,
+          "y": 688,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 688,
+          "y": 688,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 688,
+          "y": 688,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.5,
+        0.5,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 796,
+          "y": 688,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 796,
+          "y": 688,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 796,
+          "y": 688,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 796,
+          "y": 688,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 796,
+          "y": 688,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.5,
+        0.0,
+        0.0,
+        0.5
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 904,
+          "y": 688,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 904,
+          "y": 688,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 904,
+          "y": 688,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 904,
+          "y": 688,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 904,
+          "y": 688,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.0,
+        0.0,
+        0.75,
+        0.0,
+        0.25,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 148,
+          "y": 796,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 148,
+          "y": 796,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 148,
+          "y": 796,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 148,
+          "y": 796,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 148,
+          "y": 796,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.25,
+        0.0,
+        0.0,
+        0.5,
+        0.0,
+        0.25,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 256,
+          "y": 796,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 256,
+          "y": 796,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 256,
+          "y": 796,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 256,
+          "y": 796,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 256,
+          "y": 796,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.0,
+        0.0,
+        0.5,
+        0.0,
+        0.25,
+        0.25,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 364,
+          "y": 796,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 364,
+          "y": 796,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 364,
+          "y": 796,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 364,
+          "y": 796,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 364,
+          "y": 796,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.0,
+        0.25,
+        0.5,
+        0.0,
+        0.25,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 472,
+          "y": 796,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 472,
+          "y": 796,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 472,
+          "y": 796,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 472,
+          "y": 796,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 472,
+          "y": 796,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.25,
+        0.0,
+        0.5,
+        0.0,
+        0.25,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 580,
+          "y": 796,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 580,
+          "y": 796,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 580,
+          "y": 796,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 580,
+          "y": 796,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 580,
+          "y": 796,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.0,
+        0.0,
+        0.5,
+        0.25,
+        0.25,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 688,
+          "y": 796,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 688,
+          "y": 796,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 688,
+          "y": 796,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 688,
+          "y": 796,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 688,
+          "y": 796,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 796,
+          "y": 796,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 796,
+          "y": 796,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 796,
+          "y": 796,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 796,
+          "y": 796,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 796,
+          "y": 796,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.5,
+        0.0,
+        0.5
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 904,
+          "y": 796,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 904,
+          "y": 796,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 904,
+          "y": 796,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 904,
+          "y": 796,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 904,
+          "y": 796,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.0,
+        0.0,
+        0.75,
+        0.0,
+        0.0,
+        0.0,
+        0.25
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 148,
+          "y": 904,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 148,
+          "y": 904,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 148,
+          "y": 904,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 148,
+          "y": 904,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 148,
+          "y": 904,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.25,
+        0.0,
+        0.0,
+        0.5,
+        0.0,
+        0.0,
+        0.0,
+        0.25
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 256,
+          "y": 904,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 256,
+          "y": 904,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 256,
+          "y": 904,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 256,
+          "y": 904,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 256,
+          "y": 904,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.0,
+        0.0,
+        0.5,
+        0.0,
+        0.0,
+        0.25,
+        0.25
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 364,
+          "y": 904,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 364,
+          "y": 904,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 364,
+          "y": 904,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 364,
+          "y": 904,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 364,
+          "y": 904,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.0,
+        0.25,
+        0.5,
+        0.0,
+        0.0,
+        0.0,
+        0.25
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 472,
+          "y": 904,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 472,
+          "y": 904,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 472,
+          "y": 904,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 472,
+          "y": 904,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 472,
+          "y": 904,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.25,
+        0.0,
+        0.5,
+        0.0,
+        0.0,
+        0.0,
+        0.25
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 580,
+          "y": 904,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 580,
+          "y": 904,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 580,
+          "y": 904,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 580,
+          "y": 904,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 580,
+          "y": 904,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.0,
+        0.0,
+        0.5,
+        0.25,
+        0.0,
+        0.0,
+        0.25
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 688,
+          "y": 904,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 688,
+          "y": 904,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 688,
+          "y": 904,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 688,
+          "y": 904,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 688,
+          "y": 904,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.0,
+        0.0,
+        0.5,
+        0.0,
+        0.25,
+        0.0,
+        0.25
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 796,
+          "y": 904,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 796,
+          "y": 904,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 796,
+          "y": 904,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 796,
+          "y": 904,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 796,
+          "y": 904,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "equip_rack",
+      "slot": 19,
+      "recipe": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "wipe",
+        "fraction": 0
+      }
+    },
+    {
+      "type": "service",
+      "brush": "round",
+      "action": {
+        "kind": "dip_rack",
+        "slot": 19
+      }
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 904,
+          "y": 904,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 904,
+          "y": 904,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 904,
+          "y": 904,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 904,
+          "y": 904,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    },
+    {
+      "type": "stroke",
+      "surface": "canvas",
+      "brush": "round",
+      "diameter": 86,
+      "angle_deg": 0,
+      "tile": false,
+      "samples": [
+        {
+          "x": 904,
+          "y": 904,
+          "pressure": 1.0,
+          "timestamp_ms": 0
+        }
+      ]
+    }
+  ]
+}

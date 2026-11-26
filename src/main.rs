@@ -1381,6 +1381,54 @@ impl Studio {
         }
     }
 
+    fn apply_loaded_project(
+        &mut self,
+        meta: project::ProjectMeta,
+        bytes: Arc<Vec<u8>>,
+        current_project: Option<PathBuf>,
+        status: String,
+    ) {
+        self.snapshot();
+        self.workbench.session.loads = meta.loads;
+        for (dst, src) in self.workbench.session.jars.iter_mut().zip(meta.jars.iter()) {
+            *dst = *src;
+        }
+        self.workbench.sizes = meta.sizes;
+        self.workbench.angle = meta.angle;
+        self.brush = meta.brush();
+        self.ink_selected = meta.ink_selected;
+        self.charcoal_erase = meta.charcoal_erase;
+        self.charcoal_size = meta.charcoal_size;
+        self.workbench.lighting = meta.lighting.into();
+        self.paint.lighting = self.workbench.lighting;
+        self.paint.layers = meta.layers.into();
+        self.paint.tile = meta.tile;
+        self.recording = meta.recording;
+        self.current_project = current_project;
+        self.commands.push(Command::LoadProject(bytes));
+        self.status = status;
+        audio::play(audio::Sound::BrassClick);
+    }
+
+    fn load_mixing_matrix_demo(&mut self) {
+        self.end_stroke();
+        const DEMO_BYTES: &[u8] =
+            include_bytes!("../demos/studio-essentials-mixing-matrix.pigment");
+        match project::read_project_bytes(DEMO_BYTES) {
+            Ok((meta, bytes)) => {
+                self.apply_loaded_project(
+                    meta,
+                    bytes,
+                    None,
+                    "Loaded Studio Essentials Mixing Matrix demo (Save As to keep a copy)".into(),
+                );
+            }
+            Err(err) => {
+                self.status = format!("Demo load failed: {err}");
+            }
+        }
+    }
+
     fn open_project_dialog(&mut self) {
         self.end_stroke();
         if let Some(p) = rfd::FileDialog::new()
@@ -1390,26 +1438,8 @@ impl Studio {
         {
             match project::read_project(&p) {
                 Ok((meta, bytes)) => {
-                    self.snapshot();
-                    self.workbench.session.loads = meta.loads;
-                    for (dst, src) in self.workbench.session.jars.iter_mut().zip(meta.jars.iter()) {
-                        *dst = *src;
-                    }
-                    self.workbench.sizes = meta.sizes;
-                    self.workbench.angle = meta.angle;
-                    self.brush = meta.brush();
-                    self.ink_selected = meta.ink_selected;
-                    self.charcoal_erase = meta.charcoal_erase;
-                    self.charcoal_size = meta.charcoal_size;
-                    self.workbench.lighting = meta.lighting.into();
-                    self.paint.lighting = self.workbench.lighting;
-                    self.paint.layers = meta.layers.into();
-                    self.paint.tile = meta.tile;
-                    self.recording = meta.recording;
-                    self.current_project = Some(p.clone());
-                    self.commands.push(Command::LoadProject(bytes));
-                    self.status = format!("Opened {}", p.display());
-                    audio::play(audio::Sound::BrassClick);
+                    let status = format!("Opened {}", p.display());
+                    self.apply_loaded_project(meta, bytes, Some(p), status);
                 }
                 Err(err) => {
                     self.status = format!("Open failed: {err}");
@@ -1651,6 +1681,13 @@ impl Studio {
                         .clicked()
                     {
                         self.open_project_dialog();
+                        ui.close_menu();
+                    }
+                    if ui
+                        .add_enabled(can_export, egui::Button::new("Load Mixing Matrix Demo"))
+                        .clicked()
+                    {
+                        self.load_mixing_matrix_demo();
                         ui.close_menu();
                     }
                     if ui

@@ -218,6 +218,10 @@ pub fn read_project(path: &Path) -> Result<(ProjectMeta, std::sync::Arc<Vec<u8>>
     std::fs::File::open(path)
         .and_then(|mut f| f.read_to_end(&mut bytes))
         .map_err(|e| e.to_string())?;
+    read_project_bytes(&bytes)
+}
+
+pub fn read_project_bytes(bytes: &[u8]) -> Result<(ProjectMeta, std::sync::Arc<Vec<u8>>), String> {
     if bytes.len() < 12 || &bytes[0..8] != MAGIC {
         return Err("Not a valid Pigment Studio (.pigment) file.".into());
     }

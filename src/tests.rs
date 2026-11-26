@@ -2990,3 +2990,27 @@ fn test_jar_swatch_colors_match_kubelka_munk_recipes() {
         );
     }
 }
+
+#[test]
+fn test_mixing_matrix_demo_project_loads_on_dx12() {
+    const DEMO_BYTES: &[u8] = include_bytes!("../demos/studio-essentials-mixing-matrix.pigment");
+    let (meta, bytes) = crate::project::read_project_bytes(DEMO_BYTES).unwrap();
+    assert_eq!(
+        meta.calibration_version,
+        crate::project::CURRENT_CALIBRATION_VERSION
+    );
+
+    let mut rig = Rig::new();
+    let img = rig.canvas(&[Command::LoadProject(bytes)]);
+    // Diagonal (1,1) = Hansa Yellow Light (256, 256), (1,4) = Hansa Yellow + Phthalo Blue green (580, 256)
+    let yellow_px = pixel(&img, 256, 256);
+    assert!(
+        yellow_px[0] > 210 && yellow_px[1] > 160 && yellow_px[2] < 40,
+        "demo (1,1) should be Hansa Yellow Light: {yellow_px:?}"
+    );
+    let green_px = pixel(&img, 580, 256);
+    assert!(
+        green_px[1] > green_px[0] && green_px[1] > green_px[2],
+        "demo (1,4) should be Hansa Yellow + Phthalo Blue green: {green_px:?}"
+    );
+}

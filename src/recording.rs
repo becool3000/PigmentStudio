@@ -433,11 +433,38 @@ fn render_one(
     }
 
     let mut encoder = device.create_command_encoder(&Default::default());
-    let buffer = paint.readback_kind(device, queue, &mut encoder, mode);
-    queue.submit([encoder.finish()]);
-    let rx = gpu::export_with_srgb(buffer, out_path.to_path_buf(), mode.is_srgb());
-    let _ = device.poll(wgpu::Maintain::Wait);
-    rx.recv().map_err(|e| e.to_string())??;
+    if out_path
+        .extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| e.eq_ignore_ascii_case("pigment"))
+    {
+        let buffer = paint.readback_project(device, &mut encoder);
+        queue.submit([encoder.finish()]);
+        let meta = crate::project::ProjectMeta {
+            calibration_version: crate::project::CURRENT_CALIBRATION_VERSION,
+            loads: [0.0, 0.0],
+            jars: vec![false; crate::workbench::CUSTOM_JAR_COUNT],
+            sizes: [48.0, 64.0],
+            angle: 0.0,
+            brush: BrushKind::Round,
+            ink_selected: false,
+            charcoal_erase: false,
+            charcoal_size: 14.0,
+            lighting: paint.lighting.into(),
+            layers: paint.layers.into(),
+            tile: paint.tile,
+            recording: recording.clone(),
+        };
+        let rx = gpu::save_project(buffer, meta, out_path.to_path_buf());
+        let _ = device.poll(wgpu::Maintain::Wait);
+        rx.recv().map_err(|e| e.to_string())??;
+    } else {
+        let buffer = paint.readback_kind(device, queue, &mut encoder, mode);
+        queue.submit([encoder.finish()]);
+        let rx = gpu::export_with_srgb(buffer, out_path.to_path_buf(), mode.is_srgb());
+        let _ = device.poll(wgpu::Maintain::Wait);
+        rx.recv().map_err(|e| e.to_string())??;
+    }
     Ok(recording.events.len())
 }
 
