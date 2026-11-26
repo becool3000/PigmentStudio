@@ -1,0 +1,13 @@
+schema_version = "1.0.0"
+id = "pigment_studio_blender"
+version = "0.3.1"
+name = "Pigment Studio"
+tagline = "Real-time GPU Kubelka-Munk spectral oil & pigment painting in Blender's 3D Viewport"
+maintainer = "PolyBird"
+type = "add-on"
+blender_version_min = "4.2.0"
+license = ["SPDX:MIT"]
+platforms = ["windows-x64"]
+
+[permissions]
+files = "Load native pigment_blender.dll and update packed PBR texture maps"

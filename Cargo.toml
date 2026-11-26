@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "crates/pigment-engine"]
+members = [".", "crates/pigment-engine", "crates/pigment-blender"]
 
 [package]
 name = "pigment-prototype"
