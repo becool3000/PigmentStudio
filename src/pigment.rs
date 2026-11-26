@@ -44,24 +44,24 @@ const OBSERVER: [[f32; 4]; 31] = [
 
 // Hand-authored K and S anchors at 50 nm intervals, interpolated to the observer grid.
 const ABSORPTION: [[f32; 7]; 8] = [
-    [4., 3., 0.9, 0.006, 0.002, 0.002, 0.003], // 0: Hansa yellow
+    [8.7419, 6.1915, 0.452, 0.005, 0.002, 0.002, 0.003], // 0: Hansa yellow (PY3 calibrated)
     [1.802, 0.648, 1.053, 4.175, 22.372, 39.472, 40.064], // 1: Phthalo blue (PB15:2 calibrated)
-    [1.8, 1.2, 8.5, 28.0, 1.2, 0.35, 0.25],    // 2: Quinacridone magenta (PR122)
-    [0.008, 0.004, 0.002, 0.001, 0.001, 0.001, 0.002], // 3: Titanium white
-    [0.06, 0.09, 0.55, 2.4, 3.5, 1.6, 0.9],    // 4: Ultramarine blue
-    [4.5, 4.2, 2.8, 1.6, 0.55, 0.21, 0.13],    // 5: Burnt sienna
+    [2.188, 1.097, 10.781, 31.101, 0.96, 0.22, 0.152], // 2: Quinacridone magenta (PR122 calibrated)
+    [0.0327, 0.005, 0.002, 0.001, 0.001, 0.001, 0.0021], // 3: Titanium white (PW6 calibrated)
+    [0.06, 0.09, 0.55, 2.4, 3.5, 1.6, 0.9],            // 4: Ultramarine blue
+    [4.5, 4.2, 2.8, 1.6, 0.55, 0.21, 0.13],            // 5: Burnt sienna
     [35.0, 32.0, 26.0, 14.0, 0.03, 0.005, 0.002], // 6: Genuine Vermilion / Cadmium Red (PR106/PR108)
     [22.0, 22.0, 22.0, 22.0, 22.0, 21.5, 21.0],   // 7: Bone Black / Genuine Sepia (PBk9)
 ];
 const SCATTERING: [[f32; 7]; 8] = [
-    [0.42, 0.45, 0.65, 0.75, 0.67, 0.55, 0.5], // 0: Hansa yellow
+    [0.466, 0.427, 0.64, 0.833, 0.639, 0.765, 0.71], // 0: Hansa yellow (PY3 calibrated)
     [0.122, 0.106, 0.093, 0.076, 0.055, 0.143, 0.16], // 1: Phthalo blue (PB15:2 calibrated)
-    [0.45, 0.42, 0.38, 0.35, 0.40, 0.45, 0.45], // 2: Quinacridone magenta (PR122)
-    [18.0, 22.0, 26.0, 28.0, 28.0, 26.0, 24.0], // 3: Titanium white
-    [0.95, 1.1, 1.1, 0.91, 0.87, 0.91, 1.0],   // 4: Ultramarine blue
-    [0.68, 0.75, 0.8, 0.82, 0.81, 0.75, 0.7],  // 5: Burnt sienna
-    [0.6, 0.7, 0.8, 1.2, 2.2, 2.4, 2.5],       // 6: Genuine Vermilion / Cadmium Red
-    [0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3],       // 7: Bone Black / Genuine Sepia
+    [0.159, 0.145, 0.115, 0.133, 0.135, 0.152, 0.203], // 2: Quinacridone magenta (PR122 calibrated)
+    [19.667, 24.758, 29.26, 28.0, 28.0, 24.074, 21.326], // 3: Titanium white (PW6 calibrated)
+    [0.95, 1.1, 1.1, 0.91, 0.87, 0.91, 1.0],         // 4: Ultramarine blue
+    [0.68, 0.75, 0.8, 0.82, 0.81, 0.75, 0.7],        // 5: Burnt sienna
+    [0.6, 0.7, 0.8, 1.2, 2.2, 2.4, 2.5],             // 6: Genuine Vermilion / Cadmium Red
+    [0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3],             // 7: Bone Black / Genuine Sepia
 ];
 
 pub fn spectrum() -> [[[f32; 4]; 5]; 31] {

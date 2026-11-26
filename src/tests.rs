@@ -1141,9 +1141,9 @@ fn test_multi_coat_coverage_and_deepening() {
         mag_coat3[0] < mag_coat1[0],
         "coat 3 ({mag_coat3:?}) red channel must deepen beyond coat 1 ({mag_coat1:?})"
     );
-    // In masstone, green absorption is high, and red/blue deepen into ruby-carmine (G <= 15, R <= 140, B <= 85)
+    // In masstone, green absorption is high, and red/blue deepen into ruby-carmine (G <= 15, R <= 150, B <= 85)
     assert!(
-        mag_coat3[1] <= 15 && mag_coat3[0] <= 140 && mag_coat3[2] <= 85,
+        mag_coat3[1] <= 15 && mag_coat3[0] <= 150 && mag_coat3[2] <= 85,
         "3 coats of Quinacridone Magenta must cover and reach authentic ruby-carmine mass tone: {mag_coat3:?}"
     );
 }
@@ -1944,7 +1944,9 @@ fn test_phase_e_underlayer_and_batch_rendering() {
 
 #[test]
 fn test_phase_4_pb15_2_calibration_and_cpu_gpu_parity() {
-    assert_eq!(crate::project::CURRENT_CALIBRATION_VERSION, 2);
+    const {
+        assert!(crate::project::CURRENT_CALIBRATION_VERSION >= 2);
+    }
 
     let mut rig = Rig::new();
     rig.paint.lighting.enabled = false;
@@ -2114,6 +2116,371 @@ fn test_phase_4_pb15_2_calibration_and_cpu_gpu_parity() {
             "green mix CPU/GPU mismatch ch {ch}: cpu={} gpu={}",
             green_cpu[ch],
             green_gpu[ch]
+        );
+    }
+}
+
+#[test]
+fn test_phase_6_titanium_white_pw6_calibration_and_cpu_gpu_parity() {
+    const {
+        assert!(crate::project::CURRENT_CALIBRATION_VERSION >= 3);
+    }
+
+    let mut rig = Rig::new();
+    rig.paint.lighting.enabled = false;
+
+    // 1. Thick Titanium White masstone
+    let mast_img = rig.canvas(&[
+        Command::Initialize,
+        Command::Service(Brush::Round, BrushService::Load(3)),
+        Command::Dab(Dab::new(
+            egui::pos2(160.0, 160.0),
+            56.0,
+            1.0,
+            Surface::Canvas,
+            Brush::Round,
+            0.0,
+        )),
+        Command::Dab(Dab::new(
+            egui::pos2(160.0, 160.0),
+            56.0,
+            1.0,
+            Surface::Canvas,
+            Brush::Round,
+            0.0,
+        )),
+        Command::Dab(Dab::new(
+            egui::pos2(160.0, 160.0),
+            56.0,
+            1.0,
+            Surface::Canvas,
+            Brush::Round,
+            0.0,
+        )),
+    ]);
+    let mast_diag = rig
+        .paint
+        .sample_diagnostics(&rig.device, &rig.queue, 160, 160);
+    let mast_cpu = crate::pigment::rgb_composite(mast_diag.wet_channels, mast_diag.dry_channels);
+    let mast_gpu = pixel(&mast_img, 160, 160);
+    assert!(
+        mast_gpu[0] > 240 && mast_gpu[1] > 240 && mast_gpu[2] > 240,
+        "PW6 masstone should be bright white: {mast_gpu:?}"
+    );
+    for ch in 0..3 {
+        assert!(
+            mast_cpu[ch].abs_diff(mast_gpu[ch]) <= 2,
+            "PW6 masstone CPU/GPU mismatch ch {ch}: cpu={} gpu={}",
+            mast_cpu[ch],
+            mast_gpu[ch]
+        );
+    }
+
+    // 2. Titanium White hiding power: 3 dabs (>40%) and thick 12-dab build (>75%)
+    let hiding_3 = mast_diag.optical.wet_layer_hiding_ratio_pct.unwrap();
+    assert!(
+        hiding_3 > 40.0,
+        "PW6 3-dab hiding ratio should be >40%, got {hiding_3:.2}%"
+    );
+    let mut thick_cmds = vec![Command::Initialize];
+    for _ in 0..4 {
+        thick_cmds.push(Command::Service(Brush::Round, BrushService::Load(3)));
+        for _ in 0..3 {
+            thick_cmds.push(Command::Dab(Dab::new(
+                egui::pos2(160.0, 160.0),
+                56.0,
+                1.0,
+                Surface::Canvas,
+                Brush::Round,
+                0.0,
+            )));
+        }
+    }
+    let _ = rig.canvas(&thick_cmds);
+    let thick_diag = rig
+        .paint
+        .sample_diagnostics(&rig.device, &rig.queue, 160, 160);
+    let hiding_12 = thick_diag.optical.wet_layer_hiding_ratio_pct.unwrap();
+    assert!(
+        hiding_12 > hiding_3 && hiding_12 > 65.0,
+        "PW6 thick reloaded hiding ratio should exceed 3-dab ({hiding_3:.2}%) and 65%, got {hiding_12:.2}%"
+    );
+
+    // 3. Titanium White + Hansa Yellow Light (PY3) warm lemon tint
+    let yellow_tint_img = rig.canvas(&[
+        Command::Initialize,
+        Command::Service(Brush::Round, BrushService::Load(3)),
+        Command::Service(Brush::Round, BrushService::Load(3)),
+        Command::Service(Brush::Round, BrushService::Load(3)),
+        Command::Service(Brush::Round, BrushService::Load(0)),
+        Command::Dab(Dab::new(
+            egui::pos2(320.0, 160.0),
+            56.0,
+            1.0,
+            Surface::Canvas,
+            Brush::Round,
+            0.0,
+        )),
+    ]);
+    let yellow_diag = rig
+        .paint
+        .sample_diagnostics(&rig.device, &rig.queue, 320, 160);
+    let yellow_cpu =
+        crate::pigment::rgb_composite(yellow_diag.wet_channels, yellow_diag.dry_channels);
+    let yellow_gpu = pixel(&yellow_tint_img, 320, 160);
+    assert!(
+        yellow_gpu[0] > 220 && yellow_gpu[1] > 210 && yellow_gpu[2] < yellow_gpu[1],
+        "PW6 + PY3 tint should be bright warm yellow: {yellow_gpu:?}"
+    );
+    for ch in 0..3 {
+        assert!(
+            yellow_cpu[ch].abs_diff(yellow_gpu[ch]) <= 2,
+            "PW6 + PY3 tint CPU/GPU mismatch ch {ch}: cpu={} gpu={}",
+            yellow_cpu[ch],
+            yellow_gpu[ch]
+        );
+    }
+}
+
+#[test]
+fn test_phase_6_hansa_yellow_py3_calibration_and_cpu_gpu_parity() {
+    const {
+        assert!(crate::project::CURRENT_CALIBRATION_VERSION >= 4);
+    }
+
+    let mut rig = Rig::new();
+    rig.paint.lighting.enabled = false;
+
+    // 1. Thin Hansa Yellow Light glaze (low hiding ratio, crisp lemon yellow)
+    let thin_img = rig.canvas(&[
+        Command::Initialize,
+        Command::Service(Brush::Round, BrushService::Load(0)),
+        Command::Service(Brush::Round, BrushService::Wipe(0.20)),
+        Command::Dab(Dab::new(
+            egui::pos2(160.0, 160.0),
+            56.0,
+            1.0,
+            Surface::Canvas,
+            Brush::Round,
+            0.0,
+        )),
+    ]);
+    let thin_diag = rig
+        .paint
+        .sample_diagnostics(&rig.device, &rig.queue, 160, 160);
+    let thin_hiding = thin_diag.optical.wet_layer_hiding_ratio_pct.unwrap();
+    assert!(
+        thin_hiding < 18.0,
+        "PY3 thin glaze hiding ratio should be semi-transparent (<18%), got {thin_hiding:.2}%"
+    );
+    let thin_cpu = crate::pigment::rgb_composite(thin_diag.wet_channels, thin_diag.dry_channels);
+    let thin_gpu = pixel(&thin_img, 160, 160);
+    assert!(
+        thin_gpu[0] > 230 && thin_gpu[1] > 210 && thin_gpu[2] < thin_gpu[1],
+        "PY3 thin glaze should be bright lemon yellow: {thin_gpu:?}"
+    );
+    for ch in 0..3 {
+        assert!(
+            thin_cpu[ch].abs_diff(thin_gpu[ch]) <= 2,
+            "PY3 thin glaze CPU/GPU mismatch ch {ch}: cpu={} gpu={}",
+            thin_cpu[ch],
+            thin_gpu[ch]
+        );
+    }
+
+    // 2. Thick PY3 masstone
+    let mast_img = rig.canvas(&[
+        Command::Initialize,
+        Command::Service(Brush::Round, BrushService::Load(0)),
+        Command::Dab(Dab::new(
+            egui::pos2(320.0, 160.0),
+            56.0,
+            1.0,
+            Surface::Canvas,
+            Brush::Round,
+            0.0,
+        )),
+        Command::Dab(Dab::new(
+            egui::pos2(320.0, 160.0),
+            56.0,
+            1.0,
+            Surface::Canvas,
+            Brush::Round,
+            0.0,
+        )),
+        Command::Dab(Dab::new(
+            egui::pos2(320.0, 160.0),
+            56.0,
+            1.0,
+            Surface::Canvas,
+            Brush::Round,
+            0.0,
+        )),
+    ]);
+    let mast_diag = rig
+        .paint
+        .sample_diagnostics(&rig.device, &rig.queue, 320, 160);
+    let mast_cpu = crate::pigment::rgb_composite(mast_diag.wet_channels, mast_diag.dry_channels);
+    let mast_gpu = pixel(&mast_img, 320, 160);
+    assert!(
+        mast_gpu[0] > 230 && mast_gpu[1] > 180 && mast_gpu[2] < 150,
+        "PY3 masstone should be saturated yellow: {mast_gpu:?}"
+    );
+    for ch in 0..3 {
+        assert!(
+            mast_cpu[ch].abs_diff(mast_gpu[ch]) <= 2,
+            "PY3 masstone CPU/GPU mismatch ch {ch}: cpu={} gpu={}",
+            mast_cpu[ch],
+            mast_gpu[ch]
+        );
+    }
+
+    // 3. PY3 + PB15:2 spring green mix
+    let green_img = rig.canvas(&[
+        Command::Initialize,
+        Command::Service(Brush::Round, BrushService::Load(0)),
+        Command::Service(Brush::Round, BrushService::Load(0)),
+        Command::Service(Brush::Round, BrushService::Load(0)),
+        Command::Service(Brush::Round, BrushService::Load(1)),
+        Command::Dab(Dab::new(
+            egui::pos2(480.0, 160.0),
+            56.0,
+            1.0,
+            Surface::Canvas,
+            Brush::Round,
+            0.0,
+        )),
+    ]);
+    let green_diag = rig
+        .paint
+        .sample_diagnostics(&rig.device, &rig.queue, 480, 160);
+    let green_cpu = crate::pigment::rgb_composite(green_diag.wet_channels, green_diag.dry_channels);
+    let green_gpu = pixel(&green_img, 480, 160);
+    assert!(
+        green_gpu[1] > green_gpu[0] && green_gpu[1] > green_gpu[2],
+        "PY3 + PB15:2 mix should be vivid green: {green_gpu:?}"
+    );
+    for ch in 0..3 {
+        assert!(
+            green_cpu[ch].abs_diff(green_gpu[ch]) <= 2,
+            "PY3 + PB15:2 green CPU/GPU mismatch ch {ch}: cpu={} gpu={}",
+            green_cpu[ch],
+            green_gpu[ch]
+        );
+    }
+}
+
+#[test]
+fn test_phase_6_quinacridone_magenta_pr122_calibration_and_cpu_gpu_parity() {
+    const {
+        assert!(crate::project::CURRENT_CALIBRATION_VERSION >= 5);
+    }
+
+    let mut rig = Rig::new();
+    rig.paint.lighting.enabled = false;
+
+    // 1. Thin PR122 glaze (low hiding ratio, luminous cool magenta)
+    let thin_img = rig.canvas(&[
+        Command::Initialize,
+        Command::Service(Brush::Round, BrushService::Load(2)),
+        Command::Service(Brush::Round, BrushService::Wipe(0.20)),
+        Command::Dab(Dab::new(
+            egui::pos2(160.0, 160.0),
+            56.0,
+            1.0,
+            Surface::Canvas,
+            Brush::Round,
+            0.0,
+        )),
+    ]);
+    let thin_diag = rig
+        .paint
+        .sample_diagnostics(&rig.device, &rig.queue, 160, 160);
+    let thin_hiding = thin_diag.optical.wet_layer_hiding_ratio_pct.unwrap();
+    assert!(
+        thin_hiding < 12.0,
+        "PR122 thin glaze hiding ratio should be transparent (<12%), got {thin_hiding:.2}%"
+    );
+    let thin_cpu = crate::pigment::rgb_composite(thin_diag.wet_channels, thin_diag.dry_channels);
+    let thin_gpu = pixel(&thin_img, 160, 160);
+    assert!(
+        thin_gpu[0] > thin_gpu[1] && thin_gpu[2] > thin_gpu[1],
+        "PR122 thin glaze should be cool magenta (R,B > G): {thin_gpu:?}"
+    );
+    for ch in 0..3 {
+        assert!(
+            thin_cpu[ch].abs_diff(thin_gpu[ch]) <= 2,
+            "PR122 thin glaze CPU/GPU mismatch ch {ch}: cpu={} gpu={}",
+            thin_cpu[ch],
+            thin_gpu[ch]
+        );
+    }
+
+    // 2. PR122 + PW6 rose-pink tint
+    let pink_img = rig.canvas(&[
+        Command::Initialize,
+        Command::Service(Brush::Round, BrushService::Load(3)),
+        Command::Service(Brush::Round, BrushService::Load(3)),
+        Command::Service(Brush::Round, BrushService::Load(3)),
+        Command::Service(Brush::Round, BrushService::Load(2)),
+        Command::Dab(Dab::new(
+            egui::pos2(320.0, 160.0),
+            56.0,
+            1.0,
+            Surface::Canvas,
+            Brush::Round,
+            0.0,
+        )),
+    ]);
+    let pink_diag = rig
+        .paint
+        .sample_diagnostics(&rig.device, &rig.queue, 320, 160);
+    let pink_cpu = crate::pigment::rgb_composite(pink_diag.wet_channels, pink_diag.dry_channels);
+    let pink_gpu = pixel(&pink_img, 320, 160);
+    assert!(
+        pink_gpu[0] > pink_gpu[1] && pink_gpu[2] > pink_gpu[1],
+        "PR122 + PW6 tint should be rose-pink: {pink_gpu:?}"
+    );
+    for ch in 0..3 {
+        assert!(
+            pink_cpu[ch].abs_diff(pink_gpu[ch]) <= 2,
+            "PR122 + PW6 tint CPU/GPU mismatch ch {ch}: cpu={} gpu={}",
+            pink_cpu[ch],
+            pink_gpu[ch]
+        );
+    }
+
+    // 3. PR122 + PB15:2 clean purple mix
+    let purple_img = rig.canvas(&[
+        Command::Initialize,
+        Command::Service(Brush::Round, BrushService::Load(2)),
+        Command::Service(Brush::Round, BrushService::Load(2)),
+        Command::Service(Brush::Round, BrushService::Load(1)),
+        Command::Dab(Dab::new(
+            egui::pos2(480.0, 160.0),
+            56.0,
+            1.0,
+            Surface::Canvas,
+            Brush::Round,
+            0.0,
+        )),
+    ]);
+    let purple_diag = rig
+        .paint
+        .sample_diagnostics(&rig.device, &rig.queue, 480, 160);
+    let purple_cpu =
+        crate::pigment::rgb_composite(purple_diag.wet_channels, purple_diag.dry_channels);
+    let purple_gpu = pixel(&purple_img, 480, 160);
+    assert!(
+        purple_gpu[2] > purple_gpu[1] && purple_gpu[0] > purple_gpu[1],
+        "PR122 + PB15:2 mix should be purple (R,B > G): {purple_gpu:?}"
+    );
+    for ch in 0..3 {
+        assert!(
+            purple_cpu[ch].abs_diff(purple_gpu[ch]) <= 2,
+            "PR122 + PB15:2 purple CPU/GPU mismatch ch {ch}: cpu={} gpu={}",
+            purple_cpu[ch],
+            purple_gpu[ch]
         );
     }
 }

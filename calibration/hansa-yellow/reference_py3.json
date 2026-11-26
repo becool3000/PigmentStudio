@@ -1,0 +1,78 @@
+{
+  "source": "Published PY3 (Arylide Yellow 10G) diffuse reflectance characteristics and Gamblin Artists' Oil Hansa Yellow Light masstone/transparency/tinting specifications (proxy for Phase 3 spectrophotometer dataset).",
+  "wavelengths_nm": [400, 450, 500, 550, 600, 650, 700],
+  "target_masstone_spectrum_7": [0.009, 0.013, 0.179, 0.952, 0.980, 0.980, 0.971],
+  "target_thin_glaze_white_7": [0.015, 0.029, 0.616, 0.994, 0.998, 0.998, 0.996],
+  "fit_cases": [
+    {
+      "name": "Thick masstone on white (8 wet dabs)",
+      "pb15": 0.0,
+      "pw6": 0.0,
+      "py3": 2.0,
+      "ground": 1.0,
+      "target_lab": [87.0, 12.7, 114.4]
+    },
+    {
+      "name": "Thin glaze on white (1 wet dab)",
+      "pb15": 0.0,
+      "pw6": 0.0,
+      "py3": 0.25,
+      "ground": 1.0,
+      "target_lab": [94.7, -11.6, 101.3]
+    },
+    {
+      "name": "Thin glaze on black (1 wet dab)",
+      "pb15": 0.0,
+      "pw6": 0.0,
+      "py3": 0.25,
+      "ground": 0.0,
+      "target_lab": [30.4, -8.4, 26.8]
+    },
+    {
+      "name": "10% PB15:2 green mix",
+      "pb15": 0.15,
+      "pw6": 0.0,
+      "py3": 1.35,
+      "ground": 1.0,
+      "target_lab": [42.2, -49.5, 39.7]
+    }
+  ],
+  "held_out_cases": [
+    {
+      "name": "Medium film on black (4 wet dabs)",
+      "pb15": 0.0,
+      "pw6": 0.0,
+      "py3": 1.0,
+      "ground": 0.0,
+      "target_lab": [51.6, -9.2, 57.1]
+    },
+    {
+      "name": "25% PY3 + 75% PW6 tint",
+      "pb15": 0.0,
+      "pw6": 1.125,
+      "py3": 0.375,
+      "ground": 1.0,
+      "target_lab": [96.7, -5.8, 36.4]
+    },
+    {
+      "name": "10% PY3 + 90% PW6 tint",
+      "pb15": 0.0,
+      "pw6": 1.35,
+      "py3": 0.15,
+      "ground": 1.0,
+      "target_lab": [97.9, -5.2, 24.2]
+    },
+    {
+      "name": "5% PB15:2 spring green mix",
+      "pb15": 0.075,
+      "pw6": 0.0,
+      "py3": 1.425,
+      "ground": 1.0,
+      "target_lab": [51.1, -47.9, 53.8]
+    }
+  ],
+  "hiding_power_check": {
+    "thin_glaze_mass": 0.25,
+    "target_max_hiding_ratio_pct": 15.0
+  }
+}

@@ -1,0 +1,86 @@
+{
+  "source": "Published PR122 (dimethyl quinacridone) diffuse reflectance characteristics and Gamblin Artists' Oil Quinacridone Magenta masstone/glaze/tinting specifications (proxy for Phase 3 spectrophotometer dataset).",
+  "wavelengths_nm": [400, 450, 500, 550, 600, 650, 700],
+  "target_masstone_spectrum_7": [0.014, 0.027, 0.002, 0.001, 0.031, 0.244, 0.346],
+  "target_thin_glaze_white_7": [0.170, 0.355, 0.004, 0.001, 0.398, 0.775, 0.837],
+  "fit_cases": [
+    {
+      "name": "Thick masstone on white (8 wet dabs)",
+      "pb15": 0.0,
+      "pr122": 2.0,
+      "pw6": 0.0,
+      "py3": 0.0,
+      "ground": 1.0,
+      "target_lab": [12.5, 43.8, 0.7]
+    },
+    {
+      "name": "Thin glaze on white (1 wet dab)",
+      "pb15": 0.0,
+      "pr122": 0.25,
+      "pw6": 0.0,
+      "py3": 0.0,
+      "ground": 1.0,
+      "target_lab": [37.4, 85.7, -21.0]
+    },
+    {
+      "name": "20% PR122 + 80% PW6 tint",
+      "pb15": 0.0,
+      "pr122": 0.30,
+      "pw6": 1.20,
+      "py3": 0.0,
+      "ground": 1.0,
+      "target_lab": [71.7, 39.4, -18.0]
+    },
+    {
+      "name": "Coral mix (20% PR122 + 80% PY3)",
+      "pb15": 0.0,
+      "pr122": 0.30,
+      "pw6": 0.0,
+      "py3": 1.20,
+      "ground": 1.0,
+      "target_lab": [39.9, 60.2, 44.8]
+    }
+  ],
+  "held_out_cases": [
+    {
+      "name": "Thin glaze on black (1 wet dab)",
+      "pb15": 0.0,
+      "pr122": 0.25,
+      "pw6": 0.0,
+      "py3": 0.0,
+      "ground": 0.0,
+      "target_lab": [3.0, 14.0, -6.8]
+    },
+    {
+      "name": "5% PR122 + 95% PW6 tint",
+      "pb15": 0.0,
+      "pr122": 0.075,
+      "pw6": 1.425,
+      "py3": 0.0,
+      "ground": 1.0,
+      "target_lab": [83.7, 24.2, -11.7]
+    },
+    {
+      "name": "40% PR122 + 60% PW6 tint",
+      "pb15": 0.0,
+      "pr122": 0.60,
+      "pw6": 0.90,
+      "py3": 0.0,
+      "ground": 1.0,
+      "target_lab": [62.3, 49.1, -20.9]
+    },
+    {
+      "name": "Purple mix (20% PB15:2 + 80% PR122)",
+      "pb15": 0.30,
+      "pr122": 1.20,
+      "pw6": 0.0,
+      "py3": 0.0,
+      "ground": 1.0,
+      "target_lab": [2.0, 15.0, -21.4]
+    }
+  ],
+  "hiding_power_check": {
+    "thin_glaze_mass": 0.25,
+    "target_max_hiding_ratio_pct": 12.0
+  }
+}
