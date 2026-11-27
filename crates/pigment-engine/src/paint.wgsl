@@ -185,8 +185,14 @@ fn hog_bristle_contact(across: f32, along: f32, pressure: f32, tooth: f32) -> f3
 // point contributes to the lanes it crosses, so turning keeps the split load.
 fn moving_contact(delta: vec2<f32>, t: f32, tooth: f32) -> vec3<f32> {
     let p = (delta - (t - 0.5) * dab.sweep.xy) / mix(dab.brush.z, dab.sweep.z, t);
-    let axis = normalize(mix(dab.axis.xy, dab.axis.zw, t));
     let pressure = mix(dab.brush.w, dab.sweep.w, t);
+    if (dab.mode.z == 0u) {
+        let rp = clamp((pressure - 0.015) / 0.735, 0.0, 1.0);
+        let rc = 0.08 + 0.92 * rp * rp * (3.0 - 2.0 * rp);
+        let c = (1.0 - smoothstep(0.3, 1.0, length(p))) * rc;
+        return vec3<f32>(c, 0.0, 0.0);
+    }
+    let axis = normalize(mix(dab.axis.xy, dab.axis.zw, t));
     let filbert = dab.mode.z == 2u;
     let across = dot(p, axis) / mix(select(0.83, 0.70, filbert), 1.0, pressure);
     let along = dot(p, vec2<f32>(-axis.y, axis.x));

@@ -361,9 +361,13 @@ impl Dab {
             Brush::Fan => 0.51,
             _ => 0.22,
         };
-        let turn_margin = (1.0 + depth) * 0.5 * (end.angle - start.angle).abs();
-        let footprint = egui::vec2(x + depth * y, y + depth * x);
-        let pad = (footprint + egui::Vec2::splat(turn_margin)) * radius + 0.5 * delta.abs();
+        let pad = if brush == Brush::Round {
+            egui::Vec2::splat(radius * 1.07) + 0.5 * delta.abs()
+        } else {
+            let turn_margin = (1.0 + depth) * 0.5 * (end.angle - start.angle).abs();
+            let footprint = egui::vec2(x + depth * y, y + depth * x);
+            (footprint + egui::Vec2::splat(turn_margin)) * radius + 0.5 * delta.abs()
+        };
         let (bounds, center) =
             Self::footprint_bounds_dims(start.point + delta * 0.5, pad, surface, wrap, dims);
         Self {

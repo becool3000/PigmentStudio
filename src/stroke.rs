@@ -142,7 +142,7 @@ impl Stroke {
             sweep: refined
                 && matches!(
                     brush,
-                    Brush::PaletteKnife | Brush::Flat | Brush::Filbert | Brush::Fan
+                    Brush::Round | Brush::PaletteKnife | Brush::Flat | Brush::Filbert | Brush::Fan
                 ),
             swept: false,
             load_ratio,
@@ -447,8 +447,16 @@ impl Stroke {
         // Keep quadrature accurate when a long input interval crosses much of
         // the tip or turns sharply. Ordinary pen samples typically need one segment.
         let radius = self.radius(sample.pressure.min(self.last.pressure));
-        let max_distance = (radius * 0.25).max(0.75);
-        let turn = (self.angle - previous_angle).abs();
+        let max_distance = if self.brush == Brush::Round {
+            (radius * 1.0).max(2.0)
+        } else {
+            (radius * 0.25).max(0.75)
+        };
+        let turn = if self.brush == Brush::Round {
+            0.0
+        } else {
+            (self.angle - previous_angle).abs()
+        };
         let steps = (distance / max_distance).max(turn / 0.16).ceil() as u32;
         let contact = |t| {
             let pressure = egui::lerp(self.last.pressure..=sample.pressure, t);
