@@ -793,6 +793,9 @@ struct Studio {
     notes_manager_open: bool,
     show_shortcuts: bool,
     show_about: bool,
+    show_canvas_size: bool,
+    pending_canvas_w: u32,
+    pending_canvas_h: u32,
     active_note_at: Option<Pos2>,
     note_input_text: String,
     selected_note: Option<u32>,
@@ -942,6 +945,9 @@ impl Studio {
             notes_manager_open: false,
             show_shortcuts: false,
             show_about: false,
+            show_canvas_size: false,
+            pending_canvas_w: SIDE,
+            pending_canvas_h: SIDE,
             active_note_at: None,
             note_input_text: String::new(),
             selected_note: None,
@@ -1018,7 +1024,10 @@ impl Studio {
         {
             return None;
         }
-        let [_, _, w, h] = surface.bounds();
+        let [_, _, w, h] = match surface {
+            Surface::Canvas => self.paint.dims.canvas_bounds(),
+            Surface::Palette => self.paint.dims.palette_bounds(),
+        };
         let delta = physical - rect.min;
         if surface == Surface::Canvas && self.paint.tile && self.stroke.is_some() {
             Some(egui::pos2(
@@ -1575,7 +1584,7 @@ impl Studio {
             .add_filter("PNG image", &["png"])
             .pick_file()
         {
-            match gpu::load_png_as_reference(&path) {
+            match gpu::load_png_as_reference_sized(&path, self.paint.dims) {
                 Ok(words) => {
                     self.paint.layers.reference_visible = true;
                     self.recording.events.push(RecordedEvent::ImportReference {
@@ -1599,7 +1608,7 @@ impl Studio {
             .add_filter("PNG image", &["png"])
             .pick_file()
         {
-            match gpu::load_png_as_substrate(&path) {
+            match gpu::load_png_as_substrate_sized(&path, self.paint.dims) {
                 Ok(words) => {
                     self.snapshot();
                     self.recording.events.push(RecordedEvent::ImportUnderlayer {
@@ -1616,6 +1625,90 @@ impl Studio {
         }
     }
 
+    fn set_canvas_dims(&mut self, dims: gpu::CanvasDims) {
+        self.end_stroke();
+        self.paint.resize_canvas(dims);
+        let view = self.paint.display_view();
+        self.renderer.update_egui_texture_from_wgpu_texture(
+            &self.device,
+            &view,
+            wgpu::FilterMode::Linear,
+            self.texture_id,
+        );
+        self.view.aspect = dims.width as f32 / dims.height as f32;
+        self.view.zoom = 1.0;
+        self.view.pan = egui::Vec2::ZERO;
+        self.commands.clear();
+        self.commands.push(Command::Initialize);
+        recording::equip_cabinet(&mut self.commands);
+        self.recording.canvas_width = Some(dims.width);
+        self.recording.canvas_height = Some(dims.height);
+        self.update_canvas();
+        self.status = format!("Canvas size: {} × {}", dims.width, dims.height);
+    }
+
+    fn canvas_size_ui(&mut self, ctx: &egui::Context) {
+        if !self.show_canvas_size {
+            return;
+        }
+        let mut open = self.show_canvas_size;
+        let mut apply = None;
+        egui::Window::new("Canvas Size")
+            .open(&mut open)
+            .collapsible(false)
+            .resizable(false)
+            .show(ctx, |ui| {
+                ui.label("Presets (replaces current canvas):");
+                ui.horizontal_wrapped(|ui| {
+                    for (label, w, h) in [
+                        ("1024×1024 (1:1)", 1024, 1024),
+                        ("1024×256 (4:1 Panorama)", 1024, 256),
+                        ("2048×512 (4:1 Hi-Res)", 2048, 512),
+                        ("1280×720 (16:9)", 1280, 720),
+                        ("1024×768 (4:3)", 1024, 768),
+                        ("512×512 (Profile)", 512, 512),
+                    ] {
+                        if ui.button(label).clicked() {
+                            self.pending_canvas_w = w;
+                            self.pending_canvas_h = h;
+                        }
+                    }
+                });
+                ui.separator();
+                ui.horizontal(|ui| {
+                    ui.label("Width:");
+                    ui.add(
+                        egui::DragValue::new(&mut self.pending_canvas_w)
+                            .range(128..=2048)
+                            .speed(8),
+                    );
+                    ui.label("Height:");
+                    ui.add(
+                        egui::DragValue::new(&mut self.pending_canvas_h)
+                            .range(128..=2048)
+                            .speed(8),
+                    );
+                });
+                ui.add_space(6.0);
+                ui.horizontal(|ui| {
+                    if ui.button("Apply & New Canvas").clicked() {
+                        apply = Some(gpu::CanvasDims::new(
+                            self.pending_canvas_w,
+                            self.pending_canvas_h,
+                        ));
+                    }
+                    if ui.button("Cancel").clicked() {
+                        self.show_canvas_size = false;
+                    }
+                });
+            });
+        self.show_canvas_size = open;
+        if let Some(dims) = apply {
+            self.set_canvas_dims(dims);
+            self.show_canvas_size = false;
+        }
+    }
+
     fn apply_loaded_project(
         &mut self,
         meta: project::ProjectMeta,
@@ -1624,6 +1717,10 @@ impl Studio {
         status: String,
     ) {
         self.snapshot();
+        let target_dims = gpu::CanvasDims::new(meta.canvas_width, meta.canvas_height);
+        if self.paint.dims != target_dims {
+            self.set_canvas_dims(target_dims);
+        }
         self.workbench.session.loads = meta.loads;
         for (dst, src) in self.workbench.session.jars.iter_mut().zip(meta.jars.iter()) {
             *dst = *src;
@@ -1703,6 +1800,8 @@ impl Studio {
         if let Some(p) = target {
             let meta = project::ProjectMeta {
                 calibration_version: project::CURRENT_CALIBRATION_VERSION,
+                canvas_width: self.paint.dims.width,
+                canvas_height: self.paint.dims.height,
                 loads: self.workbench.session.loads,
                 jars: self.workbench.session.jars.to_vec(),
                 sizes: self.workbench.sizes,
@@ -1940,6 +2039,13 @@ impl Studio {
                         .clicked()
                     {
                         self.save_project_dialog(true);
+                        ui.close_menu();
+                    }
+                    ui.separator();
+                    if ui.button("Canvas Size…").clicked() {
+                        self.pending_canvas_w = self.paint.dims.width;
+                        self.pending_canvas_h = self.paint.dims.height;
+                        self.show_canvas_size = true;
                         ui.close_menu();
                     }
                     ui.separator();
@@ -2407,7 +2513,7 @@ impl Studio {
                 ui.painter().with_clip_rect(room).image(
                     self.texture_id,
                     canvas,
-                    gpu::atlas_uv(Surface::Canvas.bounds()),
+                    gpu::atlas_uv_dims(self.paint.dims.canvas_bounds(), self.paint.dims),
                     Color32::WHITE,
                 );
                 if self.pan_drag.is_some() {
@@ -2426,11 +2532,14 @@ impl Studio {
         self.pigment_info_ui(ctx);
         self.guide_ui(ctx);
         self.notes_manager_ui(ctx);
+        self.canvas_size_ui(ctx);
 
         if self.workbench.lighting != prev_lighting {
             self.paint.lighting = self.workbench.lighting;
-            self.commands
-                .push(Command::Dab(Dab::operation(Surface::Canvas.bounds(), 1)));
+            self.commands.push(Command::Dab(Dab::operation(
+                self.paint.dims.canvas_bounds(),
+                1,
+            )));
             self.window.request_redraw();
         }
         self.update_pen_regions();
@@ -2474,7 +2583,7 @@ impl Studio {
         ui.painter().image(
             self.texture_id,
             palette,
-            gpu::atlas_uv(Surface::Palette.bounds()),
+            gpu::atlas_uv_dims(self.paint.dims.palette_bounds(), self.paint.dims),
             Color32::WHITE,
         );
         let edge_y = palette.top() + palette.height() * 0.25;
@@ -2648,7 +2757,10 @@ impl Studio {
                         jar,
                         workbench_art::JarSwatch::Mixture {
                             texture: self.texture_id,
-                            uv: gpu::atlas_uv(gpu::swatch_bounds(slot)),
+                            uv: gpu::atlas_uv_dims(
+                                self.paint.dims.swatch_bounds(slot),
+                                self.paint.dims,
+                            ),
                         },
                     );
                     let name = format!("Jar {}", slot + 1);
@@ -3123,7 +3235,7 @@ impl Studio {
             painter.image(
                 self.texture_id,
                 fill_rect,
-                gpu::atlas_uv([512 + lane, SIDE, 1, 1]),
+                gpu::atlas_uv_dims([512 + lane, self.paint.dims.height, 1, 1], self.paint.dims),
                 Color32::WHITE,
             );
         }
@@ -3792,7 +3904,7 @@ impl Studio {
         if let Some(readback) = export {
             self.exporting = Some(match readback {
                 PendingReadback::Image(path, buffer, is_srgb) => {
-                    gpu::export_with_srgb(buffer, path, is_srgb)
+                    gpu::export_sized(buffer, self.paint.dims, path, is_srgb)
                 }
                 PendingReadback::Palette(path, buffer, jars) => {
                     gpu::export_palette(buffer, jars, path)
@@ -3840,6 +3952,7 @@ fn physical_rect(ctx: &egui::Context, rect: Rect) -> Rect {
 struct CanvasView {
     zoom: f32,
     pan: egui::Vec2,
+    aspect: f32,
 }
 
 impl Default for CanvasView {
@@ -3847,6 +3960,7 @@ impl Default for CanvasView {
         Self {
             zoom: 1.,
             pan: egui::Vec2::ZERO,
+            aspect: 1.,
         }
     }
 }
@@ -3856,11 +3970,22 @@ impl CanvasView {
         (viewport.width().min(viewport.height()) - 32.).max(1.)
     }
 
+    fn fit_size(&self, viewport: Rect) -> egui::Vec2 {
+        let max_w = (viewport.width() - 32.).max(1.);
+        let max_h = (viewport.height() - 32.).max(1.);
+        let aspect = self.aspect.max(0.1);
+        if max_w / max_h > aspect {
+            egui::vec2(max_h * aspect, max_h)
+        } else {
+            egui::vec2(max_w, max_w / aspect)
+        }
+    }
+
     fn rect(&self, viewport: Rect) -> Rect {
         let fit = Self::fit(viewport);
         Rect::from_center_size(
             viewport.center() + self.pan * fit,
-            egui::Vec2::splat(fit * self.zoom),
+            self.fit_size(viewport) * self.zoom,
         )
     }
 

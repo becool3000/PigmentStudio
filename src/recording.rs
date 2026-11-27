@@ -307,6 +307,10 @@ impl From<LightingConfig> for Lighting {
 pub struct Recording {
     pub format: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub canvas_width: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub canvas_height: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub underlayer_path: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub lighting: Option<LightingConfig>,
@@ -319,6 +323,8 @@ impl Default for Recording {
     fn default() -> Self {
         Self {
             format: "pigment-studio-recording-v2".into(),
+            canvas_width: None,
+            canvas_height: None,
             underlayer_path: None,
             lighting: None,
             tile: None,
@@ -687,6 +693,9 @@ pub(crate) fn render_modes_on_gpu(
     out_path: &Path,
     modes: &[(String, ExportKind)],
 ) -> Result<(usize, Vec<(String, std::path::PathBuf)>), String> {
+    if let (Some(w), Some(h)) = (recording.canvas_width, recording.canvas_height) {
+        paint.resize_canvas(gpu::CanvasDims::new(w, h));
+    }
     paint.lighting = recording
         .lighting
         .clone()
@@ -701,11 +710,11 @@ pub(crate) fn render_modes_on_gpu(
     equip_cabinet(&mut commands);
 
     if let Some(ul_path) = underlayer_override {
-        let words = gpu::load_png_as_substrate(ul_path)?;
+        let words = gpu::load_png_as_substrate_sized(ul_path, paint.dims)?;
         commands.push(Command::ImportUnderlayer(words));
     } else if let Some(ref raw) = recording.underlayer_path {
         let resolved = resolve_path(base_dir, raw);
-        let words = gpu::load_png_as_substrate(&resolved)?;
+        let words = gpu::load_png_as_substrate_sized(&resolved, paint.dims)?;
         commands.push(Command::ImportUnderlayer(words));
     }
 
@@ -740,6 +749,8 @@ pub(crate) fn render_modes_on_gpu(
         queue.submit([encoder.finish()]);
         let meta = crate::project::ProjectMeta {
             calibration_version: crate::project::CURRENT_CALIBRATION_VERSION,
+            canvas_width: paint.dims.width,
+            canvas_height: paint.dims.height,
             loads: [0.0; crate::gpu::BRUSH_COUNT],
             jars: vec![false; crate::workbench::CUSTOM_JAR_COUNT],
             sizes: [48.0, 64.0],
@@ -766,7 +777,7 @@ pub(crate) fn render_modes_on_gpu(
             let mut encoder = device.create_command_encoder(&Default::default());
             let buffer = paint.readback_kind(device, queue, &mut encoder, *mode);
             queue.submit([encoder.finish()]);
-            let rx = gpu::export_with_srgb(buffer, target.clone(), mode.is_srgb());
+            let rx = gpu::export_sized(buffer, paint.dims, target.clone(), mode.is_srgb());
             let _ = device.poll(wgpu::Maintain::Wait);
             rx.recv().map_err(|e| e.to_string())??;
             outputs.push((mode_name.clone(), target));

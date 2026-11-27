@@ -80,6 +80,10 @@ pub enum ServeRequest {
         #[serde(default)]
         normal_convention: Option<String>,
     },
+    SetCanvasSize {
+        width: u32,
+        height: u32,
+    },
 }
 
 fn default_radius() -> f32 {
@@ -148,6 +152,9 @@ impl ServeSession {
     }
 
     fn reset_gpu_to_start(&mut self) -> Result<(), String> {
+        if let (Some(w), Some(h)) = (self.recording.canvas_width, self.recording.canvas_height) {
+            self.paint.resize_canvas(gpu::CanvasDims::new(w, h));
+        }
         self.paint.lighting = self
             .recording
             .lighting
@@ -345,10 +352,10 @@ impl ServeSession {
                 }))
             }
             ServeRequest::InspectRegion { x, y, w, h } => {
-                let x0 = x.min(SIDE - 1);
-                let y0 = y.min(SIDE - 1);
-                let x1 = (x0 + w.max(1)).min(SIDE);
-                let y1 = (y0 + h.max(1)).min(SIDE);
+                let x0 = x.min(self.paint.dims.width - 1);
+                let y0 = y.min(self.paint.dims.height - 1);
+                let x1 = (x0 + w.max(1)).min(self.paint.dims.width);
+                let y1 = (y0 + h.max(1)).min(self.paint.dims.height);
                 let color_bytes =
                     self.paint
                         .readback_rgba_bytes(&self.device, &self.queue, ExportKind::Color)?;
@@ -369,7 +376,7 @@ impl ServeSession {
                 let mut max_h = 0u8;
                 for py in y0..y1 {
                     for px in x0..x1 {
-                        let i = ((py * SIDE + px) * 4) as usize;
+                        let i = ((py * self.paint.dims.width + px) * 4) as usize;
                         sum_rgb[0] += u64::from(color_bytes[i]);
                         sum_rgb[1] += u64::from(color_bytes[i + 1]);
                         sum_rgb[2] += u64::from(color_bytes[i + 2]);
@@ -477,13 +484,28 @@ impl ServeSession {
                             self.paint
                                 .readback_kind(&self.device, &self.queue, &mut encoder, kind);
                         self.queue.submit([encoder.finish()]);
-                        let rx = gpu::export_with_srgb(buffer, target.clone(), kind.is_srgb());
+                        let rx = gpu::export_sized(
+                            buffer,
+                            self.paint.dims,
+                            target.clone(),
+                            kind.is_srgb(),
+                        );
                         let _ = self.device.poll(wgpu::Maintain::Wait);
                         rx.recv().map_err(|e| e.to_string())??;
                         files.push(serde_json::json!({ "mode": mode_name, "out": target.display().to_string() }));
                     }
                 }
                 Ok(serde_json::json!({ "files": files }))
+            }
+            ServeRequest::SetCanvasSize { width, height } => {
+                let dims = gpu::CanvasDims::new(width, height);
+                self.recording.canvas_width = Some(dims.width);
+                self.recording.canvas_height = Some(dims.height);
+                self.paint.resize_canvas(dims);
+                self.checkpoints.clear();
+                self.applied_len = 0;
+                self.reset_gpu_to_start()?;
+                Ok(serde_json::json!({ "width": dims.width, "height": dims.height }))
             }
         }
     }

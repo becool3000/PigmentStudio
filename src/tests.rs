@@ -1748,6 +1748,8 @@ fn test_project_save_and_load_pigment_file() {
     jars[0] = true;
     let meta = crate::project::ProjectMeta {
         calibration_version: crate::project::CURRENT_CALIBRATION_VERSION,
+        canvas_width: SIDE,
+        canvas_height: SIDE,
         loads: [0.5, 0.0, 0.0, 0.0, 0.0, 0.0],
         jars,
         sizes: [48.0, 64.0],
@@ -4178,4 +4180,103 @@ fn test_slice2_pollock_splatter_and_recording() {
         flung_ahead_mass > 0.05,
         "expected fast whip to fling paint ahead of x=480, got {flung_ahead_mass}"
     );
+}
+
+#[test]
+fn test_custom_canvas_size_1024x256_and_export() {
+    let mut session = serve::ServeSession::new().unwrap();
+    let res = session.handle_request(serve::ServeRequest::SetCanvasSize {
+        width: 1024,
+        height: 256,
+    });
+    assert!(res.ok, "{:?}", res.error);
+    assert_eq!(session.paint.dims, gpu::CanvasDims::new(1024, 256));
+
+    let apply = session.handle_request(serve::ServeRequest::Apply {
+        events: vec![
+            RecordedEvent::EquipRack {
+                slot: 0,
+                recipe: [0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            },
+            RecordedEvent::Service {
+                legacy_reservoir: false,
+                brush: recording::BrushKind::Round,
+                action: recording::ServiceAction::DipRack {
+                    slot: 0,
+                    clean: true,
+                    lane: None,
+                },
+            },
+            RecordedEvent::Stroke {
+                id: Some("panoramic_band".into()),
+                group: None,
+                surface: recording::SurfaceKind::Canvas,
+                brush: recording::BrushKind::Round,
+                legacy_reservoir: false,
+                ink: false,
+                charcoal: false,
+                erase: false,
+                diameter: 32.0,
+                angle_deg: 0.0,
+                auto_follow: true,
+                knife_sweep: false,
+                bristle_sweep: false,
+                filbert_sweep: false,
+                fan_sweep: false,
+                round_pressure: true,
+                tile: Some(false),
+                samples: vec![
+                    RecordedSample {
+                        x: 150.0,
+                        y: 128.0,
+                        pressure: 0.9,
+                        timestamp_ms: 0,
+                        angle_deg: None,
+                    },
+                    RecordedSample {
+                        x: 850.0,
+                        y: 128.0,
+                        pressure: 0.9,
+                        timestamp_ms: 50,
+                        angle_deg: None,
+                    },
+                ],
+            },
+        ],
+    });
+    assert!(apply.ok, "{:?}", apply.error);
+
+    let px = session.handle_request(serve::ServeRequest::InspectPixel { x: 500, y: 128 });
+    let srgb = px.data.unwrap()["srgb"].as_array().unwrap().clone();
+    assert!(
+        srgb[2].as_u64().unwrap() > srgb[0].as_u64().unwrap(),
+        "expected Phthalo Blue paint at (500, 128), got {srgb:?}"
+    );
+
+    let dir = tempfile::tempdir().unwrap();
+    let png_path = dir.path().join("pano.png");
+    let rnd = session.handle_request(serve::ServeRequest::Render {
+        out: png_path.display().to_string(),
+        mode: Some("color".into()),
+        smooth_height: false,
+        normal_convention: None,
+    });
+    assert!(rnd.ok, "{:?}", rnd.error);
+
+    let decoder = png::Decoder::new(std::fs::File::open(&png_path).unwrap());
+    let reader = decoder.read_info().unwrap();
+    assert_eq!(reader.info().width, 1024);
+    assert_eq!(reader.info().height, 256);
+
+    let proj_path = dir.path().join("pano.pigment");
+    let rnd_proj = session.handle_request(serve::ServeRequest::Render {
+        out: proj_path.display().to_string(),
+        mode: None,
+        smooth_height: false,
+        normal_convention: None,
+    });
+    assert!(rnd_proj.ok, "{:?}", rnd_proj.error);
+    let (meta, _) = project::read_project(&proj_path).unwrap();
+    assert_eq!(meta.canvas_width, 1024);
+    assert_eq!(meta.canvas_height, 256);
 }

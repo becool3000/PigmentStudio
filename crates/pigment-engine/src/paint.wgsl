@@ -13,6 +13,9 @@ struct BrushState {
     transfer: array<Pigments, 3>,
     slots: array<u32, 8>,
     placement_ok: u32,
+    canvas_w: u32,
+    canvas_h: u32,
+    atlas_w: u32,
 }
 @group(0) @binding(0) var<storage, read_write> canvas: array<Pigments>;
 @group(0) @binding(1) var<storage, read_write> state: BrushState;
@@ -49,16 +52,21 @@ fn pure(id: u32, mass: f32) -> Pigments {
         select(vec4<f32>(0.0), vec4<f32>(mass), ids == vec4<u32>(4u, 5u, 6u, 7u))
     );
 }
-fn index(pixel: vec2<u32>) -> u32 { return pixel.y * 1024u + pixel.x; }
+fn cw() -> u32 { return select(state.canvas_w, 1024u, state.canvas_w == 0u); }
+fn ch() -> u32 { return select(state.canvas_h, 1024u, state.canvas_h == 0u); }
+fn aw() -> u32 { return select(state.atlas_w, 1024u, state.atlas_w == 0u); }
+fn index(pixel: vec2<u32>) -> u32 { return pixel.y * aw() + pixel.x; }
+fn cindex(pixel: vec2<u32>) -> u32 { return pixel.y * cw() + pixel.x; }
 
 fn wrap_canvas_pixel(raw: vec2<u32>, wrap: bool) -> vec2<u32> {
-    return select(raw, raw % 1024u, wrap);
+    return select(raw, vec2<u32>(raw.x % cw(), raw.y % ch()), wrap);
 }
 
 fn tip_delta(pixel: vec2<u32>) -> vec2<f32> {
     var delta = vec2<f32>(pixel) + vec2<f32>(0.5) - dab.brush.xy;
     if (dab.mode.w != 0u) {
-        delta = delta - round(delta / 1024.0) * 1024.0;
+        let size = vec2<f32>(f32(cw()), f32(ch()));
+        delta = delta - round(delta / size) * size;
     }
     return delta;
 }
@@ -231,7 +239,7 @@ fn pickup(w: f32) -> f32 {
         canvas_rate = mix(0.28, 0.52, dab.brush.w);
     }
     let palette_rate = mix(0.16, 0.43, pressure);
-    return pickup_rate(select(canvas_rate, palette_rate, dab.brush.y >= 1024.0), w);
+    return pickup_rate(select(canvas_rate, palette_rate, dab.brush.y >= f32(ch())), w);
 }
 
 fn swept_transfer_weights(pixel: vec2<u32>) -> vec3<f32> {
@@ -304,8 +312,8 @@ fn choose_slots(@builtin(local_invocation_index) lane: u32) {
     workgroupBarrier();
     for (var i = lane; i < 32768u; i += 64u) {
         let x = i % 512u;
-        let y = i / 512u + 1024u;
-        let relative = vec2<f32>(vec2<u32>(x % 64u, y - 1024u)) + vec2<f32>(0.5) - vec2<f32>(32.0);
+        let y = i / 512u + ch();
+        let relative = vec2<f32>(vec2<u32>(x % 64u, y - ch())) + vec2<f32>(0.5) - vec2<f32>(32.0);
         if (dot(relative, relative) < 361.0 && amount(canvas[index(vec2<u32>(x, y))]) > 0.003) {
             atomicStore(&occupied[x / 64u], 1u);
         }
@@ -388,7 +396,7 @@ fn composite_linear_color(wet: Pigments, at: u32, is_canvas: bool) -> vec3<f32> 
     var sub: DrySubstrate;
     var words: array<u32, 16>;
     if (is_canvas) {
-        sub = dry_substrate[at];
+        sub = dry_substrate[cindex(vec2<u32>(at % aw(), at / aw()))];
         if (wet_total <= 0.00001
             && all(sub.r0 == vec4<u32>(0xFFFFFFFFu))
             && all(sub.r1 == vec4<u32>(0xFFFFFFFFu))
@@ -465,21 +473,21 @@ fn apply(@builtin(global_invocation_id) id: vec3<u32>) {
     } else if (dab.mode.x == 2u) {
             let tube = state.slots[pixel.x / 64u];
             if (tube == 0u) { return; }
-            let delta = vec2<f32>(vec2<u32>(pixel.x % 64u, pixel.y - 1024u)) + vec2<f32>(0.5) - vec2<f32>(32.0);
+            let delta = vec2<f32>(vec2<u32>(pixel.x % 64u, pixel.y - ch())) + vec2<f32>(0.5) - vec2<f32>(32.0);
             let weight = 1.0 - smoothstep(11.0, 19.0, length(delta));
             if (weight == 0.0) { return; }
             if (tube < 100u) {
                 paint = add(paint, pure(tube - 1u, 45.0 * weight));
             } else if (tube < 200u) {
                 let custom_slot = tube - 100u;
-                let source_paint = canvas[index(vec2<u32>(544u + custom_slot, 1024u))];
+                let source_paint = canvas[index(vec2<u32>(544u + custom_slot, ch()))];
                 let src_amt = amount(source_paint);
                 if (src_amt > 0.0001) {
                     paint = add(paint, scale(source_paint, (45.0 * weight) / src_amt));
                 }
             } else {
                 let rack_slot = tube - 200u;
-                let source_paint = canvas[index(vec2<u32>(608u + rack_slot, 1024u))];
+                let source_paint = canvas[index(vec2<u32>(608u + rack_slot, ch()))];
                 let src_amt = amount(source_paint);
                 if (src_amt > 0.0001) {
                     paint = add(paint, scale(source_paint, (45.0 * weight) / src_amt));
@@ -488,17 +496,18 @@ fn apply(@builtin(global_invocation_id) id: vec3<u32>) {
             canvas[at] = paint;
         } else if (dab.mode.x == 3u) {
             paint = canvas[index(dab.mode.zw)];
-            if (dab.mode.w < 1024u) {
-                paint = add(paint, dry_canvas[index(dab.mode.zw)]);
+            if (dab.mode.w < ch() && dab.mode.z < cw()) {
+                paint = add(paint, dry_canvas[cindex(dab.mode.zw)]);
             }
             canvas[at] = paint;
         } else if (dab.mode.x == 4u || dab.mode.x == 1u) {
             paint = zero();
             canvas[at] = paint;
-            if (pixel.y < 1024u) {
-                ink_canvas[at] = vec2<f32>(0.0);
-                dry_canvas[at] = zero();
-                dry_substrate[at] = DrySubstrate(
+            if (pixel.y < ch() && pixel.x < cw()) {
+                let cat = cindex(pixel);
+                ink_canvas[cat] = vec2<f32>(0.0);
+                dry_canvas[cat] = zero();
+                dry_substrate[cat] = DrySubstrate(
                     vec4<u32>(0xFFFFFFFFu),
                     vec4<u32>(0xFFFFFFFFu),
                     vec4<u32>(0xFFFFFFFFu),
@@ -506,11 +515,12 @@ fn apply(@builtin(global_invocation_id) id: vec3<u32>) {
                 );
             }
         } else if (dab.mode.x == 14u) {
-            if (pixel.y < 1024u) {
+            if (pixel.y < ch() && pixel.x < cw()) {
+                let cat = cindex(pixel);
                 let wet = canvas[at];
                 let wet_total = amount(wet);
                 if (wet_total > 0.00001) {
-                    let sub = dry_substrate[at];
+                    let sub = dry_substrate[cat];
                     let words = array<u32, 16>(
                         sub.r0.x, sub.r0.y, sub.r0.z, sub.r0.w,
                         sub.r1.x, sub.r1.y, sub.r1.z, sub.r1.w,
@@ -546,14 +556,15 @@ fn apply(@builtin(global_invocation_id) id: vec3<u32>) {
                         }
                         new_words[w] = pack2x16unorm(r_new2);
                     }
-                    dry_substrate[at] = DrySubstrate(
+                    let cat = cindex(pixel);
+                    dry_substrate[cat] = DrySubstrate(
                         vec4<u32>(new_words[0], new_words[1], new_words[2], new_words[3]),
                         vec4<u32>(new_words[4], new_words[5], new_words[6], new_words[7]),
                         vec4<u32>(new_words[8], new_words[9], new_words[10], new_words[11]),
                         vec4<u32>(new_words[12], new_words[13], new_words[14], new_words[15])
                     );
                 }
-                dry_canvas[at] = add(dry_canvas[at], canvas[at]);
+                dry_canvas[cindex(pixel)] = add(dry_canvas[cindex(pixel)], canvas[at]);
                 canvas[at] = zero();
             }
         } else if (dab.mode.x == 13u) {
@@ -563,10 +574,12 @@ fn apply(@builtin(global_invocation_id) id: vec3<u32>) {
             );
             canvas[at] = paint;
         } else if (dab.mode.x == 15u) {
-            if (pixel.y < 1024u) {
+            if (pixel.y < ch() && pixel.x < cw()) {
+                let cat = cindex(pixel);
                 var delta = vec2<f32>(pixel) + vec2<f32>(0.5) - dab.brush.xy;
                 if (dab.mode.w != 0u) {
-                    delta = delta - round(delta / 1024.0) * 1024.0;
+                    let size = vec2<f32>(f32(cw()), f32(ch()));
+                    delta = delta - round(delta / size) * size;
                 }
                 let dist = length(delta) / max(dab.brush.z, 0.5);
                 let falloff = 1.0 - smoothstep(0.25, 1.0, dist);
@@ -578,20 +591,20 @@ fn apply(@builtin(global_invocation_id) id: vec3<u32>) {
                     let grain = mix(tooth, 1.0, pressure * 0.65);
                     if (dab.axis.x >= 0.0) {
                         let deposit = falloff * grain * pressure * 0.45;
-                        sketch_canvas[at] = clamp(sketch_canvas[at] + deposit * (1.0 - sketch_canvas[at] * 0.6), 0.0, 1.0);
+                        sketch_canvas[cat] = clamp(sketch_canvas[cat] + deposit * (1.0 - sketch_canvas[cat] * 0.6), 0.0, 1.0);
                     } else {
                         let erase = falloff * (0.35 + 0.65 * pressure);
-                        sketch_canvas[at] = max(0.0, sketch_canvas[at] * (1.0 - erase));
+                        sketch_canvas[cat] = max(0.0, sketch_canvas[cat] * (1.0 - erase));
                     }
                 }
             }
         } else if (dab.mode.x == 16u) {
-            if (pixel.y < 1024u) {
-                sketch_canvas[at] = 0.0;
+            if (pixel.y < ch() && pixel.x < cw()) {
+                sketch_canvas[cindex(pixel)] = 0.0;
             }
         } else if (dab.mode.x == 17u) {
-            if (pixel.y < 1024u) {
-                reference_layer[at] = 0u;
+            if (pixel.y < ch() && pixel.x < cw()) {
+                reference_layer[cindex(pixel)] = 0u;
             }
         } else if (dab.mode.x == 7u) {
             let stripe = (pixel.x / 79u + pixel.y / 103u) % 3u;
@@ -599,17 +612,25 @@ fn apply(@builtin(global_invocation_id) id: vec3<u32>) {
             canvas[at] = paint;
         }
     else if (dab.mode.x == 9u) {
-        let p = length(vec2<f32>(pixel) + vec2<f32>(0.5) - dab.brush.xy) / dab.brush.z;
-        let w = 1.0 - smoothstep(0.26, 1.0, p);
-        let pressure = dab.brush.w;
-        let flood = smoothstep(0.56, 0.98, pressure);
-        let dark = w * mix(0.12, 0.37, pressure);
-        let wet = w * flood * select(0.020, 0.37, dab.mode.z != 0u);
-        ink_canvas[at] = ink_canvas[at] + vec2<f32>(dark, wet);
+        if (pixel.y < ch() && pixel.x < cw()) {
+            let cat = cindex(pixel);
+            let p = length(vec2<f32>(pixel) + vec2<f32>(0.5) - dab.brush.xy) / dab.brush.z;
+            let w = 1.0 - smoothstep(0.26, 1.0, p);
+            let pressure = dab.brush.w;
+            let flood = smoothstep(0.56, 0.98, pressure);
+            let dark = w * mix(0.12, 0.37, pressure);
+            let wet = w * flood * select(0.020, 0.37, dab.mode.z != 0u);
+            ink_canvas[cat] = ink_canvas[cat] + vec2<f32>(dark, wet);
+        }
     } else if (dab.mode.x == 10u) {
-        ink_canvas[at] = ink_step[at];
+        if (pixel.y < ch() && pixel.x < cw()) {
+            let cat = cindex(pixel);
+            ink_canvas[cat] = ink_step[cat];
+        }
     } else if (dab.mode.x == 18u) {
-        canvas[at] = paint_step[at];
+        if (pixel.y < ch() && pixel.x < cw()) {
+            canvas[at] = paint_step[cindex(pixel)];
+        }
     }
 }
 
@@ -620,7 +641,9 @@ fn gravity_micro_noise(pos: vec2<i32>) -> f32 {
 }
 
 fn paint_outflow_frac(pos: vec2<i32>, strength: f32, viscosity: f32) -> f32 {
-    if (pos.x < 0 || pos.x >= 1024 || pos.y < 0 || pos.y >= 1024) {
+    let w = i32(cw());
+    let h = i32(ch());
+    if (pos.x < 0 || pos.x >= w || pos.y < 0 || pos.y >= h) {
         return 0.0;
     }
     let p_at = index(vec2<u32>(pos));
@@ -646,9 +669,14 @@ fn paint_outflow_frac(pos: vec2<i32>, strength: f32, viscosity: f32) -> f32 {
 fn flow_paint(@builtin(global_invocation_id) id: vec3<u32>) {
     if (any(id.xy >= dab.bounds.zw)) { return; }
     let pixel = dab.bounds.xy + id.xy;
-    if (pixel.x >= 1024u || pixel.y >= 1024u) { return; }
+    let w = cw();
+    let h = ch();
+    if (pixel.x >= w || pixel.y >= h) { return; }
+    let wi = i32(w);
+    let hi = i32(h);
     let pos = vec2<i32>(pixel);
     let at = index(pixel);
+    let cat = cindex(pixel);
 
     let gx = dab.axis.x;
     let gy = dab.axis.y;
@@ -665,49 +693,51 @@ fn flow_paint(@builtin(global_invocation_id) id: vec3<u32>) {
 
     let cur = canvas[at];
     let out_frac = paint_outflow_frac(pos, strength, viscosity);
-    let can_x = select(0.0, 1.0, (pos.x + dx) >= 0 && (pos.x + dx) < 1024);
-    let can_y = select(0.0, 1.0, (pos.y + dy) >= 0 && (pos.y + dy) < 1024);
+    let can_x = select(0.0, 1.0, (pos.x + dx) >= 0 && (pos.x + dx) < wi);
+    let can_y = select(0.0, 1.0, (pos.y + dy) >= 0 && (pos.y + dy) < hi);
     var next_paint = scale(cur, max(1.0 - out_frac * (fx * can_x + fy * can_y), 0.0));
 
     let src_x = pos - vec2<i32>(dx, 0);
-    if (src_x.x >= 0 && src_x.x < 1024 && fx > 0.0) {
+    if (src_x.x >= 0 && src_x.x < wi && fx > 0.0) {
         let f = paint_outflow_frac(src_x, strength, viscosity) * fx;
         if (f > 0.0) {
             next_paint = add(next_paint, scale(canvas[index(vec2<u32>(src_x))], f));
         }
     }
     let src_y = pos - vec2<i32>(0, dy);
-    if (src_y.y >= 0 && src_y.y < 1024 && fy > 0.0) {
+    if (src_y.y >= 0 && src_y.y < hi && fy > 0.0) {
         let f = paint_outflow_frac(src_y, strength, viscosity) * fy;
         if (f > 0.0) {
             next_paint = add(next_paint, scale(canvas[index(vec2<u32>(src_y))], f));
         }
     }
-    paint_step[at] = next_paint;
+    paint_step[cat] = next_paint;
 }
 
 fn runoff(wet: f32, y: u32) -> f32 {
-    return select(max(wet - 0.11, 0.0) * 0.82, 0.0, y == 1023u);
+    return select(max(wet - 0.11, 0.0) * 0.82, 0.0, y + 1u >= ch());
 }
 
 @compute @workgroup_size(8, 8)
 fn flow_ink(@builtin(global_invocation_id) id: vec3<u32>) {
     if (any(id.xy >= dab.bounds.zw)) { return; }
     let pixel = dab.bounds.xy + id.xy;
-    let at = index(pixel);
-    let previous = ink_canvas[at];
+    let w = cw();
+    if (pixel.x >= w || pixel.y >= ch()) { return; }
+    let cat = cindex(pixel);
+    let previous = ink_canvas[cat];
     var wet = previous.y - runoff(previous.y, pixel.y);
     if (pixel.y > 0u) {
-        wet += runoff(ink_canvas[at - 1024u].y, pixel.y - 1u);
+        wet += runoff(ink_canvas[cat - w].y, pixel.y - 1u);
     }
     let absorb = min(wet, wet * 0.035 + 0.006);
-    ink_step[at] = vec2<f32>(previous.x + absorb, max(wet - absorb, 0.0));
+    ink_step[cat] = vec2<f32>(previous.x + absorb, max(wet - absorb, 0.0));
 }
 
 fn surface_height(pos: vec2<u32>, impasto_scale: f32, weave_scale: f32) -> f32 {
     let p_at = index(pos);
     let wet_mass = amount(canvas[p_at]);
-    let dry_mass = amount(dry_canvas[p_at]);
+    let dry_mass = amount(dry_canvas[cindex(pos)]);
     let total_mass = wet_mass + dry_mass;
 
     // 1. Primed linen canvas weave texture
@@ -729,19 +759,22 @@ fn surface_height(pos: vec2<u32>, impasto_scale: f32, weave_scale: f32) -> f32 {
     return h_weave + h_paint;
 }
 
-fn wrap_coord(v: i32, wrap: bool) -> u32 {
+fn wrap_coord(v: i32, limit: u32, wrap: bool) -> u32 {
+    let li = i32(limit);
     if (wrap) {
-        return u32(((v % 1024) + 1024) % 1024);
+        return u32(((v % li) + li) % li);
     }
-    return u32(clamp(v, 0, 1023));
+    return u32(clamp(v, 0, li - 1));
 }
 
 fn smoothed_surface_height(pixel: vec2<u32>, impasto_scale: f32, wrap: bool) -> f32 {
+    let w = cw();
+    let h = ch();
     var acc = 0.0;
     for (var dy: i32 = -2; dy <= 2; dy = dy + 1) {
-        let sy = wrap_coord(i32(pixel.y) + dy, wrap);
+        let sy = wrap_coord(i32(pixel.y) + dy, h, wrap);
         for (var dx: i32 = -2; dx <= 2; dx = dx + 1) {
-            let sx = wrap_coord(i32(pixel.x) + dx, wrap);
+            let sx = wrap_coord(i32(pixel.x) + dx, w, wrap);
             acc = acc + surface_height(vec2<u32>(sx, sy), impasto_scale, 0.0);
         }
     }
@@ -758,10 +791,12 @@ fn sample_export_height(pixel: vec2<u32>, impasto_scale: f32, weave_scale: f32, 
 fn compute_surface_normal(pixel: vec2<u32>, impasto_scale: f32, weave_scale: f32, wrap: bool, smooth_h: bool) -> vec3<f32> {
     let px = pixel.x;
     let py = pixel.y;
-    let left_x = select(select(px - 1u, 0u, px == 0u), (px + 1023u) % 1024u, wrap);
-    let right_x = select(select(px + 1u, 1023u, px >= 1023u), (px + 1u) % 1024u, wrap);
-    let up_y = select(select(py - 1u, 0u, py == 0u), (py + 1023u) % 1024u, wrap);
-    let down_y = select(select(py + 1u, 1023u, py >= 1023u), (py + 1u) % 1024u, wrap);
+    let w = cw();
+    let h = ch();
+    let left_x = select(select(px - 1u, 0u, px == 0u), (px + w - 1u) % w, wrap);
+    let right_x = select(select(px + 1u, w - 1u, px >= w - 1u), (px + 1u) % w, wrap);
+    let up_y = select(select(py - 1u, 0u, py == 0u), (py + h - 1u) % h, wrap);
+    let down_y = select(select(py + 1u, h - 1u, py >= h - 1u), (py + 1u) % h, wrap);
 
     let h_L = sample_export_height(vec2<u32>(left_x, py), impasto_scale, weave_scale, wrap, smooth_h);
     let h_R = sample_export_height(vec2<u32>(right_x, py), impasto_scale, weave_scale, wrap, smooth_h);
@@ -780,7 +815,8 @@ fn display(@builtin(global_invocation_id) id: vec3<u32>) {
     let pixel = dab.bounds.xy + id.xy;
     let at = index(pixel);
     let wet_paint = canvas[at];
-    let is_canvas = pixel.y < 1024u;
+    let is_canvas = pixel.y < ch() && pixel.x < cw();
+    let cat = select(0u, cindex(pixel), is_canvas);
     let export_mode = select(0u, dab.mode.z, is_canvas);
     let wrap = (dab.mode.w & 1u) != 0u;
     let smooth_h = (dab.mode.w & 4u) != 0u;
@@ -801,7 +837,7 @@ fn display(@builtin(global_invocation_id) id: vec3<u32>) {
 
     var color = composite_linear_color(wet_paint, at, is_canvas);
     if (is_canvas) {
-        let ink_data = ink_canvas[at];
+        let ink_data = ink_canvas[cat];
         let ink = 1.0 - exp(-(ink_data.x + ink_data.y) * 3.8);
         let ink_color = srgb_to_linear(vec3<f32>(0.024, 0.031, 0.048));
         var diffuse_factor = 1.0;
@@ -830,7 +866,7 @@ fn display(@builtin(global_invocation_id) id: vec3<u32>) {
             let fresnel = F0 + (1.0 - F0) * pow(1.0 - VdotH, 5.0);
 
             let wet_amt = amount(wet_paint);
-            let dry_amt = amount(dry_canvas[at]);
+            let dry_amt = amount(dry_canvas[cat]);
 
             var gloss = 0.0;
             var shininess = 16.0;
@@ -854,11 +890,11 @@ fn display(@builtin(global_invocation_id) id: vec3<u32>) {
         let sketch_opacity = dab.brush.w;
         let ref_opacity = dab.axis.w;
         let hide_paint = (dab.mode.w & 2u) != 0u;
-        let sketch_val = select(0.0, clamp(sketch_canvas[at] * sketch_opacity, 0.0, 1.0), sketch_opacity > 0.001);
-        let ref_rgba = select(vec4<f32>(0.0), unpack4x8unorm(reference_layer[at]), ref_opacity > 0.001);
+        let sketch_val = select(0.0, clamp(sketch_canvas[cat] * sketch_opacity, 0.0, 1.0), sketch_opacity > 0.001);
+        let ref_rgba = select(vec4<f32>(0.0), unpack4x8unorm(reference_layer[cat]), ref_opacity > 0.001);
         let ref_val = ref_rgba.a * ref_opacity;
         if (export_mode == 1u || ref_val > 0.001 || sketch_val > 0.001 || hide_paint) {
-            let combined = add(wet_paint, dry_canvas[at]);
+            let combined = add(wet_paint, dry_canvas[cat]);
             let has_paint = amount(combined) > 0.00001 || ink > 0.0001;
             if (export_mode == 1u && !has_paint) {
                 textureStore(output, vec2<i32>(pixel), vec4<f32>(0.0));
@@ -911,7 +947,7 @@ fn service(@builtin(local_invocation_index) lane: u32) {
             state.loads[i] = scale(state.loads[i], capacity / cur);
         }
     } else if (dab.mode.x == 11u) {
-        let source_paint = canvas[index(vec2<u32>(544u + dab.mode.z, 1024u))];
+        let source_paint = canvas[index(vec2<u32>(544u + dab.mode.z, ch()))];
         let src_amt = amount(source_paint);
         if (src_amt > 0.0001) {
             let added = scale(source_paint, (dab.brush.w / f32(count)) / src_amt);
@@ -923,7 +959,7 @@ fn service(@builtin(local_invocation_index) lane: u32) {
             state.loads[i] = scale(state.loads[i], capacity / cur);
         }
     } else if (dab.mode.x == 12u) {
-        let source_paint = canvas[index(vec2<u32>(608u + dab.mode.z, 1024u))];
+        let source_paint = canvas[index(vec2<u32>(608u + dab.mode.z, ch()))];
         let src_amt = amount(source_paint);
         if (src_amt > 0.0001) {
             let added = scale(source_paint, (dab.brush.w / f32(count)) / src_amt);
@@ -949,8 +985,8 @@ fn preview(@builtin(local_invocation_index) lane: u32) {
         // The UI shows load by the size of the painted area. Its colour sample is opaque.
         swatch = vec4<f32>(srgb(composite_linear_color(scale(paint, 2.0 / mass), 0u, false)), 1.0);
     }
-    textureStore(output, vec2<i32>(512 + i32(lane), 1024), swatch);
+    textureStore(output, vec2<i32>(512 + i32(lane), i32(ch())), swatch);
     if (lane == 0u && dab.mode.x == 2u) {
-        textureStore(output, vec2<i32>(528, 1024), vec4<f32>(f32(state.placement_ok), 0.0, 0.0, 1.0));
+        textureStore(output, vec2<i32>(528, i32(ch())), vec4<f32>(f32(state.placement_ok), 0.0, 0.0, 1.0));
     }
 }

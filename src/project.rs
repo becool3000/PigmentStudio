@@ -1,6 +1,6 @@
 use crate::gpu::{
-    ActiveLayer, Brush, Layers, BRUSH_BYTES, BRUSH_COUNT, BRUSH_LOAD_BYTES, LEGACY_BRUSH_BYTES,
-    PROJECT_BYTES,
+    ActiveLayer, Brush, CanvasDims, Layers, BRUSH_BYTES, BRUSH_COUNT, BRUSH_LOAD_BYTES,
+    LEGACY_BRUSH_BYTES, PROJECT_BYTES, SIDE,
 };
 use crate::recording::{BrushKind, LightingConfig, Recording};
 use serde::{Deserialize, Serialize};
@@ -80,10 +80,18 @@ fn default_calibration_version() -> u32 {
     1
 }
 
+fn default_side() -> u32 {
+    SIDE
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ProjectMeta {
     #[serde(default = "default_calibration_version")]
     pub calibration_version: u32,
+    #[serde(default = "default_side")]
+    pub canvas_width: u32,
+    #[serde(default = "default_side")]
+    pub canvas_height: u32,
     #[serde(deserialize_with = "deserialize_loads")]
     pub loads: [f32; BRUSH_COUNT],
     pub jars: Vec<bool>,
@@ -128,7 +136,7 @@ where
 }
 
 fn reservoir_loads(gpu_bytes: &[u8]) -> [f32; BRUSH_COUNT] {
-    let start = (PROJECT_BYTES - BRUSH_BYTES) as usize;
+    let start = gpu_bytes.len().saturating_sub(BRUSH_BYTES as usize);
     Brush::ALL.map(|brush| {
         let lanes = brush.load_lanes();
         let brush_bytes =
@@ -229,7 +237,8 @@ pub(crate) fn rle_decode_u32(encoded: &[u8], expected_bytes: usize) -> Result<Ve
 }
 
 pub fn write_project(path: &Path, mut meta: ProjectMeta, gpu_bytes: &[u8]) -> Result<(), String> {
-    if gpu_bytes.len() as u64 != PROJECT_BYTES {
+    let expected = CanvasDims::new(meta.canvas_width, meta.canvas_height).project_bytes();
+    if gpu_bytes.len() as u64 != expected {
         return Err("Unexpected GPU buffer size for project save.".into());
     }
     meta.loads = reservoir_loads(gpu_bytes);
@@ -287,9 +296,9 @@ pub fn read_project_bytes(bytes: &[u8]) -> Result<(ProjectMeta, std::sync::Arc<V
         gpu_bytes.extend(tail);
         gpu_bytes
     } else {
-        rle_decode_u32(payload, PROJECT_BYTES as usize)?
+        let expected = CanvasDims::new(meta.canvas_width, meta.canvas_height).project_bytes();
+        rle_decode_u32(payload, expected as usize)?
     };
-    debug_assert_eq!(gpu_bytes.len(), PROJECT_BYTES as usize);
     meta.loads = reservoir_loads(&gpu_bytes);
     Ok((meta, std::sync::Arc::new(gpu_bytes)))
 }
