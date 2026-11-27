@@ -2983,7 +2983,7 @@ impl Studio {
                 )
                 .on_hover_text("How far fast flicks & whips fling paint ahead of the cursor");
                 ui.add(
-                    egui::Slider::new(&mut self.splatter.droplet_size, 4.0..=48.0)
+                    egui::Slider::new(&mut self.splatter.droplet_size, 4.0..=128.0)
                         .text("Droplet Size")
                         .suffix(" px")
                         .integer(),
@@ -3004,7 +3004,7 @@ impl Studio {
             ui.add(
                 egui::Slider::new(
                     &mut self.workbench.sizes[self.brush.size_index()],
-                    4.0..=96.0,
+                    4.0..=300.0,
                 )
                 .text("Size")
                 .suffix(" px")

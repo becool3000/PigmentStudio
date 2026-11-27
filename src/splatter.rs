@@ -11,7 +11,7 @@ pub struct SplatterSettings {
     pub viscosity: f32,
     /// 0.0..=2.0: Velocity-to-throw distance and whip sensitivity.
     pub sling_throw: f32,
-    /// 4.0..=48.0: Base diameter (px) of primary puddles & droplets.
+    /// 4.0..=128.0: Base diameter (px) of primary puddles & droplets.
     pub droplet_size: f32,
     /// 0.2..=2.0: Multiplier on droplet & satellite emission count.
     pub spray_density: f32,
