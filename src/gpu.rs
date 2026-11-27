@@ -361,7 +361,7 @@ impl Dab {
             Brush::Fan => 0.51,
             _ => 0.22,
         };
-        let pad = if brush == Brush::Round {
+        let pad = if matches!(brush, Brush::Round | Brush::SoftMop) {
             egui::Vec2::splat(radius * 1.07) + 0.5 * delta.abs()
         } else {
             let turn_margin = (1.0 + depth) * 0.5 * (end.angle - start.angle).abs();

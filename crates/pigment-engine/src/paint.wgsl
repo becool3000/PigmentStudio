@@ -192,6 +192,10 @@ fn moving_contact(delta: vec2<f32>, t: f32, tooth: f32) -> vec3<f32> {
         let c = (1.0 - smoothstep(0.3, 1.0, length(p))) * rc;
         return vec3<f32>(c, 0.0, 0.0);
     }
+    if (dab.mode.z == 5u) {
+        let c = 1.0 - smoothstep(0.15, 1.0, length(p));
+        return vec3<f32>(c, 0.0, 0.0);
+    }
     let axis = normalize(mix(dab.axis.xy, dab.axis.zw, t));
     let filbert = dab.mode.z == 2u;
     let across = dot(p, axis) / mix(select(0.83, 0.70, filbert), 1.0, pressure);
@@ -242,7 +246,7 @@ fn pickup(w: f32) -> f32 {
     if (dab.mode.z == 4u) {
         canvas_rate = mix(0.45, 0.80, pressure);
     } else if (dab.mode.z == 5u) {
-        canvas_rate = mix(0.28, 0.52, dab.brush.w);
+        canvas_rate = mix(0.28, 0.52, pressure);
     }
     let palette_rate = mix(0.16, 0.43, pressure);
     return pickup_rate(select(canvas_rate, palette_rate, dab.brush.y >= f32(ch())), w);

@@ -1517,6 +1517,7 @@ fn test_phase_c_recording_headless_and_deep_undo() {
                 bristle_sweep: false,
                 filbert_sweep: false,
                 fan_sweep: false,
+                mop_sweep: false,
                 round_pressure: false,
                 tile: Some(false),
                 samples: vec![
@@ -1589,6 +1590,7 @@ fn test_phase_c_recording_headless_and_deep_undo() {
             bristle_sweep: false,
             filbert_sweep: false,
             fan_sweep: false,
+            mop_sweep: false,
             round_pressure: false,
             tile: Some(false),
             samples: vec![RecordedSample {
@@ -2029,6 +2031,61 @@ fn dx12_swept_knife_lays_even_height_at_different_sample_rates() {
 }
 
 #[test]
+fn dx12_swept_soft_mop_lays_even_coverage_at_different_sample_rates() {
+    let mut rig = Rig::new();
+    rig.paint.lighting.canvas_weave = 0.0;
+    let mut commands = Vec::new();
+    for (y, intervals) in [(300., 16), (500., 197)] {
+        commands.extend([
+            Command::Service(Brush::SoftMop, BrushService::Wipe(0.0)),
+            Command::Service(Brush::SoftMop, BrushService::Dip(0)),
+        ]);
+        let sample = |i| Sample {
+            point: egui::pos2(200. + 440. * i as f32 / intervals as f32, y),
+            pressure: 1.0,
+            timestamp_ms: i,
+            angle: None,
+        };
+        let mut stroke = Stroke::start_full(
+            Source::Mouse,
+            sample(0),
+            64.,
+            Surface::Canvas,
+            Brush::SoftMop,
+            0.0,
+            false,
+            1.0,
+            false,
+            true,
+            &mut commands,
+        );
+        for i in 1..=intervals {
+            stroke.extend(sample(i), &mut commands);
+        }
+        stroke.finish(&mut commands);
+    }
+    let (paint, _) = rig.state(&commands);
+    let row = |y| {
+        values(&paint[y * SIDE as usize * 32..])
+            .skip(240)
+            .take(360)
+            .map(|pigment| pigment[0])
+            .collect::<Vec<_>>()
+    };
+    let sparse = row(300);
+    let dense = row(500);
+    let max_resampling_error = sparse
+        .iter()
+        .zip(&dense)
+        .map(|(a, b)| (a - b).abs())
+        .fold(0.0, f32::max);
+    assert!(
+        max_resampling_error < 0.015 && sparse.iter().all(|mass| *mass > 0.10),
+        "swept soft mop should stay smooth across sample rates: {max_resampling_error}"
+    );
+}
+
+#[test]
 fn dx12_hog_bristle_flat_split_load_turn_and_lift() {
     let mut rig = Rig::new();
     let recording: Recording = serde_json::from_str(
@@ -2413,6 +2470,7 @@ fn test_phase_e_underlayer_and_batch_rendering() {
                 bristle_sweep: false,
                 filbert_sweep: false,
                 fan_sweep: false,
+                mop_sweep: false,
                 round_pressure: false,
                 tile: Some(false),
                 samples: vec![RecordedSample {
@@ -3589,6 +3647,7 @@ fn test_v030_edge_hairline_smooth_height_and_set_tile() {
             bristle_sweep: false,
             filbert_sweep: false,
             fan_sweep: false,
+            mop_sweep: false,
             round_pressure: false,
             tile: None,
             samples: vec![RecordedSample {
@@ -3616,6 +3675,7 @@ fn test_v030_edge_hairline_smooth_height_and_set_tile() {
             bristle_sweep: false,
             filbert_sweep: false,
             fan_sweep: false,
+            mop_sweep: false,
             round_pressure: false,
             tile: None,
             samples: vec![RecordedSample {
@@ -3764,6 +3824,7 @@ fn test_slice1_ergonomic_recording_multimode_normal_gl_and_palette() {
                 bristle_sweep: false,
                 filbert_sweep: false,
                 fan_sweep: false,
+                mop_sweep: false,
                 round_pressure: false,
                 tile: Some(false),
                 samples: vec![RecordedSample {
@@ -3797,6 +3858,7 @@ fn test_slice1_ergonomic_recording_multimode_normal_gl_and_palette() {
                 bristle_sweep: false,
                 filbert_sweep: false,
                 fan_sweep: false,
+                mop_sweep: false,
                 round_pressure: false,
                 tile: Some(false),
                 samples: vec![RecordedSample {
@@ -3921,6 +3983,7 @@ fn test_slice2_serve_tier_a_editing_checkpoints_and_inspection() {
                 bristle_sweep: false,
                 filbert_sweep: false,
                 fan_sweep: false,
+                mop_sweep: false,
                 round_pressure: false,
                 tile: Some(false),
                 samples: vec![RecordedSample {
@@ -4223,6 +4286,7 @@ fn test_custom_canvas_size_1024x256_and_export() {
                 bristle_sweep: false,
                 filbert_sweep: false,
                 fan_sweep: false,
+                mop_sweep: false,
                 round_pressure: true,
                 tile: Some(false),
                 samples: vec![

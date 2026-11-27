@@ -62,6 +62,7 @@ fn main() -> std::process::ExitCode {
             || arg == "--benchmark-flat"
             || arg == "--benchmark-filbert"
             || arg == "--benchmark-fan"
+            || arg == "--benchmark-mop"
             || arg == "--notes"
             || arg == "--note-done"
             || arg == "--inspect-pixel"
@@ -279,6 +280,8 @@ fn main() -> std::process::ExitCode {
         Some(Brush::Filbert)
     } else if args.iter().any(|argument| argument == "--benchmark-fan") {
         Some(Brush::Fan)
+    } else if args.iter().any(|argument| argument == "--benchmark-mop") {
+        Some(Brush::SoftMop)
     } else if args.iter().any(|argument| argument == "--benchmark") {
         Some(Brush::Round)
     } else {
@@ -1467,6 +1470,7 @@ impl Studio {
                         bristle_sweep: swept && self.brush == Brush::Flat,
                         filbert_sweep: swept && self.brush == Brush::Filbert,
                         fan_sweep: swept && self.brush == Brush::Fan,
+                        mop_sweep: swept && self.brush == Brush::SoftMop,
                         round_pressure,
                         tile: Some(self.paint.tile && surface == Surface::Canvas),
                         samples,
