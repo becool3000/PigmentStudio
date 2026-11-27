@@ -2958,6 +2958,19 @@ impl Studio {
         } else if self.splatter_selected {
             ui.group(|ui| {
                 ui.strong("🎨 Pollock Splatter / Sling");
+                let active_preset = self.splatter.matching_preset();
+                ui.horizontal_wrapped(|ui| {
+                    for preset in splatter::SplatterPreset::ALL {
+                        let selected = active_preset == Some(preset);
+                        if ui
+                            .selectable_label(selected, preset.label())
+                            .on_hover_text(preset.tooltip())
+                            .clicked()
+                        {
+                            self.splatter = preset.settings();
+                        }
+                    }
+                });
                 ui.add(
                     egui::Slider::new(&mut self.splatter.viscosity, 0.05..=1.0).text("Viscosity"),
                 )
@@ -2979,9 +2992,13 @@ impl Studio {
                     egui::Slider::new(&mut self.splatter.spray_density, 0.2..=2.0)
                         .text("Spray Density"),
                 );
-                if ui.small_button("↺ Reset Pollock").clicked() {
-                    self.splatter = splatter::SplatterSettings::default();
-                }
+                ui.horizontal(|ui| {
+                    if ui.small_button("↺ Reset").clicked() {
+                        self.splatter = splatter::SplatterSettings::default();
+                    }
+                    ui.checkbox(&mut self.gravity.enabled, "Gravity Drip")
+                        .on_hover_text("Let splattered paint run & drip in real time");
+                });
             });
         } else if !self.ink_selected {
             ui.add(

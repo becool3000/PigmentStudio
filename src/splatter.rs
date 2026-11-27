@@ -19,12 +19,96 @@ pub struct SplatterSettings {
 
 impl Default for SplatterSettings {
     fn default() -> Self {
-        Self {
-            viscosity: 0.35,
-            sling_throw: 1.0,
-            droplet_size: 18.0,
-            spray_density: 1.0,
+        SplatterPreset::PollockWhip.settings()
+    }
+}
+
+/// Named one-click presets for the Jackson Pollock Splatter / Sling tool.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SplatterPreset {
+    PollockWhip,
+    FineMist,
+    HeavyEnamel,
+    DryFlick,
+    MatrixPlow,
+}
+
+impl SplatterPreset {
+    pub const ALL: [Self; 5] = [
+        Self::PollockWhip,
+        Self::FineMist,
+        Self::HeavyEnamel,
+        Self::DryFlick,
+        Self::MatrixPlow,
+    ];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::PollockWhip => "Pollock Whip",
+            Self::FineMist => "Fine Mist",
+            Self::HeavyEnamel => "Heavy Enamel",
+            Self::DryFlick => "Dry Flick",
+            Self::MatrixPlow => "Matrix Plow",
         }
+    }
+
+    pub fn tooltip(self) -> &'static str {
+        match self {
+            Self::PollockWhip => "Balanced poured enamel strings and whip-flung satellite droplets",
+            Self::FineMist => "Low-viscosity fine spatter mist with dense radial scatter",
+            Self::HeavyEnamel => "Thick, syrupy poured gloss strings and large puddles",
+            Self::DryFlick => "High-velocity directional bristle flicks with elongated streaks",
+            Self::MatrixPlow => {
+                "Wide pickup & dramatic scatter tuned for plowing through 4K mixing swatches"
+            }
+        }
+    }
+
+    pub fn settings(self) -> SplatterSettings {
+        match self {
+            Self::PollockWhip => SplatterSettings {
+                viscosity: 0.35,
+                sling_throw: 1.0,
+                droplet_size: 18.0,
+                spray_density: 1.0,
+            },
+            Self::FineMist => SplatterSettings {
+                viscosity: 0.10,
+                sling_throw: 1.45,
+                droplet_size: 7.0,
+                spray_density: 1.85,
+            },
+            Self::HeavyEnamel => SplatterSettings {
+                viscosity: 0.85,
+                sling_throw: 0.65,
+                droplet_size: 34.0,
+                spray_density: 0.75,
+            },
+            Self::DryFlick => SplatterSettings {
+                viscosity: 0.20,
+                sling_throw: 1.85,
+                droplet_size: 11.0,
+                spray_density: 1.35,
+            },
+            Self::MatrixPlow => SplatterSettings {
+                viscosity: 0.25,
+                sling_throw: 1.65,
+                droplet_size: 26.0,
+                spray_density: 1.60,
+            },
+        }
+    }
+}
+
+impl SplatterSettings {
+    pub fn matching_preset(&self) -> Option<SplatterPreset> {
+        SplatterPreset::ALL.into_iter().find(|preset| {
+            let p = preset.settings();
+            (self.viscosity - p.viscosity).abs() < 0.01
+                && (self.sling_throw - p.sling_throw).abs() < 0.01
+                && (self.droplet_size - p.droplet_size).abs() < 0.5
+                && (self.spray_density - p.spray_density).abs() < 0.01
+        })
     }
 }
 
@@ -328,5 +412,21 @@ mod tests {
             fast_cmds.len(),
             slow_cmds.len()
         );
+    }
+
+    #[test]
+    fn splatter_presets_are_distinct_and_roundtrip() {
+        for (i, &preset) in SplatterPreset::ALL.iter().enumerate() {
+            let s = preset.settings();
+            assert_eq!(s.matching_preset(), Some(preset));
+            for (j, &other) in SplatterPreset::ALL.iter().enumerate() {
+                if i != j {
+                    assert_ne!(s, other.settings());
+                }
+            }
+        }
+        let mut custom = SplatterPreset::PollockWhip.settings();
+        custom.viscosity = 0.61;
+        assert_eq!(custom.matching_preset(), None);
     }
 }
