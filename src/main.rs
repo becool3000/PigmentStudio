@@ -809,6 +809,8 @@ struct Studio {
     show_shortcuts: bool,
     show_about: bool,
     show_canvas_size: bool,
+    show_fps_hud: bool,
+    paint_ms_ema: f32,
     pending_canvas_w: u32,
     pending_canvas_h: u32,
     active_note_at: Option<Pos2>,
@@ -961,6 +963,8 @@ impl Studio {
             show_shortcuts: false,
             show_about: false,
             show_canvas_size: false,
+            show_fps_hud: true,
+            paint_ms_ema: 2.0,
             pending_canvas_w: SIDE,
             pending_canvas_h: SIDE,
             active_note_at: None,
@@ -2366,6 +2370,9 @@ impl Studio {
                         self.update_canvas();
                         ui.close_menu();
                     }
+                    if ui.checkbox(&mut self.show_fps_hud, "Show FPS / Perf HUD").clicked() {
+                        ui.close_menu();
+                    }
                     if ui.button("Zoom In\tCtrl+=").clicked() {
                         if let Some(vp) = self.viewport {
                             self.view.zoom_at(vp, vp.center(), 1.25);
@@ -2467,6 +2474,10 @@ impl Studio {
                     self.view = CanvasView::default();
                     self.update_canvas();
                 }
+                ui.selectable_label(self.show_fps_hud, "⚡ FPS")
+                    .on_hover_text("Toggle live FPS, frame time, and resolution HUD")
+                    .clicked()
+                    .then(|| self.show_fps_hud = !self.show_fps_hud);
             });
             ui.add_space(2.);
         });
@@ -2552,6 +2563,62 @@ impl Studio {
                 let note_popup_rect = self.draw_note_pins(ui, room, canvas);
                 if let Some(nr) = note_popup_rect {
                     self.overlay = Some(physical_rect(ctx, nr));
+                }
+                if self.show_fps_hud {
+                    let ms = self.paint_ms_ema.max(0.4);
+                    let fps = (1000.0 / ms).min(999.0);
+                    let tool = if self.paint.layers.active == gpu::ActiveLayer::Sketch {
+                        if self.charcoal_erase {
+                            "Eraser"
+                        } else {
+                            "Charcoal"
+                        }
+                    } else if self.splatter_selected {
+                        "Splatter"
+                    } else if self.ink_selected {
+                        "Ink"
+                    } else {
+                        match self.brush {
+                            Brush::Round => "Round",
+                            Brush::Flat => "Flat",
+                            Brush::Filbert => "Filbert",
+                            Brush::Fan => "Fan",
+                            Brush::PaletteKnife => "Knife",
+                            Brush::SoftMop => "Soft Mop",
+                        }
+                    };
+                    let text = format!(
+                        "⚡ {fps:.0} FPS  ·  {ms:.2} ms  ·  {}×{}  ·  {tool}",
+                        self.paint.dims.width, self.paint.dims.height
+                    );
+                    let pos = room.min + egui::vec2(12.0, 12.0);
+                    let font = egui::FontId::monospace(12.5);
+                    let galley = ui.painter().layout_no_wrap(
+                        text,
+                        font,
+                        if ms <= 8.5 {
+                            Color32::from_rgb(110, 231, 183)
+                        } else if ms <= 16.7 {
+                            Color32::from_rgb(252, 211, 77)
+                        } else {
+                            Color32::from_rgb(252, 165, 165)
+                        },
+                    );
+                    let pill =
+                        egui::Rect::from_min_size(pos, galley.size() + egui::vec2(18.0, 10.0));
+                    let painter = ui.painter().with_clip_rect(room);
+                    painter.rect_filled(
+                        pill,
+                        6.0,
+                        Color32::from_rgba_unmultiplied(16, 18, 22, 210),
+                    );
+                    painter.rect_stroke(
+                        pill,
+                        6.0,
+                        egui::Stroke::new(1.0, Color32::from_gray(75)),
+                        egui::StrokeKind::Inside,
+                    );
+                    painter.galley(pos + egui::vec2(9.0, 5.0), galley, Color32::WHITE);
                 }
                 self.canvas = Some(physical);
             });
@@ -3839,6 +3906,8 @@ impl Studio {
             }
             Err(error) => return Err(format!("The GPU stopped presenting the canvas. Reopen the app and check your graphics driver. {error}")),
         };
+        let had_paint_work =
+            self.commands.iter().any(|c| matches!(c, Command::Dab(_))) || self.gravity.enabled;
         let acquired = Instant::now();
         let ctx = self.egui_state.egui_ctx().clone();
         let input = self.egui_state.take_egui_input(&self.window);
@@ -3949,6 +4018,10 @@ impl Studio {
             let _ = self
                 .device
                 .poll(wgpu::Maintain::WaitForSubmissionIndex(submission));
+        }
+        if had_paint_work {
+            let ms = started.elapsed().as_secs_f32() * 1000.0;
+            self.paint_ms_ema = self.paint_ms_ema * 0.85 + ms * 0.15;
         }
         for id in &output.textures_delta.free {
             self.renderer.free_texture(id);
