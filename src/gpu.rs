@@ -41,8 +41,19 @@ impl Default for CanvasDims {
 impl CanvasDims {
     pub fn new(width: u32, height: u32) -> Self {
         Self {
-            width: width.clamp(128, 2048),
-            height: height.clamp(128, 2048),
+            width: width.clamp(128, 4096),
+            height: height.clamp(128, 4096),
+        }
+    }
+
+    pub fn max_history(self) -> usize {
+        let pixels = u64::from(self.width) * u64::from(self.height);
+        if pixels <= 2_100_000 {
+            HISTORY
+        } else if pixels <= 4_500_000 {
+            4
+        } else {
+            2
         }
     }
 
@@ -270,6 +281,7 @@ impl Dab {
         Self::new_tiled(position, radius, pressure, surface, brush, angle, false)
     }
 
+    #[cfg(test)]
     pub fn new_tiled(
         position: egui::Pos2,
         radius: f32,
@@ -279,22 +291,20 @@ impl Dab {
         angle: f32,
         tiled: bool,
     ) -> Self {
-        let wrap = tiled && surface == Surface::Canvas;
-        let (bounds, center) =
-            Self::footprint_bounds(position, egui::Vec2::splat(radius * 1.07), surface, wrap);
-        let (sin, cos) = angle.sin_cos();
-        Self {
-            bounds,
-            brush: [center.x, center.y, radius, pressure],
-            axis: [cos, sin, 1.0, 0.0],
-            mode: [0, brush.load_start(), brush.profile_id(), u32::from(wrap)],
-            tubes: [0; 4],
-            sweep: [0.0; 4],
-        }
+        Self::new_tiled_dims(
+            position,
+            radius,
+            pressure,
+            surface,
+            brush,
+            angle,
+            tiled,
+            CanvasDims::default(),
+        )
     }
 
-    /// Velocity-elongated splatter droplet stamped from `brush`'s Kubelka-Munk reservoir.
-    pub fn splat(
+    #[allow(clippy::too_many_arguments)]
+    pub fn splat_dims(
         position: egui::Pos2,
         radius: f32,
         pressure: f32,
@@ -302,13 +312,15 @@ impl Dab {
         angle: f32,
         elongation: f32,
         tiled: bool,
+        dims: CanvasDims,
     ) -> Self {
         let elong = elongation.clamp(1.0, 4.0);
-        let (bounds, center) = Self::footprint_bounds(
+        let (bounds, center) = Self::footprint_bounds_dims(
             position,
             egui::Vec2::splat(radius * elong * 1.12),
             Surface::Canvas,
             tiled,
+            dims,
         );
         let (sin, cos) = angle.sin_cos();
         Self {
@@ -326,14 +338,13 @@ impl Dab {
         }
     }
 
-    /// The start and end axes share `axis`. The sweep stores displacement,
-    /// end radius and end pressure. A zero end radius denotes a stationary dab.
-    pub fn swept_contact(
+    pub fn swept_contact_dims(
         start: BrushContact,
         end: BrushContact,
         brush: Brush,
         surface: Surface,
         tiled: bool,
+        dims: CanvasDims,
     ) -> Self {
         let wrap = tiled && surface == Surface::Canvas;
         let delta = end.point - start.point;
@@ -354,7 +365,7 @@ impl Dab {
         let footprint = egui::vec2(x + depth * y, y + depth * x);
         let pad = (footprint + egui::Vec2::splat(turn_margin)) * radius + 0.5 * delta.abs();
         let (bounds, center) =
-            Self::footprint_bounds(start.point + delta * 0.5, pad, surface, wrap);
+            Self::footprint_bounds_dims(start.point + delta * 0.5, pad, surface, wrap, dims);
         Self {
             bounds,
             brush: [center.x, center.y, start.radius, start.pressure],
@@ -365,13 +376,17 @@ impl Dab {
         }
     }
 
-    fn footprint_bounds(
+    fn footprint_bounds_dims(
         position: egui::Pos2,
         pad: egui::Vec2,
         surface: Surface,
         wrap: bool,
+        dims: CanvasDims,
     ) -> ([u32; 4], egui::Pos2) {
-        let [origin_x, origin_y, w, h] = surface.bounds();
+        let [origin_x, origin_y, w, h] = match surface {
+            Surface::Canvas => dims.canvas_bounds(),
+            Surface::Palette => dims.palette_bounds(),
+        };
         let (pos_x, pos_y, x, width, y, height) = if wrap {
             let px = position.x.rem_euclid(w as f32);
             let py = position.y.rem_euclid(h as f32);
@@ -409,8 +424,18 @@ impl Dab {
     }
 
     pub fn ink_tiled(position: egui::Pos2, pressure: f32, dwell: bool, tiled: bool) -> Self {
+        Self::ink_dims(position, pressure, dwell, tiled, CanvasDims::default())
+    }
+
+    pub fn ink_dims(
+        position: egui::Pos2,
+        pressure: f32,
+        dwell: bool,
+        tiled: bool,
+        dims: CanvasDims,
+    ) -> Self {
         let radius = Self::ink_radius(pressure);
-        let mut dab = Self::new_tiled(
+        let mut dab = Self::new_tiled_dims(
             position,
             radius,
             pressure,
@@ -418,12 +443,44 @@ impl Dab {
             Brush::Round,
             0.,
             tiled,
+            dims,
         );
         dab.mode[0] = 9;
         dab.mode[2] = u32::from(dwell);
         dab
     }
 
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_tiled_dims(
+        position: egui::Pos2,
+        radius: f32,
+        pressure: f32,
+        surface: Surface,
+        brush: Brush,
+        angle: f32,
+        tiled: bool,
+        dims: CanvasDims,
+    ) -> Self {
+        let wrap = tiled && surface == Surface::Canvas;
+        let (bounds, center) = Self::footprint_bounds_dims(
+            position,
+            egui::Vec2::splat(radius * 1.07),
+            surface,
+            wrap,
+            dims,
+        );
+        let (sin, cos) = angle.sin_cos();
+        Self {
+            bounds,
+            brush: [center.x, center.y, radius, pressure],
+            axis: [cos, sin, 1.0, 0.0],
+            mode: [0, brush.load_start(), brush.profile_id(), u32::from(wrap)],
+            tubes: [0; 4],
+            sweep: [0.0; 4],
+        }
+    }
+
+    #[cfg(test)]
     #[allow(clippy::too_many_arguments)]
     pub fn new_with_load(
         position: egui::Pos2,
@@ -435,7 +492,34 @@ impl Dab {
         tiled: bool,
         load_ratio: f32,
     ) -> Self {
-        let mut dab = Self::new_tiled(position, radius, pressure, surface, brush, angle, tiled);
+        Self::new_with_load_dims(
+            position,
+            radius,
+            pressure,
+            surface,
+            brush,
+            angle,
+            tiled,
+            load_ratio,
+            CanvasDims::default(),
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_with_load_dims(
+        position: egui::Pos2,
+        radius: f32,
+        pressure: f32,
+        surface: Surface,
+        brush: Brush,
+        angle: f32,
+        tiled: bool,
+        load_ratio: f32,
+        dims: CanvasDims,
+    ) -> Self {
+        let mut dab = Self::new_tiled_dims(
+            position, radius, pressure, surface, brush, angle, tiled, dims,
+        );
         dab.axis[2] = load_ratio.clamp(0.0, 1.0);
         dab
     }
@@ -444,6 +528,7 @@ impl Dab {
         self.axis[3] = weight;
     }
 
+    #[cfg(test)]
     pub fn charcoal(
         position: egui::Pos2,
         radius: f32,
@@ -451,7 +536,25 @@ impl Dab {
         erase: bool,
         tiled: bool,
     ) -> Self {
-        let mut dab = Self::new_tiled(
+        Self::charcoal_dims(
+            position,
+            radius,
+            pressure,
+            erase,
+            tiled,
+            CanvasDims::default(),
+        )
+    }
+
+    pub fn charcoal_dims(
+        position: egui::Pos2,
+        radius: f32,
+        pressure: f32,
+        erase: bool,
+        tiled: bool,
+        dims: CanvasDims,
+    ) -> Self {
+        let mut dab = Self::new_tiled_dims(
             position,
             radius,
             pressure,
@@ -459,6 +562,7 @@ impl Dab {
             Brush::Round,
             0.,
             tiled,
+            dims,
         );
         dab.mode[0] = 15;
         dab.mode[2] = 0;
@@ -1193,8 +1297,9 @@ impl PaintGpu {
             paint_bytes + BRUSH_BYTES + ink_bytes + dry_bytes + sub_bytes,
             sketch_bytes,
         );
-        self.next_snapshot = (self.next_snapshot + 1) % HISTORY;
-        self.snapshots = (self.snapshots + 1).min(HISTORY);
+        let max_hist = self.dims.max_history();
+        self.next_snapshot = (self.next_snapshot + 1) % max_hist;
+        self.snapshots = (self.snapshots + 1).min(max_hist);
     }
 
     fn stamp_state_dims(&self, device: &wgpu::Device, encoder: &mut wgpu::CommandEncoder) {
@@ -1374,7 +1479,8 @@ impl PaintGpu {
                     if !self.can_undo() {
                         continue;
                     }
-                    self.next_snapshot = (self.next_snapshot + HISTORY - 1) % HISTORY;
+                    let max_hist = self.dims.max_history();
+                    self.next_snapshot = (self.next_snapshot + max_hist - 1) % max_hist;
                     self.snapshots -= 1;
                     self.ink = self.ink_history[self.next_snapshot];
                     let paint_bytes = self.dims.paint_bytes();
@@ -1423,11 +1529,7 @@ impl PaintGpu {
                     Dab::operation([0, 0, self.dims.atlas_width(), self.dims.atlas_height()], 1)
                 }
                 Command::Dab(mut dab) => {
-                    if dab.bounds[1] >= SIDE {
-                        let dy = self.dims.height as i32 - SIDE as i32;
-                        dab.bounds[1] = (dab.bounds[1] as i32 + dy).max(0) as u32;
-                        dab.brush[1] += dy as f32;
-                    } else if dab.mode[3] == 0 {
+                    if dab.bounds[1] < self.dims.height && dab.mode[3] == 0 {
                         let x0 = dab.bounds[0].min(self.dims.width);
                         let y0 = dab.bounds[1].min(self.dims.height);
                         let x1 = (dab.bounds[0] + dab.bounds[2]).min(self.dims.width);
@@ -1455,7 +1557,7 @@ impl PaintGpu {
                     dab.tubes = tubes;
                     dab
                 }
-                Command::Tubes => Dab::operation([0, SIDE, PALETTE_WIDTH, 64], 2),
+                Command::Tubes => Dab::operation([0, self.dims.height, PALETTE_WIDTH, 64], 2),
                 Command::SeedBenchmark => Dab::operation(self.dims.canvas_bounds(), 7),
                 Command::Service(brush, ref action) => {
                     preview_needed = true;
@@ -2418,13 +2520,19 @@ pub async fn device(
         })
         .await
         .ok_or("No Direct3D 12 adapter found. Check your GPU driver.")?;
+    let adapter_limits = adapter.limits();
     let (device, queue) = adapter
         .request_device(
             &wgpu::DeviceDescriptor {
                 label: Some("Pigment GPU"),
                 required_limits: wgpu::Limits {
                     max_storage_buffers_per_shader_stage: 12
-                        .min(adapter.limits().max_storage_buffers_per_shader_stage),
+                        .min(adapter_limits.max_storage_buffers_per_shader_stage),
+                    max_buffer_size: adapter_limits.max_buffer_size.min(2 * 1024 * 1024 * 1024),
+                    max_storage_buffer_binding_size: adapter_limits
+                        .max_storage_buffer_binding_size
+                        .min(1024 * 1024 * 1024),
+                    max_texture_dimension_2d: adapter_limits.max_texture_dimension_2d.min(8192),
                     ..Default::default()
                 },
                 ..Default::default()

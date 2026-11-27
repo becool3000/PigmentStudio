@@ -2,7 +2,7 @@
 
 use egui::{vec2, Pos2, Vec2};
 
-use crate::gpu::{Brush, Command, Dab, SIDE};
+use crate::gpu::{Brush, CanvasDims, Command, Dab};
 
 /// Adjustable physical parameters for the Jackson Pollock Splatter / Sling tool.
 #[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -35,9 +35,11 @@ pub struct SplatterEngine {
     prev_t_ms: u32,
     rng: u32,
     carry_dist: f32,
+    dims: CanvasDims,
 }
 
 impl SplatterEngine {
+    #[cfg(test)]
     pub fn start(
         pos: Pos2,
         pressure: f32,
@@ -47,6 +49,29 @@ impl SplatterEngine {
         settings: SplatterSettings,
         commands: &mut Vec<Command>,
     ) -> Self {
+        Self::start_dims(
+            pos,
+            pressure,
+            t_ms,
+            brush,
+            tiled,
+            settings,
+            CanvasDims::default(),
+            commands,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn start_dims(
+        pos: Pos2,
+        pressure: f32,
+        t_ms: u32,
+        brush: Brush,
+        tiled: bool,
+        settings: SplatterSettings,
+        dims: CanvasDims,
+        commands: &mut Vec<Command>,
+    ) -> Self {
         let seed = ((pos.x.to_bits() ^ pos.y.to_bits().rotate_left(13)) ^ t_ms) | 1;
         let mut engine = Self {
             prev_pos: pos,
@@ -54,17 +79,19 @@ impl SplatterEngine {
             prev_t_ms: t_ms,
             rng: seed,
             carry_dist: 0.0,
+            dims,
         };
         // Initial touchdown puddle / bead
         let r = (settings.droplet_size * 0.5) * (0.45 + 0.65 * pressure.clamp(0.05, 1.0));
-        commands.push(Command::Dab(Dab::splat(
-            clamp_canvas(pos, tiled),
+        commands.push(Command::Dab(Dab::splat_dims(
+            clamp_canvas(pos, tiled, dims),
             r.max(1.5),
             pressure.clamp(0.25, 1.0),
             brush,
             0.0,
             1.0,
             tiled,
+            dims,
         )));
         engine.emit_mist_burst(
             pos,
@@ -121,11 +148,11 @@ impl SplatterEngine {
             if self.rand01() <= string_keep {
                 let jitter = (self.rand_signed() * 1.8) * (1.1 - visc * 0.6);
                 let perp = vec2(-dir.y, dir.x);
-                let bead_pos = clamp_canvas(p + perp * jitter, tiled);
+                let bead_pos = clamp_canvas(p + perp * jitter, tiled, self.dims);
                 let r = (base_r * (0.38 + 0.52 * pressure) * (0.75 + 0.5 * self.rand01()))
                     * (1.0 - whip * 0.18).max(0.45);
                 let elong = (1.0 + whip * 0.35).min(2.2);
-                commands.push(Command::Dab(Dab::splat(
+                commands.push(Command::Dab(Dab::splat_dims(
                     bead_pos,
                     r.max(1.5),
                     pressure.clamp(0.25, 1.0),
@@ -133,6 +160,7 @@ impl SplatterEngine {
                     angle,
                     elong,
                     tiled,
+                    self.dims,
                 )));
             }
         }
@@ -185,8 +213,8 @@ impl SplatterEngine {
             if !tiled
                 && (impact.x < 0.0
                     || impact.y < 0.0
-                    || impact.x >= SIDE as f32
-                    || impact.y >= SIDE as f32)
+                    || impact.x >= self.dims.width as f32
+                    || impact.y >= self.dims.height as f32)
             {
                 continue;
             }
@@ -207,14 +235,15 @@ impl SplatterEngine {
                 // Fine mist speckle
                 ((1.4 + 2.4 * self.rand01()).max(base_r * 0.09), 1.0)
             };
-            commands.push(Command::Dab(Dab::splat(
-                clamp_canvas(impact, tiled),
+            commands.push(Command::Dab(Dab::splat_dims(
+                clamp_canvas(impact, tiled, self.dims),
                 r,
                 (0.45 + 0.55 * pressure).clamp(0.3, 1.0),
                 brush,
                 drop_angle,
                 elong,
                 tiled,
+                self.dims,
             )));
         }
     }
@@ -233,13 +262,13 @@ impl SplatterEngine {
     }
 }
 
-fn clamp_canvas(p: Pos2, tiled: bool) -> Pos2 {
+fn clamp_canvas(p: Pos2, tiled: bool, dims: CanvasDims) -> Pos2 {
     if tiled {
         p
     } else {
         egui::pos2(
-            p.x.clamp(0.0, (SIDE - 1) as f32),
-            p.y.clamp(0.0, (SIDE - 1) as f32),
+            p.x.clamp(0.0, (dims.width - 1) as f32),
+            p.y.clamp(0.0, (dims.height - 1) as f32),
         )
     }
 }

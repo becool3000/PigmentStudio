@@ -1,6 +1,6 @@
 use crate::gpu::{self, Command, ExportKind, Lighting, PaintGpu, MAX_COMMANDS, SIDE};
 use crate::recording::{
-    compile_events_in, equip_cabinet, format_mode_out_path, parse_export_modes,
+    compile_events_dims, equip_cabinet, format_mode_out_path, parse_export_modes,
     render_modes_on_gpu, BrushKind, RecordedEvent, Recording, StrokeEdit,
 };
 use serde::{Deserialize, Serialize};
@@ -245,7 +245,12 @@ impl ServeSession {
         while self.applied_len < total {
             let end = (self.applied_len + CHECKPOINT_STRIDE).min(total);
             let slice = &self.recording.events[self.applied_len..end];
-            let cmds = compile_events_in(slice, &mut self.tile_state, self.base_dir.as_deref())?;
+            let cmds = compile_events_dims(
+                slice,
+                &mut self.tile_state,
+                self.base_dir.as_deref(),
+                self.paint.dims,
+            )?;
             self.paint.tile = self.tile_state;
             self.submit_commands(&cmds);
             self.applied_len = end;

@@ -1,4 +1,4 @@
-use crate::gpu::{Brush, BrushContact, Command, Dab, Surface};
+use crate::gpu::{Brush, BrushContact, CanvasDims, Command, Dab, Surface};
 use crate::splatter::{SplatterEngine, SplatterSettings};
 use egui::Pos2;
 use std::time::{Duration, Instant};
@@ -34,6 +34,7 @@ pub struct Stroke {
     swept: bool,
     load_ratio: f32,
     tile: bool,
+    dims: CanvasDims,
     charcoal_erase: Option<bool>,
     ink_hold: Option<(Instant, Pos2)>,
     splatter: Option<(SplatterEngine, SplatterSettings)>,
@@ -72,6 +73,7 @@ impl Stroke {
         )
     }
 
+    #[cfg(test)]
     #[allow(clippy::too_many_arguments)]
     pub fn start_full(
         source: Source,
@@ -84,6 +86,37 @@ impl Stroke {
         load_ratio: f32,
         tile: bool,
         refined: bool,
+        commands: &mut Vec<Command>,
+    ) -> Self {
+        Self::start_full_dims(
+            source,
+            sample,
+            diameter,
+            surface,
+            brush,
+            angle,
+            auto_angle,
+            load_ratio,
+            tile,
+            refined,
+            CanvasDims::default(),
+            commands,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn start_full_dims(
+        source: Source,
+        sample: Sample,
+        diameter: f32,
+        surface: Surface,
+        brush: Brush,
+        angle: f32,
+        auto_angle: bool,
+        load_ratio: f32,
+        tile: bool,
+        refined: bool,
+        dims: CanvasDims,
         commands: &mut Vec<Command>,
     ) -> Self {
         let stroke = Self {
@@ -114,6 +147,7 @@ impl Stroke {
             swept: false,
             load_ratio,
             tile,
+            dims,
             charcoal_erase: None,
             ink_hold: None,
             splatter: None,
@@ -129,10 +163,21 @@ impl Stroke {
         Self::start_ink_tiled(source, sample, false, commands)
     }
 
+    #[cfg(test)]
     pub fn start_ink_tiled(
         source: Source,
         sample: Sample,
         tile: bool,
+        commands: &mut Vec<Command>,
+    ) -> Self {
+        Self::start_ink_dims(source, sample, tile, CanvasDims::default(), commands)
+    }
+
+    pub fn start_ink_dims(
+        source: Source,
+        sample: Sample,
+        tile: bool,
+        dims: CanvasDims,
         commands: &mut Vec<Command>,
     ) -> Self {
         let stroke = Self {
@@ -152,6 +197,7 @@ impl Stroke {
             swept: false,
             load_ratio: 1.0,
             tile,
+            dims,
             charcoal_erase: None,
             ink_hold: Some((Instant::now() + Duration::from_millis(34), sample.point)),
             splatter: None,
@@ -160,12 +206,13 @@ impl Stroke {
         stroke
     }
 
-    pub fn start_charcoal(
+    pub fn start_charcoal_dims(
         source: Source,
         sample: Sample,
         diameter: f32,
         erase: bool,
         tile: bool,
+        dims: CanvasDims,
         commands: &mut Vec<Command>,
     ) -> Self {
         let stroke = Self {
@@ -185,6 +232,7 @@ impl Stroke {
             swept: false,
             load_ratio: 1.0,
             tile,
+            dims,
             charcoal_erase: Some(erase),
             ink_hold: None,
             splatter: None,
@@ -193,21 +241,23 @@ impl Stroke {
         stroke
     }
 
-    pub fn start_splatter(
+    pub fn start_splatter_dims(
         source: Source,
         sample: Sample,
         brush: Brush,
         tile: bool,
         settings: SplatterSettings,
+        dims: CanvasDims,
         commands: &mut Vec<Command>,
     ) -> Self {
-        let engine = SplatterEngine::start(
+        let engine = SplatterEngine::start_dims(
             sample.point,
             sample.pressure,
             sample.timestamp_ms,
             brush,
             tile,
             settings,
+            dims,
             commands,
         );
         Self {
@@ -227,6 +277,7 @@ impl Stroke {
             swept: false,
             load_ratio: 1.0,
             tile,
+            dims,
             charcoal_erase: None,
             ink_hold: None,
             splatter: Some((engine, settings)),
@@ -411,12 +462,13 @@ impl Stroke {
         let mut start = contact(0.0);
         for i in 1..=steps {
             let end = contact(i as f32 / steps as f32);
-            commands.push(Command::Dab(Dab::swept_contact(
+            commands.push(Command::Dab(Dab::swept_contact_dims(
                 start,
                 end,
                 self.brush,
                 self.surface,
                 self.tile,
+                self.dims,
             )));
             start = end;
         }
@@ -440,25 +492,27 @@ impl Stroke {
 
     fn dab(&self, sample: Sample, angle: f32, commands: &mut Vec<Command>) {
         if let Some(erase) = self.charcoal_erase {
-            commands.push(Command::Dab(Dab::charcoal(
+            commands.push(Command::Dab(Dab::charcoal_dims(
                 sample.point,
                 self.radius(sample.pressure),
                 sample.pressure,
                 erase,
                 self.tile,
+                self.dims,
             )));
             return;
         }
         if self.ink_hold.is_some() {
-            commands.push(Command::Dab(Dab::ink_tiled(
+            commands.push(Command::Dab(Dab::ink_dims(
                 sample.point,
                 sample.pressure,
                 false,
                 self.tile,
+                self.dims,
             )));
             return;
         }
-        let mut dab = Dab::new_with_load(
+        let mut dab = Dab::new_with_load_dims(
             sample.point,
             self.radius(sample.pressure),
             sample.pressure,
@@ -467,6 +521,7 @@ impl Stroke {
             angle,
             self.tile,
             self.load_ratio,
+            self.dims,
         );
         if self.round_pressure {
             let pressure = ((sample.pressure - 0.015) / 0.735).clamp(0.0, 1.0);

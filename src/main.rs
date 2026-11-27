@@ -284,6 +284,14 @@ fn main() -> std::process::ExitCode {
     } else {
         None
     };
+    let benchmark_dims = args
+        .iter()
+        .position(|a| a == "--benchmark-size")
+        .and_then(|i| args.get(i + 1))
+        .and_then(|s| {
+            let (w, h) = s.split_once('x').or_else(|| s.split_once('X'))?;
+            Some(gpu::CanvasDims::new(w.parse().ok()?, h.parse().ok()?))
+        });
     let reference = args
         .iter()
         .position(|a| a == "--reference")
@@ -294,7 +302,7 @@ fn main() -> std::process::ExitCode {
         .position(|a| a == "--replay")
         .and_then(|i| args.get(i + 1))
         .map(PathBuf::from);
-    if let Err(error) = run(benchmark, reference, replay) {
+    if let Err(error) = run(benchmark, benchmark_dims, reference, replay) {
         eprintln!("{error}");
         if benchmark.is_none() {
             rfd::MessageDialog::new()
@@ -310,12 +318,14 @@ fn main() -> std::process::ExitCode {
 
 fn run(
     benchmark: Option<Brush>,
+    benchmark_dims: Option<gpu::CanvasDims>,
     reference: Option<PathBuf>,
     replay: Option<PathBuf>,
 ) -> Result<(), String> {
     let event_loop = EventLoop::new().map_err(|e| e.to_string())?;
     let mut app = App {
         benchmark: benchmark.map(benchmark::Benchmark::new),
+        benchmark_dims,
         reference,
         replay,
         ..Default::default()
@@ -336,6 +346,7 @@ struct App {
     studio: Option<Studio>,
     error: Option<String>,
     benchmark: Option<benchmark::Benchmark>,
+    benchmark_dims: Option<gpu::CanvasDims>,
     reference: Option<PathBuf>,
     replay: Option<PathBuf>,
     normal_placement: Option<WindowPlacement>,
@@ -650,6 +661,9 @@ impl ApplicationHandler for App {
         }
         if let (Some(benchmark), Some(rect)) = (self.benchmark.as_mut(), studio.canvas) {
             if !studio.benchmark_seeded {
+                if let Some(dims) = self.benchmark_dims {
+                    studio.set_canvas_dims(dims);
+                }
                 studio.brush = benchmark.brush;
                 studio.workbench.sizes[studio.brush.size_index()] = 64.;
                 studio.commands.extend([
@@ -662,7 +676,8 @@ impl ApplicationHandler for App {
             }
             let now = Instant::now();
             for (i, point, pressure, time) in benchmark.ready_samples(now) {
-                let physical = rect.min + point.to_vec2() * rect.width();
+                let physical =
+                    rect.min + egui::vec2(point.x * rect.width(), point.y * rect.height());
                 if i == 0 {
                     studio.start_stroke(Source::Pen, physical, pressure, time);
                 } else {
@@ -1277,23 +1292,31 @@ impl Studio {
         });
         self.stroke = Some(
             if self.paint.layers.active == gpu::ActiveLayer::Sketch && surface == Surface::Canvas {
-                Stroke::start_charcoal(
+                Stroke::start_charcoal_dims(
                     source,
                     sample,
                     self.charcoal_size,
                     self.charcoal_erase,
                     self.paint.tile,
+                    self.paint.dims,
                     &mut self.commands,
                 )
             } else if self.ink_selected && surface == Surface::Canvas {
-                Stroke::start_ink_tiled(source, sample, self.paint.tile, &mut self.commands)
+                Stroke::start_ink_dims(
+                    source,
+                    sample,
+                    self.paint.tile,
+                    self.paint.dims,
+                    &mut self.commands,
+                )
             } else if self.splatter_selected && surface == Surface::Canvas {
-                Stroke::start_splatter(
+                Stroke::start_splatter_dims(
                     source,
                     sample,
                     self.brush,
                     self.paint.tile,
                     self.splatter,
+                    self.paint.dims,
                     &mut self.commands,
                 )
             } else {
@@ -1306,7 +1329,7 @@ impl Studio {
                     *load = (*load - dep).max(0.0);
                 }
                 let load_ratio = self.workbench.session.loads[self.brush.index()];
-                Stroke::start_full(
+                Stroke::start_full_dims(
                     source,
                     sample,
                     self.workbench.sizes[self.brush.size_index()],
@@ -1324,6 +1347,7 @@ impl Studio {
                             | Brush::Filbert
                             | Brush::Fan
                     ),
+                    self.paint.dims,
                     &mut self.commands,
                 )
             },
@@ -1664,7 +1688,9 @@ impl Studio {
                         ("1024×1024 (1:1)", 1024, 1024),
                         ("1024×256 (4:1 Panorama)", 1024, 256),
                         ("2048×512 (4:1 Hi-Res)", 2048, 512),
-                        ("1280×720 (16:9)", 1280, 720),
+                        ("1280×720 (HD)", 1280, 720),
+                        ("2560×1440 (QHD)", 2560, 1440),
+                        ("3840×2160 (4K UHD)", 3840, 2160),
                         ("1024×768 (4:3)", 1024, 768),
                         ("512×512 (Profile)", 512, 512),
                     ] {
@@ -1679,13 +1705,13 @@ impl Studio {
                     ui.label("Width:");
                     ui.add(
                         egui::DragValue::new(&mut self.pending_canvas_w)
-                            .range(128..=2048)
+                            .range(128..=4096)
                             .speed(8),
                     );
                     ui.label("Height:");
                     ui.add(
                         egui::DragValue::new(&mut self.pending_canvas_h)
-                            .range(128..=2048)
+                            .range(128..=4096)
                             .speed(8),
                     );
                 });

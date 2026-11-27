@@ -379,6 +379,15 @@ pub fn compile_events_in(
     tile_state: &mut bool,
     base_dir: Option<&Path>,
 ) -> Result<Vec<Command>, String> {
+    compile_events_dims(events, tile_state, base_dir, gpu::CanvasDims::default())
+}
+
+pub fn compile_events_dims(
+    events: &[RecordedEvent],
+    tile_state: &mut bool,
+    base_dir: Option<&Path>,
+    dims: gpu::CanvasDims,
+) -> Result<Vec<Command>, String> {
     let mut commands = Vec::new();
     for event in events {
         match event {
@@ -460,23 +469,25 @@ pub fn compile_events_in(
                 let stroke_tile = tile.unwrap_or(*tile_state);
                 let first_command = commands.len();
                 let mut stroke = if *charcoal && *surface == SurfaceKind::Canvas {
-                    Stroke::start_charcoal(
+                    Stroke::start_charcoal_dims(
                         Source::Mouse,
                         to_sample(first),
                         *diameter,
                         *erase,
                         stroke_tile,
+                        dims,
                         &mut commands,
                     )
                 } else if *ink && *surface == SurfaceKind::Canvas {
-                    Stroke::start_ink_tiled(
+                    Stroke::start_ink_dims(
                         Source::Mouse,
                         to_sample(first),
                         stroke_tile,
+                        dims,
                         &mut commands,
                     )
                 } else {
-                    Stroke::start_full(
+                    Stroke::start_full_dims(
                         Source::Mouse,
                         to_sample(first),
                         *diameter,
@@ -491,6 +502,7 @@ pub fn compile_events_in(
                             || (*brush == BrushKind::Filbert && *filbert_sweep)
                             || (*brush == BrushKind::Fan && *fan_sweep)
                             || (*brush == BrushKind::Round && *round_pressure),
+                        dims,
                         &mut commands,
                     )
                 };
@@ -557,12 +569,13 @@ pub fn compile_events_in(
                     angle: s.angle_deg.map(f32::to_radians),
                 };
                 let stroke_tile = tile.unwrap_or(*tile_state);
-                let mut stroke = Stroke::start_splatter(
+                let mut stroke = Stroke::start_splatter_dims(
                     Source::Mouse,
                     to_sample(first),
                     (*brush).into(),
                     stroke_tile,
                     *settings,
+                    dims,
                     &mut commands,
                 );
                 for s in &samples[1..] {
@@ -719,10 +732,11 @@ pub(crate) fn render_modes_on_gpu(
     }
 
     let mut tile_state = paint.tile;
-    commands.extend(compile_events_in(
+    commands.extend(compile_events_dims(
         &recording.events,
         &mut tile_state,
         base_dir,
+        paint.dims,
     )?);
     paint.tile = tile_state;
 
