@@ -2293,10 +2293,6 @@ pub fn load_png_as_reference_sized(
     Ok(std::sync::Arc::new(words))
 }
 
-pub fn load_png_as_substrate(path: &std::path::Path) -> Result<std::sync::Arc<Vec<u32>>, String> {
-    load_png_as_substrate_sized(path, CanvasDims::default())
-}
-
 pub fn load_png_as_substrate_sized(
     path: &std::path::Path,
     dims: CanvasDims,

@@ -1,4 +1,4 @@
-use crate::gpu::{self, Command, ExportKind, Lighting, PaintGpu, MAX_COMMANDS, SIDE};
+use crate::gpu::{self, Command, ExportKind, Lighting, PaintGpu, MAX_COMMANDS};
 use crate::recording::{
     compile_events_dims, equip_cabinet, format_mode_out_path, parse_export_modes,
     render_modes_on_gpu, BrushKind, RecordedEvent, Recording, StrokeEdit,
@@ -152,9 +152,11 @@ impl ServeSession {
     }
 
     fn reset_gpu_to_start(&mut self) -> Result<(), String> {
-        if let (Some(w), Some(h)) = (self.recording.canvas_width, self.recording.canvas_height) {
-            self.paint.resize_canvas(gpu::CanvasDims::new(w, h));
-        }
+        let dims = match (self.recording.canvas_width, self.recording.canvas_height) {
+            (Some(w), Some(h)) => gpu::CanvasDims::new(w, h),
+            _ => gpu::CanvasDims::default(),
+        };
+        self.paint.resize_canvas(dims);
         self.paint.lighting = self
             .recording
             .lighting
@@ -171,7 +173,7 @@ impl ServeSession {
         equip_cabinet(&mut commands);
         if let Some(ref raw) = self.recording.underlayer_path {
             let resolved = crate::recording::resolve_path(self.base_dir.as_deref(), raw);
-            let words = gpu::load_png_as_substrate(&resolved)?;
+            let words = gpu::load_png_as_substrate_sized(&resolved, self.paint.dims)?;
             commands.push(Command::ImportUnderlayer(words));
         }
         self.submit_commands(&commands);
@@ -227,7 +229,7 @@ impl ServeSession {
             let tile = self.checkpoints[pos].tile_state;
             let raw = crate::project::rle_decode_u32(
                 &self.checkpoints[pos].compressed,
-                crate::gpu::PROJECT_BYTES as usize,
+                self.paint.dims.project_bytes() as usize,
             )?;
             self.checkpoints.truncate(pos + 1);
             self.submit_commands(&[Command::LoadProject(Arc::new(raw))]);
@@ -284,7 +286,8 @@ impl ServeSession {
                         .parent()
                         .filter(|d| !d.as_os_str().is_empty())
                         .map(Path::to_path_buf);
-                } else if let Some(rec) = recording {
+                } else if let Some(mut rec) = recording {
+                    rec.upgrade_legacy_reservoirs();
                     self.recording = rec;
                     self.base_dir = None;
                 } else {
@@ -316,25 +319,41 @@ impl ServeSession {
                 }))
             }
             ServeRequest::MoveStroke { id, dx, dy } => {
+                let backup = self.recording.clone();
                 let idx = self.recording.move_stroke(&id, dx, dy)?;
-                self.replay_from(idx)?;
+                if let Err(err) = self.replay_from(idx) {
+                    self.recording = backup;
+                    return Err(err);
+                }
                 Ok(serde_json::json!({ "id": id, "replayed_from": idx }))
             }
             ServeRequest::EditStroke { id, edit } => {
+                let backup = self.recording.clone();
                 let idx = self.recording.edit_stroke(&id, &edit)?;
-                self.replay_from(idx)?;
+                if let Err(err) = self.replay_from(idx) {
+                    self.recording = backup;
+                    return Err(err);
+                }
                 Ok(serde_json::json!({ "id": id, "replayed_from": idx }))
             }
             ServeRequest::DeleteStroke { id } => {
+                let backup = self.recording.clone();
                 let idx = self.recording.delete_stroke(&id)?;
-                self.replay_from(idx)?;
+                if let Err(err) = self.replay_from(idx) {
+                    self.recording = backup;
+                    return Err(err);
+                }
                 Ok(
                     serde_json::json!({ "id": id, "replayed_from": idx, "events": self.recording.events.len() }),
                 )
             }
             ServeRequest::ReorderStroke { id, before_id } => {
+                let backup = self.recording.clone();
                 let idx = self.recording.reorder_stroke(&id, before_id.as_deref())?;
-                self.replay_from(idx)?;
+                if let Err(err) = self.replay_from(idx) {
+                    self.recording = backup;
+                    return Err(err);
+                }
                 Ok(serde_json::json!({ "id": id, "replayed_from": idx }))
             }
             ServeRequest::StrokesAt { x, y, radius } => {
@@ -346,8 +365,8 @@ impl ServeSession {
                     .paint
                     .sample_diagnostics(&self.device, &self.queue, x, y);
                 Ok(serde_json::json!({
-                    "x": x.min(SIDE - 1),
-                    "y": y.min(SIDE - 1),
+                    "x": x.min(self.paint.dims.width - 1),
+                    "y": y.min(self.paint.dims.height - 1),
                     "srgb": d.display_srgb,
                     "wet_channels": d.wet_channels,
                     "dry_channels": d.dry_channels,

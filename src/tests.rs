@@ -1408,7 +1408,8 @@ fn test_phase_b_seamless_tiling_and_underlayer_import() {
         w.write_image_data(&rgba).unwrap();
     }
 
-    let words = crate::gpu::load_png_as_substrate(&png_path).unwrap();
+    let words =
+        crate::gpu::load_png_as_substrate_sized(&png_path, gpu::CanvasDims::default()).unwrap();
     let imported = rig2.canvas(&[Command::Snapshot, Command::ImportUnderlayer(words)]);
     let left_px = pixel(&imported, 200, 500);
     let right_px = pixel(&imported, 800, 500);
@@ -1518,6 +1519,7 @@ fn test_phase_c_recording_headless_and_deep_undo() {
                 filbert_sweep: false,
                 fan_sweep: false,
                 mop_sweep: false,
+                legacy_sweep: false,
                 round_pressure: false,
                 tile: Some(false),
                 samples: vec![
@@ -1591,6 +1593,7 @@ fn test_phase_c_recording_headless_and_deep_undo() {
             filbert_sweep: false,
             fan_sweep: false,
             mop_sweep: false,
+            legacy_sweep: false,
             round_pressure: false,
             tile: Some(false),
             samples: vec![RecordedSample {
@@ -2471,6 +2474,7 @@ fn test_phase_e_underlayer_and_batch_rendering() {
                 filbert_sweep: false,
                 fan_sweep: false,
                 mop_sweep: false,
+                legacy_sweep: false,
                 round_pressure: false,
                 tile: Some(false),
                 samples: vec![RecordedSample {
@@ -3648,6 +3652,7 @@ fn test_v030_edge_hairline_smooth_height_and_set_tile() {
             filbert_sweep: false,
             fan_sweep: false,
             mop_sweep: false,
+            legacy_sweep: false,
             round_pressure: false,
             tile: None,
             samples: vec![RecordedSample {
@@ -3676,6 +3681,7 @@ fn test_v030_edge_hairline_smooth_height_and_set_tile() {
             filbert_sweep: false,
             fan_sweep: false,
             mop_sweep: false,
+            legacy_sweep: false,
             round_pressure: false,
             tile: None,
             samples: vec![RecordedSample {
@@ -3825,6 +3831,7 @@ fn test_slice1_ergonomic_recording_multimode_normal_gl_and_palette() {
                 filbert_sweep: false,
                 fan_sweep: false,
                 mop_sweep: false,
+                legacy_sweep: false,
                 round_pressure: false,
                 tile: Some(false),
                 samples: vec![RecordedSample {
@@ -3859,6 +3866,7 @@ fn test_slice1_ergonomic_recording_multimode_normal_gl_and_palette() {
                 filbert_sweep: false,
                 fan_sweep: false,
                 mop_sweep: false,
+                legacy_sweep: false,
                 round_pressure: false,
                 tile: Some(false),
                 samples: vec![RecordedSample {
@@ -3984,6 +3992,7 @@ fn test_slice2_serve_tier_a_editing_checkpoints_and_inspection() {
                 filbert_sweep: false,
                 fan_sweep: false,
                 mop_sweep: false,
+                legacy_sweep: false,
                 round_pressure: false,
                 tile: Some(false),
                 samples: vec![RecordedSample {
@@ -4287,6 +4296,7 @@ fn test_custom_canvas_size_1024x256_and_export() {
                 filbert_sweep: false,
                 fan_sweep: false,
                 mop_sweep: false,
+                legacy_sweep: false,
                 round_pressure: true,
                 tile: Some(false),
                 samples: vec![
@@ -4343,4 +4353,125 @@ fn test_custom_canvas_size_1024x256_and_export() {
     let (meta, _) = project::read_project(&proj_path).unwrap();
     assert_eq!(meta.canvas_width, 1024);
     assert_eq!(meta.canvas_height, 256);
+}
+
+#[test]
+fn test_v032_review_fixes_serve_dims_legacy_sweep_and_gravity() {
+    // 1. v1 & v2 recordings upgrade to v3 with legacy_sweep = true
+    let v2_json = r#"{
+        "format": "pigment-studio-recording-v2",
+        "events": [
+            {
+                "type": "stroke",
+                "surface": "canvas",
+                "brush": "flat",
+                "bristle_sweep": true,
+                "samples": [{"x": 100.0, "y": 100.0, "pressure": 0.8, "timestamp_ms": 0}]
+            }
+        ]
+    }"#;
+    let v2_rec = Recording::parse(v2_json).unwrap();
+    assert_eq!(v2_rec.format, "pigment-studio-recording-v3");
+    match &v2_rec.events[0] {
+        RecordedEvent::Stroke {
+            legacy_reservoir,
+            legacy_sweep,
+            ..
+        } => {
+            assert!(!legacy_reservoir);
+            assert!(*legacy_sweep);
+        }
+        other => panic!("expected stroke, got {other:?}"),
+    }
+
+    // 2. --serve move/edit/delete on non-1024x1024 canvas and reset to 1024x1024 on empty LoadRecording
+    let mut session = serve::ServeSession::new().unwrap();
+    assert!(
+        session
+            .handle_request(serve::ServeRequest::SetCanvasSize {
+                width: 512,
+                height: 256,
+            })
+            .ok
+    );
+    let apply = session.handle_request(serve::ServeRequest::Apply {
+        events: vec![
+            RecordedEvent::EquipRack {
+                slot: 0,
+                recipe: [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            },
+            RecordedEvent::Service {
+                legacy_reservoir: false,
+                brush: recording::BrushKind::Round,
+                action: recording::ServiceAction::DipRack {
+                    slot: 0,
+                    clean: true,
+                    lane: None,
+                },
+            },
+            RecordedEvent::Stroke {
+                id: Some("s1".into()),
+                group: None,
+                surface: recording::SurfaceKind::Canvas,
+                brush: recording::BrushKind::Round,
+                legacy_reservoir: false,
+                legacy_sweep: false,
+                ink: false,
+                charcoal: false,
+                erase: false,
+                diameter: 32.0,
+                angle_deg: 0.0,
+                auto_follow: false,
+                knife_sweep: false,
+                bristle_sweep: false,
+                filbert_sweep: false,
+                fan_sweep: false,
+                mop_sweep: false,
+                round_pressure: true,
+                tile: Some(false),
+                samples: vec![
+                    RecordedSample {
+                        x: 100.0,
+                        y: 120.0,
+                        pressure: 0.9,
+                        timestamp_ms: 0,
+                        angle_deg: None,
+                    },
+                    RecordedSample {
+                        x: 200.0,
+                        y: 120.0,
+                        pressure: 0.9,
+                        timestamp_ms: 16,
+                        angle_deg: None,
+                    },
+                ],
+            },
+            RecordedEvent::GravityStep {
+                strength: 1.0,
+                viscosity: 1.0,
+                angle_deg: 90.0,
+                steps: 2,
+            },
+        ],
+    });
+    assert!(apply.ok, "{:?}", apply.error);
+
+    let mv = session.handle_request(serve::ServeRequest::MoveStroke {
+        id: "s1".into(),
+        dx: 20.0,
+        dy: 0.0,
+    });
+    assert!(mv.ok, "move_stroke on 512x256 failed: {:?}", mv.error);
+
+    let del = session.handle_request(serve::ServeRequest::DeleteStroke { id: "s1".into() });
+    assert!(del.ok, "delete_stroke on 512x256 failed: {:?}", del.error);
+
+    // Loading a recording without canvas_width/canvas_height must reset to 1024x1024
+    let reset = session.handle_request(serve::ServeRequest::LoadRecording {
+        path: None,
+        recording: Some(Recording::default()),
+    });
+    assert!(reset.ok, "{:?}", reset.error);
+    let px = session.handle_request(serve::ServeRequest::InspectPixel { x: 900, y: 900 });
+    assert_eq!(px.data.unwrap()["x"].as_u64().unwrap(), 900);
 }

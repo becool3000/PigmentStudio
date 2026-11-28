@@ -1,6 +1,6 @@
 # Pigment Studio Recording & Headless CLI Reference
 
-Use `pigment-studio-recording-v2` for new Direct3D 12 recordings. Each oil brush keeps its own paint. The [recording schema](recording-v1.schema.json) also covers v1, which replays with shared Round and Flat reservoirs. When Studio extends a v1 recording, it saves the imported strokes and service actions with `legacy_reservoir: true` so they still replay with their original paint routing.
+Use `pigment-studio-recording-v3` for new Direct3D 12 recordings. Each oil brush keeps its own paint and uses v0.3.2+ swept-capsule stepping (`mop_sweep` included). The [recording schema](recording-v1.schema.json) also covers `v1` and `v2`: `v1` replays with shared Round/Flat reservoirs (`legacy_reservoir: true`) and fine sweep stepping (`legacy_sweep: true`), while `v2` replays with `legacy_sweep: true` so older recordings remain pixel-faithful. Optional top-level `canvas_width` and `canvas_height` (`128..=4096`, defaulting to `1024`) set the canvas dimensions.
 
 ## Headless CLI Commands
 
@@ -36,8 +36,9 @@ Send one JSON object per line on `stdin` and read one JSON response per line on 
 * `{"op": "inspect_pixel", "x": 500, "y": 500}` / `{"op": "inspect_region", "x": 400, "y": 400, "w": 128, "h": 128}`
 * `{"op": "brush_state", "brush": "round"}`
 * `{"op": "render", "out": "out_{mode}.png", "mode": "color,normal", "normal_convention": "gl", "smooth_height": true}`
+* `{"op": "set_canvas_size", "width": 3840, "height": 2160}` (resize canvas between `128×128` and `4096×4096`)
 
-### Ergonomic Agent Events (`v2`)
+### Ergonomic Agent Events (`v2` / `v3`)
 * `dip_rack` accepts `"clean": true` to wipe the brush clean before dipping.
 * `set_mix` loads a custom 8-channel recipe onto a brush in one event:
   ```json
@@ -171,3 +172,12 @@ Set `"filbert_sweep": true` on a Filbert stroke to use the desktop brush's swept
 ### Fan brush tufts
 
 Set `"fan_sweep": true` on a Fan stroke to use the desktop brush's nine spreading tufts. A light pass leaves separate streaks. Firm pressure splays the tufts into a continuous mark, and easing pressure separates them again near the lift. Use Auto-follow or per-sample angles to turn the fan through a curve.
+
+### Soft Mop sweep
+
+Set `"mop_sweep": true` on a Soft Mop stroke to use the continuous swept radial capsule (`v3`).
+
+### Splatter & Gravity (`v3`)
+
+* `splatter`: Velocity- and whip-driven ballistic paint splatter (`brush`, `settings`: `{ viscosity, sling_throw, droplet_size, spray_density }`, optional `tile`, `samples`).
+* `gravity_step`: Coalesced GPU gravity simulation steps (`strength`, `viscosity`, `angle_deg`, `steps`).

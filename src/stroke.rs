@@ -31,6 +31,7 @@ pub struct Stroke {
     continuous_knife: bool,
     round_pressure: bool,
     sweep: bool,
+    legacy_sweep: bool,
     swept: bool,
     load_ratio: f32,
     tile: bool,
@@ -150,6 +151,7 @@ impl Stroke {
                         | Brush::SoftMop
                 ),
             swept: false,
+            legacy_sweep: false,
             load_ratio,
             tile,
             dims,
@@ -200,6 +202,7 @@ impl Stroke {
             round_pressure: false,
             sweep: false,
             swept: false,
+            legacy_sweep: false,
             load_ratio: 1.0,
             tile,
             dims,
@@ -235,6 +238,7 @@ impl Stroke {
             round_pressure: false,
             sweep: false,
             swept: false,
+            legacy_sweep: false,
             load_ratio: 1.0,
             tile,
             dims,
@@ -280,6 +284,7 @@ impl Stroke {
             round_pressure: false,
             sweep: false,
             swept: false,
+            legacy_sweep: false,
             load_ratio: 1.0,
             tile,
             dims,
@@ -299,6 +304,10 @@ impl Stroke {
 
     pub fn sweeps_contact(&self) -> bool {
         self.sweep
+    }
+
+    pub fn set_legacy_sweep(&mut self, legacy: bool) {
+        self.legacy_sweep = legacy;
     }
 
     pub fn has_round_pressure(&self) -> bool {
@@ -453,17 +462,28 @@ impl Stroke {
         // the tip or turns sharply. Ordinary pen samples typically need one segment.
         let radius = self.radius(sample.pressure.min(self.last.pressure));
         let radial = matches!(self.brush, Brush::Round | Brush::SoftMop);
-        let max_distance = if radial {
-            (radius * 1.0).max(2.0)
+        let (max_distance, turn) = if self.legacy_sweep {
+            let max_d = (radius * 0.25).max(0.75);
+            let t = if self.brush == Brush::Round {
+                0.0
+            } else {
+                (self.angle - previous_angle).abs() / 0.16
+            };
+            (max_d, t)
         } else {
-            (radius * 0.50).max(1.25)
+            let max_d = if radial {
+                (radius * 1.0).max(2.0)
+            } else {
+                (radius * 0.50).max(1.25)
+            };
+            let t = if radial {
+                0.0
+            } else {
+                (self.angle - previous_angle).abs() / 0.20
+            };
+            (max_d, t)
         };
-        let turn = if radial {
-            0.0
-        } else {
-            (self.angle - previous_angle).abs()
-        };
-        let steps = (distance / max_distance).max(turn / 0.20).ceil() as u32;
+        let steps = (distance / max_distance).max(turn).ceil() as u32;
         let contact = |t| {
             let pressure = egui::lerp(self.last.pressure..=sample.pressure, t);
             BrushContact {

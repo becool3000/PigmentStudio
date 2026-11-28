@@ -184,6 +184,8 @@ pub enum RecordedEvent {
         #[serde(default)]
         legacy_reservoir: bool,
         #[serde(default)]
+        legacy_sweep: bool,
+        #[serde(default)]
         ink: bool,
         #[serde(default)]
         charcoal: bool,
@@ -324,7 +326,7 @@ pub struct Recording {
 impl Default for Recording {
     fn default() -> Self {
         Self {
-            format: "pigment-studio-recording-v2".into(),
+            format: "pigment-studio-recording-v3".into(),
             canvas_width: None,
             canvas_height: None,
             underlayer_path: None,
@@ -343,18 +345,27 @@ impl Recording {
     }
 
     pub fn upgrade_legacy_reservoirs(&mut self) {
-        if self.format != "pigment-studio-recording-v1" {
+        let is_v1 = self.format == "pigment-studio-recording-v1";
+        let is_v2 = self.format == "pigment-studio-recording-v2";
+        if !is_v1 && !is_v2 {
             return;
         }
-        self.format = "pigment-studio-recording-v2".into();
+        self.format = "pigment-studio-recording-v3".into();
         for event in &mut self.events {
             match event {
                 RecordedEvent::Stroke {
-                    legacy_reservoir, ..
+                    legacy_reservoir,
+                    legacy_sweep,
+                    ..
+                } => {
+                    if is_v1 {
+                        *legacy_reservoir = true;
+                    }
+                    *legacy_sweep = true;
                 }
-                | RecordedEvent::Service {
+                RecordedEvent::Service {
                     legacy_reservoir, ..
-                } => *legacy_reservoir = true,
+                } if is_v1 => *legacy_reservoir = true,
                 _ => {}
             }
         }
@@ -445,6 +456,7 @@ pub fn compile_events_dims(
                 surface,
                 brush,
                 legacy_reservoir,
+                legacy_sweep,
                 ink,
                 charcoal,
                 erase,
@@ -490,7 +502,7 @@ pub fn compile_events_dims(
                         &mut commands,
                     )
                 } else {
-                    Stroke::start_full_dims(
+                    let mut s = Stroke::start_full_dims(
                         Source::Mouse,
                         to_sample(first),
                         *diameter,
@@ -508,7 +520,9 @@ pub fn compile_events_dims(
                             || (*brush == BrushKind::Round && *round_pressure),
                         dims,
                         &mut commands,
-                    )
+                    );
+                    s.set_legacy_sweep(*legacy_sweep);
+                    s
                 };
                 for s in rest {
                     stroke.extend(to_sample(s), &mut commands);
@@ -550,7 +564,7 @@ pub fn compile_events_dims(
             }
             RecordedEvent::ImportUnderlayer { path } => {
                 let resolved = resolve_path(base_dir, path);
-                let words = gpu::load_png_as_substrate(&resolved)?;
+                let words = gpu::load_png_as_substrate_sized(&resolved, dims)?;
                 commands.push(Command::ImportUnderlayer(words));
             }
             RecordedEvent::ImportReference { words } => {
@@ -710,9 +724,11 @@ pub(crate) fn render_modes_on_gpu(
     out_path: &Path,
     modes: &[(String, ExportKind)],
 ) -> Result<(usize, Vec<(String, std::path::PathBuf)>), String> {
-    if let (Some(w), Some(h)) = (recording.canvas_width, recording.canvas_height) {
-        paint.resize_canvas(gpu::CanvasDims::new(w, h));
-    }
+    let dims = match (recording.canvas_width, recording.canvas_height) {
+        (Some(w), Some(h)) => gpu::CanvasDims::new(w, h),
+        _ => gpu::CanvasDims::default(),
+    };
+    paint.resize_canvas(dims);
     paint.lighting = recording
         .lighting
         .clone()

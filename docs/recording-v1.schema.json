@@ -1,14 +1,32 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/becool3000/PigmentStudio/docs/recording-v1.schema.json",
-  "title": "Pigment Studio Recording (v1 and v2)",
+  "title": "Pigment Studio Recording (v1, v2, and v3)",
   "description": "Deterministic stroke and command recording format for Pigment Studio headless rendering, batch animation, and AI agent control.",
   "type": "object",
   "required": ["format", "events"],
   "properties": {
     "format": {
       "type": "string",
-      "enum": ["pigment-studio-recording-v1", "pigment-studio-recording-v2"]
+      "enum": [
+        "pigment-studio-recording-v1",
+        "pigment-studio-recording-v2",
+        "pigment-studio-recording-v3"
+      ]
+    },
+    "canvas_width": {
+      "type": "integer",
+      "minimum": 128,
+      "maximum": 4096,
+      "default": 1024,
+      "description": "Optional canvas width in pixels (128..=4096). Defaults to 1024 when omitted."
+    },
+    "canvas_height": {
+      "type": "integer",
+      "minimum": 128,
+      "maximum": 4096,
+      "default": 1024,
+      "description": "Optional canvas height in pixels (128..=4096). Defaults to 1024 when omitted."
     },
     "underlayer_path": {
       "type": "string",
@@ -157,15 +175,17 @@
             "ink": { "type": "boolean", "default": false },
             "charcoal": { "type": "boolean", "default": false },
             "erase": { "type": "boolean", "default": false },
-            "diameter": { "type": "number", "minimum": 1, "maximum": 256, "default": 64 },
+            "diameter": { "type": "number", "minimum": 1, "maximum": 300, "default": 64 },
             "angle_deg": { "type": "number", "default": 0 },
             "auto_follow": { "type": "boolean", "default": false, "description": "Turn directional brushes along the stroke wherever a sample does not set its own angle." },
             "knife_sweep": { "type": "boolean", "default": false, "description": "Integrate palette knife contact between samples. The desktop records this for new palette knife strokes." },
             "bristle_sweep": { "type": "boolean", "default": false, "description": "Integrate hog-bristle flat contact between samples. The desktop records this for new flat strokes." },
             "filbert_sweep": { "type": "boolean", "default": false, "description": "Integrate soft oval Filbert contact between samples. The desktop records this for new Filbert strokes." },
             "fan_sweep": { "type": "boolean", "default": false, "description": "Integrate pressure-dependent Fan tuft contact between samples. The desktop records this for new Fan strokes." },
+            "mop_sweep": { "type": "boolean", "default": false, "description": "Integrate swept Soft Mop contact between samples. The desktop records this for new Soft Mop strokes." },
             "round_pressure": { "type": "boolean", "default": false, "description": "Use the refined Round brush pressure curve. The desktop records this for new Round strokes." },
             "legacy_reservoir": { "type": "boolean", "default": false, "description": "Use the legacy Round or Flat reservoir for this stroke when preserving v1 replay." },
+            "legacy_sweep": { "type": "boolean", "default": false, "description": "Use legacy fine sweep subdivision (v1/v2) for exact backward-compatible quadrature." },
             "tile": { "type": "boolean", "default": false },
             "samples": {
               "type": "array",
@@ -192,8 +212,8 @@
             "type": { "const": "save_swatch" },
             "slot": { "type": "integer", "minimum": 0, "maximum": 63 },
             "surface": { "$ref": "#/$defs/SurfaceKind" },
-            "x": { "type": "integer", "minimum": 0, "maximum": 1023 },
-            "y": { "type": "integer", "minimum": 0, "maximum": 1023 }
+            "x": { "type": "integer", "minimum": 0, "maximum": 4095 },
+            "y": { "type": "integer", "minimum": 0, "maximum": 4095 }
           }
         },
         {
@@ -218,6 +238,42 @@
           "properties": {
             "type": { "const": "import_underlayer" },
             "path": { "type": "string" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["type", "brush", "samples"],
+          "properties": {
+            "type": { "const": "splatter" },
+            "id": { "type": "string", "description": "Optional unique stroke identifier." },
+            "group": { "type": "string", "description": "Optional group/layer tag." },
+            "brush": { "$ref": "#/$defs/BrushKind" },
+            "settings": {
+              "type": "object",
+              "properties": {
+                "viscosity": { "type": "number", "minimum": 0.05, "maximum": 1.0, "default": 0.35 },
+                "sling_throw": { "type": "number", "minimum": 0.0, "maximum": 2.0, "default": 1.0 },
+                "droplet_size": { "type": "number", "minimum": 4.0, "maximum": 128.0, "default": 18.0 },
+                "spray_density": { "type": "number", "minimum": 0.2, "maximum": 2.0, "default": 1.0 }
+              }
+            },
+            "tile": { "type": "boolean", "default": false },
+            "samples": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "$ref": "#/$defs/RecordedSample" }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["type", "strength", "viscosity", "angle_deg"],
+          "properties": {
+            "type": { "const": "gravity_step" },
+            "strength": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+            "viscosity": { "type": "number", "minimum": 0.05, "maximum": 1.0 },
+            "angle_deg": { "type": "number", "minimum": 0.0, "maximum": 360.0 },
+            "steps": { "type": "integer", "minimum": 1, "default": 1 }
           }
         }
       ]

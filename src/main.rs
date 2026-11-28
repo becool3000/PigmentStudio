@@ -723,11 +723,35 @@ impl ApplicationHandler for App {
         }
         if gravity_animating && now >= studio.next_gravity_step {
             studio.next_gravity_step = now + Duration::from_millis(16);
+            let strength = studio.gravity.strength;
+            let viscosity = studio.gravity.viscosity;
+            let angle_deg = studio.gravity.angle_deg;
             studio.commands.push(Command::AdvanceGravity {
-                strength: studio.gravity.strength,
-                viscosity: studio.gravity.viscosity,
-                angle_deg: studio.gravity.angle_deg,
+                strength,
+                viscosity,
+                angle_deg,
             });
+            match studio.recording.events.last_mut() {
+                Some(RecordedEvent::GravityStep {
+                    strength: s,
+                    viscosity: v,
+                    angle_deg: a,
+                    steps,
+                }) if (*s - strength).abs() < 1e-4
+                    && (*v - viscosity).abs() < 1e-4
+                    && (*a - angle_deg).abs() < 1e-4 =>
+                {
+                    *steps = steps.saturating_add(1);
+                }
+                _ => {
+                    studio.recording.events.push(RecordedEvent::GravityStep {
+                        strength,
+                        viscosity,
+                        angle_deg,
+                        steps: 1,
+                    });
+                }
+            }
             studio.window.request_redraw();
         }
         let polling = studio.exporting.is_some()
@@ -1454,6 +1478,7 @@ impl Studio {
                         id: None,
                         group: None,
                         legacy_reservoir: false,
+                        legacy_sweep: false,
                         surface: surface.into(),
                         brush: self.brush.into(),
                         ink,
