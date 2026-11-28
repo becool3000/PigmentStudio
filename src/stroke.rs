@@ -404,7 +404,7 @@ impl Stroke {
             return;
         }
         if distance == 0. {
-            if (sample.pressure - self.pressure_at_dab).abs() >= 0.04 {
+            if sample.pressure - self.pressure_at_dab >= 0.04 {
                 self.dab(sample, self.angle, commands);
                 self.distance_since_dab = 0.;
                 self.pressure_at_dab = sample.pressure;

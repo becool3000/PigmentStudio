@@ -1377,6 +1377,7 @@ impl Studio {
                             | Brush::Flat
                             | Brush::Filbert
                             | Brush::Fan
+                            | Brush::SoftMop
                     ),
                     self.paint.dims,
                     &mut self.commands,
